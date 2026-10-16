@@ -1,15 +1,15 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM golang:1.26.9-alpine AS build
 WORKDIR /app
-COPY gradle gradle
-COPY gradlew build.gradle settings.gradle ./
-RUN ./gradlew dependencies --no-daemon
-COPY src src
-RUN ./gradlew bootJar --no-daemon
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd cmd
+COPY internal internal
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /gentum ./cmd/server
 
-FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S ledger && adduser -S ledger -G ledger
-USER ledger
+FROM alpine:3.23
+RUN apk add --no-cache ca-certificates && addgroup -S gentum && adduser -S gentum -G gentum
+USER gentum
 WORKDIR /app
-COPY --from=build /app/build/libs/ledger-*.jar app.jar
+COPY --from=build /gentum /app/gentum
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/gentum"]
