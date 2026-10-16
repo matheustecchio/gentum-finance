@@ -8,6 +8,8 @@ import {
   type AccountType,
 } from "./accounts.graphql";
 
+import { toCents } from "./money";
+
 const accountSchema = z.object({
   name: z.string().trim().min(1, "Enter an account name").max(100),
   type: z.enum(["CURRENT", "SAVINGS", "CASH", "CREDIT_CARD"]),
@@ -15,7 +17,11 @@ const accountSchema = z.object({
   initialBalance: z
     .string()
     .trim()
-    .regex(/^-?\d{1,15}(\.\d{1,4})?$/, "Use a number with up to four decimal places"),
+    .superRefine((value, context) => {
+      try { toCents(value); } catch (error) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
+      }
+    }),
 });
 
 type AccountForm = z.infer<typeof accountSchema>;
@@ -40,8 +46,12 @@ export function CreateAccountForm() {
   });
 
   const submit = async (values: AccountForm) => {
-    await createAccount({ variables: { input: values } });
-    reset();
+    try {
+      await createAccount({ variables: { input: { ...values, initialBalance: toCents(values.initialBalance) } } });
+      reset();
+    } catch {
+      // Apollo exposes the error below and the form retains the user's input.
+    }
   };
 
   return (

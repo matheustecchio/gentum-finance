@@ -1,17 +1,17 @@
-# ADR 0002: Keep Ledger web-based and local-first
+# ADR 0002: Keep Gentum Finance web-based and local-first
 
-- Status: accepted
+- Status: accepted; backend technology and money representation superseded by ADR 0003
 - Date: 2026-10-04
 
 ## Context
 
-Ledger must keep personal financial data on the user's machine while providing a practical path for continued development. A local database does not require a desktop user interface: a browser client can communicate with backend services that listen only on the local machine.
+Gentum Finance must keep personal financial data on the user's machine while providing a practical path for continued development. A local database does not require a desktop user interface: a browser client can communicate with backend services that listen only on the local machine.
 
 The existing architecture already uses React, GraphQL, Spring Boot, and PostgreSQL. Packaging it as a desktop application would add a wrapper and distribution lifecycle while still requiring the Java backend and database to be bundled, managed, or replaced.
 
 ## Decision
 
-Keep Ledger as a web-based, local-first application:
+Keep Gentum Finance as a web-based, local-first application:
 
 - React runs in the user's browser.
 - Spring Boot exposes GraphQL on the local machine and remains authoritative for validation, ownership, financial behavior, and persistence.
@@ -31,3 +31,11 @@ Desktop packaging with Electron or Tauri, replacing PostgreSQL with an embedded 
 - Local startup currently involves multiple processes until the launcher or full-stack Compose milestone is implemented.
 - Users still need a supported browser and the local runtime prerequisites during development.
 - Backup and restore must operate on local data and will need an explicit user-facing workflow before real financial data is supported.
+
+## Technology update
+
+[ADR 0003](0003-go-backend-and-integer-cents.md) replaces Java/Spring/Flyway with Go and embedded SQL migrations. The modular-monolith and local-first decisions remain in force.
+
+## Functional MVP delivery
+
+The accepted MVP now uses `./gentum start` to build and start nginx/React, Go and PostgreSQL in Docker, waiting for health checks. Only `127.0.0.1:5173` (configurable through `GENTUM_PORT`) is published. Backend and database ports remain internal. `./gentum stop` preserves the configured named database volume, and `./gentum status` reports health. Startup never launches a visible browser or resets data. The printed browser origin is the allowed mutation Origin. See [ADR 0004](0004-authenticated-local-finance-mvp.md).

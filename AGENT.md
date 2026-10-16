@@ -1,46 +1,46 @@
-# Ledger repository guidance
+# Gentum Finance repository guidance
 
 ## Project and paths
 
-Ledger is a local-first, web-based Java/Spring/GraphQL and React personal-finance application implemented as a modular monolith. Treat it as early-stage software and never use real credentials or financial data in tests or examples.
+Gentum Finance is a local-first, web-based Go/GraphQL and React personal-finance application implemented as a modular monolith. Treat it as early-stage software and never use real credentials or financial data in tests or examples.
 
-- `backend/src/main/java/com/matheustecchio/ledger/<module>/`: domain-oriented backend modules
-- `backend/src/main/resources/graphql/`: GraphQL schema
-- `backend/src/main/resources/db/migration/`: append-only Flyway migrations
+- `backend/internal/<module>/`: domain-oriented backend modules
+- `backend/internal/api/`: GraphQL schema and HTTP transport
+- `backend/internal/database/migrations/`: embedded, append-only SQL migrations
 - `frontend/src/features/`: feature-owned React UI and GraphQL documents
 - `docs/`: architecture, API, and decision records
 
-Do not edit dependencies, build output, coverage output, generated bundles, or Gradle caches.
+Do not edit dependencies, build output, coverage output, generated bundles, or tool caches.
 
 ## Architecture rules
 
 - Keep GraphQL resolvers thin: map input, call an application service, and map output.
-- Keep domain types independent of Spring, JPA, and frontend concerns.
+- Keep domain types independent of HTTP, SQL, and frontend concerns.
 - Implement persistence behind domain repository interfaces.
 - Organize new code by domain module; do not add repository-wide controller/service/repository/entity packages.
-- Use `BigDecimal` for money and PostgreSQL `NUMERIC(19, 4)`. Never use `double` or a GraphQL/JSON floating-point value for financial amounts.
-- Use `LocalDate` for future financial dates, `Instant` for system timestamps, and UTC clocks.
+- Use Go `int64` and PostgreSQL `BIGINT` for money in cents. GraphQL `Cents` uses integer strings; the UI converts decimal text with `BigInt`. Never use floating point for financial amounts.
+- Use date-only values for financial dates and UTC `time.Time` for system timestamps.
 - Derive the owning user ID server-side and scope every repository query by it. Never accept ownership from a client input.
 - Treat transfers as linked transfers, not unrelated income and expense records.
-- Change database schemas only through a new Flyway migration; keep Hibernate on validation mode.
+- Change database schemas only through a new embedded SQL migration. Never edit applied migrations; preserve checksums and legacy Flyway adoption.
 - Keep backend financial calculations authoritative.
 - Preserve the browser-based, local-first delivery model. Keep application services and data on the user's machine by default, and bind development services to the loopback interface.
 - Do not introduce Electron, Tauri, cloud hosting, or an embedded-database replacement without an accepted ADR that changes the product direction.
 
-The open GraphQL endpoint and fixed development user are temporary Phase 0 behavior. Do not describe them as authentication, expose the app publicly, or weaken the `CurrentUserProvider` seam. Phase 1 must replace that implementation with secure cookie-based authentication.
+The runtime uses verified cookie sessions through the `CurrentUserProvider` seam. Keep all financial routes authenticated, enforce mutation Origin/JSON checks and retain ownership scoping. The legacy development provider is used only by compatibility tests; never wire it into the server. Keep local HTTP services on trusted loopback.
 
 ## Commands and validation
 
-Use Java 21 and Node.js 20.19 or newer. Use the checked-in Gradle wrapper and npm lockfile.
+Use Go 1.26.9 or newer and Node.js 20.19 or newer. Use go.mod/go.sum and the npm lockfile.
 
 Backend commands from `backend/`:
 
 ```bash
-./gradlew test
-./gradlew integrationTest
-./gradlew jacocoTestReport
-./gradlew check
-./gradlew build
+go test -race ./...
+go vet ./...
+GENTUM_TEST_DATABASE_URL=postgres://... go test -tags=integration ./...
+go test -coverprofile=coverage.out ./...
+go build -o bin/gentum ./cmd/server
 ```
 
 Frontend commands from `frontend/`:
@@ -53,7 +53,7 @@ npm run test:coverage
 npm run build
 ```
 
-For backend code or schema changes, run unit tests and PostgreSQL integration tests. For frontend code, run type checking, unit tests, and the production build. Run both sides for GraphQL contract changes. Run the full relevant suite before committing. The Playwright account test is currently skipped and must be reported as unavailable, not passing.
+For backend code or schema changes, run unit tests and PostgreSQL integration tests. For frontend code, run type checking, unit tests, and the production build. Run both sides for GraphQL contract changes. Run the full relevant suite before committing. Run the enabled Playwright journey against the full Compose stack and `node scripts/check-persistence.mjs` for delivery changes.
 
 No coverage threshold exists yet; use the generated reports as a baseline and add meaningful behavioral tests with new work.
 

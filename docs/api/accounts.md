@@ -1,59 +1,36 @@
 # Account GraphQL API
 
-The development endpoint is `POST http://localhost:8080/graphql`. GraphiQL is enabled locally at `http://localhost:8080/graphiql`.
+Use the signed-in browser session at `POST http://localhost:5173/graphql`, with `Content-Type: application/json` and the matching Origin. The backend port is internal in Docker.
 
 ## Create an account
 
 ```graphql
 mutation CreateAccount {
-  createAccount(
-    input: {
-      name: "Everyday account"
-      type: CURRENT
-      currency: "EUR"
-      initialBalance: "425.50"
-    }
-  ) {
-    id
-    name
-    type
-    currency
-    initialBalance
-    archived
-    createdAt
-    updatedAt
+  createAccount(input: {
+    name: "Everyday account"
+    type: CURRENT
+    currency: "EUR"
+    initialBalance: "42550"
+  }) {
+    id name type currency initialBalance archived createdAt updatedAt
   }
 }
 ```
 
-The initial balance is a decimal string with at most four fractional digits and must fit PostgreSQL `NUMERIC(19, 4)`. Currency is an uppercase ISO 4217 code. The server assigns the owning user and ignores no client-supplied ownership value because none exists in the input.
+`initialBalance` uses the custom `Cents!` scalar: a canonical signed integer string in the range -9223372036854775808 through 9223372036854775807. `"42550"` means EUR 425.50. Fractions, exponent notation, leading zeros, negative zero, JSON numeric values, and out-of-range integers are rejected. This differs from the former decimal-major-unit contract; update both client and server together. The UI converts decimal text to cents exactly using `BigInt`.
+
+Names are trimmed and must contain 1–100 Unicode characters. Supported currencies are EUR, GBP, USD, and BRL. Supported account types are CURRENT, SAVINGS, CASH, and CREDIT_CARD. The backend assigns UUIDs, UTC timestamps, ownership, and the initial unarchived state. Ownership cannot be supplied by the client.
 
 ## List accounts
 
 ```graphql
 query Accounts {
-  accounts {
-    id
-    name
-    type
-    currency
-    initialBalance
-    archived
-  }
+  accounts { id name type currency initialBalance archived }
 }
 ```
 
-The result is ordered by creation time and scoped to the current server-side user identity.
+Results are scoped to the current server-side user, ordered by creation time then UUID. An empty result is an empty array.
 
-## Account types
+## Authentication
 
-```text
-CURRENT
-SAVINGS
-CASH
-CREDIT_CARD
-```
-
-## Current security limitation
-
-The account contract is ready for user-scoped authorization, but authentication is not implemented in this milestone. All local requests use a seeded development user. Do not expose this API publicly or use real financial data.
+All account operations require the verified local cookie session. Ownership comes from the server context; no client-supplied owner is accepted. See the [finance/authentication contract](finance.md).

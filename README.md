@@ -1,147 +1,53 @@
-# Ledger
+# Gentum Finance
 
-Ledger is a local-first, web-based personal finance management application built as a Java, Spring, GraphQL, and React portfolio project. It is a modular monolith: one backend deployment with domain-oriented internal boundaries and one browser client. The application and PostgreSQL database run on the user's machine; no cloud service is required for normal use.
+A local-first personal-finance web application with a Go/GraphQL backend, React frontend and PostgreSQL database. All three services run on your machine in Docker.
 
-The current architecture milestone proves one complete path:
+## Start locally
 
-> Create an account in React → send a GraphQL mutation → apply backend rules → persist it in PostgreSQL → query it through GraphQL → render it in React.
-
-Ledger is early-stage development software. It is not a banking application and must not be used with real financial data yet. Authentication is deliberately scheduled for the next phase; the current backend assigns every account to a seeded development user.
-
-## Stack
-
-- Backend: Java 21, Spring Boot 4.1, Spring for GraphQL, Spring Security, Spring Data JPA, Flyway, PostgreSQL, Gradle
-- Frontend: React 19, TypeScript, Vite, Apollo Client, React Router, React Hook Form, Zod
-- Testing: JUnit 5, Spring GraphQL Tester, Testcontainers, Vitest, Testing Library, Playwright foundation
-- Local infrastructure: Docker Compose
-
-See [the architecture overview](docs/architecture/overview.md), [the account GraphQL API](docs/api/accounts.md), [ADR 0001](docs/decisions/0001-modular-monolith.md), and [ADR 0002](docs/decisions/0002-local-first-web-application.md) for the rationale and boundaries. Development commands and troubleshooting live in the [development guide](docs/development.md).
-
-## Prerequisites
-
-- Java 21
-- Node.js 20.19 or newer
-- npm 9 or newer
-- Docker with Compose
-
-Gradle does not need to be installed globally; the backend includes the Gradle wrapper.
-
-## Run locally
-
-The current development environment uses three local processes: PostgreSQL in Docker, Spring Boot through Gradle, and Vite through npm. A full-stack Compose profile or launcher that starts all three with one command is the next local-experience milestone; it is not implemented yet.
-
-Copy the development configuration and start PostgreSQL:
+Install Docker Engine with Docker Compose v2 (including `up --wait`), then run:
 
 ```bash
-cp .env.example .env
-docker compose up -d
+./gentum start
 ```
 
-Start the backend:
+Open **http://localhost:5173** and create a local profile with an email and a password of at least 12 characters. There are no default login credentials. Use fictional data while evaluating this early MVP.
 
 ```bash
-cd backend
-./gradlew bootRun
+./gentum status # container health and published address
+./gentum stop   # stop services; preserve database data
+./gentum start  # rebuild/start and wait for health checks
+./gentum logs   # recent service logs
 ```
 
-In a second terminal, start the frontend:
+The frontend binds only to `127.0.0.1`; backend and database ports are internal to the Compose network. Use `localhost` in your browser: requests from a different origin, including `127.0.0.1`, are rejected. The launcher does not open a browser automatically.
 
-```bash
-cd frontend
-npm ci
-npm run dev
-```
+Docker stores data in the persistent `gentum-finance_gentum-postgres-data` volume. Stopping, restarting, rebuilding and ordinary container recreation preserve it. Do not remove the volume or use `docker compose down -v` unless you intend to delete the data. Back up important data before upgrades; CSV export is a transaction interchange format, not a complete database backup.
 
-Open `http://localhost:5173`. Vite proxies `/graphql` to the backend at `http://localhost:8080`. GraphiQL is available during development at `http://localhost:8080/graphiql`.
+To override the port or existing database settings, copy [.env.example](.env.example) to `.env` and edit it. Compose preserves the prior database defaults (`gentum`, `gentum_dev_only`, `gentum_finance`) and configurable volume name. Credentials must match an already initialized volume; changing `.env` does not change an existing PostgreSQL role password. `GENTUM_PORT=5180 ./gentum start` uses http://localhost:5180.
 
-By default, the database and backend bind to the local loopback interface. Keep them local while the fixed development identity and open GraphQL endpoint remain in place.
+## Features
 
-Stop PostgreSQL without deleting its volume:
+- Local profiles, password login, 24-hour cookie sessions and logout.
+- Current, savings, cash and credit-card accounts in EUR, GBP, USD or BRL.
+- Income/expense categories and date-only transactions with descriptions.
+- Atomic linked transfers between accounts in the same currency.
+- Account balances and monthly income/expense totals, separated by currency.
+- Monthly category budgets with actual spending and percentage used.
+- Monthly recurring income/expense schedules, explicit **Run due transactions**, idempotent occurrences, month-end handling and stopping schedules.
+- Validated, all-or-nothing CSV import and spreadsheet-safe CSV export.
 
-```bash
-docker compose down
-```
+Money uses signed `int64`/PostgreSQL `BIGINT` integer cents: **100 = 1.00**. The browser converts decimal text with `BigInt`; GraphQL transports money as exact integer strings. Overflowing balances and monthly totals are rejected atomically. Transfers require the same currency; no exchange rates or mixed-currency sum is implied. Opening balances and transfers do not count as income or spending.
 
-## Configuration
+This MVP supports creating records and stopping recurring schedules. Editing/deleting ledger records, password recovery, automatic bank connections, exchange rates and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
 
-The checked-in [.env.example](.env.example) contains local-only defaults. Runtime values are read from environment variables; `.env` is ignored by Git.
+## Security and operation
 
-| Variable | Purpose | Development default |
-| --- | --- | --- |
-| `LEDGER_DATABASE_URL` | Backend JDBC URL | `jdbc:postgresql://localhost:5432/ledger` |
-| `LEDGER_DATABASE_USERNAME` | PostgreSQL user | `ledger` |
-| `LEDGER_DATABASE_PASSWORD` | PostgreSQL password | `ledger_dev_only` |
-| `LEDGER_SERVER_ADDRESS` | Backend bind address | `127.0.0.1` |
-| `LEDGER_FRONTEND_ORIGIN` | Allowed browser origin | `http://localhost:5173` |
-| `LEDGER_GRAPHIQL_ENABLED` | Enables the local GraphiQL UI | `true` |
-| `VITE_GRAPHQL_URL` | Optional frontend GraphQL URL | `/graphql` |
+Passwords use PBKDF2-SHA256 with individual salts and 600,000 iterations. Session tokens are random, stored as hashes, HttpOnly and SameSite Strict; mutations require the configured exact Origin and JSON content type. Login/registration attempts are rate limited, and password hashing concurrency is bounded. Ownership comes from the server session and is enforced in queries and composite foreign keys. Legacy development-user data is retained by migrations but has no login password and is not automatically assigned to new profiles.
 
-The seeded development identity is fixed inside the backend configuration and migration. It is not an authentication mechanism.
+Local HTTP cookies intentionally lack `Secure` for loopback HTTP. The application is intended for trusted local use; do not expose Compose services to a public network. Database credentials are local defaults, and data at rest is not encrypted by the application.
 
-## Verify changes
+## Development and validation
 
-Backend:
+See [development](docs/development.md), [architecture](docs/architecture/overview.md), [API and CSV contract](docs/api/finance.md), [contributing](CONTRIBUTING.md) and [repository guidance](AGENT.md).
 
-```bash
-cd backend
-./gradlew test                 # fast unit tests
-./gradlew integrationTest      # real PostgreSQL via Testcontainers
-./gradlew jacocoTestReport     # HTML and XML coverage reports
-./gradlew check                # aggregate backend verification
-./gradlew build                # compile, verify, and package
-```
-
-Frontend:
-
-```bash
-cd frontend
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
-```
-
-The Playwright runner is configured, but the full-browser account journey remains skipped until the application-wide Compose profile is added. Do not report it as passing.
-
-Coverage reports are generated at `backend/build/reports/jacoco/test/html/index.html` and `frontend/coverage/index.html`. No percentage threshold is enforced at this initial baseline.
-
-## Repository layout
-
-```text
-backend/                 Spring Boot modular monolith
-  src/main/java/.../
-    account/             First domain module and vertical slice
-    shared/              Cross-cutting time and security seams
-  src/main/resources/
-    graphql/             GraphQL schema
-    db/migration/        Flyway migrations
-frontend/                React application organized by feature
-docs/architecture/       System boundaries and data flow
-docs/api/                GraphQL contracts and examples
-docs/decisions/          Architecture decision records
-docker-compose.yml       Development PostgreSQL
-```
-
-## Scope
-
-The next planned phase is users and cookie-based authentication, followed by a one-command local startup experience. Later phases add categories, transactions, transfers, dashboard calculations, budgets, recurring transactions, search, import/export, and UI polish. Cloud hosting, desktop packaging, banking integrations, payments, microservices, Kafka, and Kubernetes are intentionally out of scope for the MVP unless a later ADR changes the product direction.
-
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes. It defines the required feature-branch, focused-commit, verification, and pull-request workflow. The longer [Git and GitHub workflow](docs/workflows/git-and-github.md) explains how local work moves through review without committing directly to `main`.
-
-Repository automation is still being established. Follow the documented checks locally and do not infer that a passing GitHub status exists unless the repository contains and runs the corresponding workflow.
-
-## Project documentation
-
-- [Development and testing](docs/development.md)
-- [Architecture overview](docs/architecture/overview.md)
-- [Account GraphQL API](docs/api/accounts.md)
-- [ADR 0001: Domain-oriented modular monolith](docs/decisions/0001-modular-monolith.md)
-- [ADR 0002: Local-first web application](docs/decisions/0002-local-first-web-application.md)
-- [Git and GitHub workflow](docs/workflows/git-and-github.md)
-- [Repository guidance for coding agents](AGENT.md)
-
-## License
-
-Ledger is available under the [MIT License](LICENSE).
+CI runs Go race/integration tests against PostgreSQL, Go vet/build, frontend type checking/unit coverage/build, a real Docker browser journey and a launcher stop/start persistence check on every pull request. A workflow file defines checks; repository branch rules are a separate remote configuration.

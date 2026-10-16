@@ -1,11 +1,11 @@
 # ADR 0001: Use a domain-oriented modular monolith
 
-- Status: accepted
+- Status: accepted; backend technology and money representation superseded by ADR 0003
 - Date: 2026-08-30
 
 ## Context
 
-Ledger needs to demonstrate Java, Spring, GraphQL, PostgreSQL, and React while remaining understandable and inexpensive to operate. The MVP domains will interact frequently and do not yet have independent scaling, deployment, or ownership needs.
+Gentum Finance needs to demonstrate Java, Spring, GraphQL, PostgreSQL, and React while remaining understandable and inexpensive to operate. The MVP domains will interact frequently and do not yet have independent scaling, deployment, or ownership needs.
 
 ## Decision
 
@@ -22,3 +22,7 @@ Start with an account vertical slice before implementing other domains. Use inte
 - A service extraction is possible later, but only a demonstrated operational need should justify it.
 
 Microservices, Kafka, and Kubernetes are explicitly deferred.
+
+## Technology update
+
+[ADR 0003](0003-go-backend-and-integer-cents.md) replaces Java/Spring/Flyway with Go and embedded SQL migrations. The modular-monolith and local-first decisions remain in force.

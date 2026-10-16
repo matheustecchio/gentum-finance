@@ -72,7 +72,7 @@ Reviewers should verify:
 - behavior and tests match the stated outcome;
 - financial values never use floating point;
 - user ownership is decided and enforced server-side;
-- migrations are additive and JPA remains in validation mode;
+- migrations are append-only, checksummed SQL and preserve existing data;
 - GraphQL, frontend documents, and API documentation remain synchronized;
 - no secrets, production data, debug output, or generated noise entered the diff;
 - skipped or blocked validation is not represented as passing.
@@ -85,7 +85,7 @@ The repository owner selects the merge method and performs or authorizes the mer
 
 After merge, delete the remote and local feature branch when it is no longer needed. GitHub does not currently delete merged branches automatically.
 
-## Current GitHub enforcement
+## GitHub enforcement history
 
 Verified on 2026-08-30 for `matheustecchio/ledger-app`:
 
@@ -98,13 +98,13 @@ Verified on 2026-08-30 for `matheustecchio/ledger-app`:
 - secret scanning and push protection are enabled;
 - private vulnerability reporting and Dependabot security updates are disabled.
 
-These are observations, not guarantees. Re-check GitHub before claiming a check, approval, merge strategy, or security mechanism is enforced. Until CI and branch protection are added, the verification steps in `CONTRIBUTING.md` are required project policy but are not automatically enforced by GitHub.
+These are observations, not guarantees. Re-check GitHub before claiming a check, approval, merge strategy, or security mechanism is enforced. This MVP adds `.github/workflows/verify.yml` with `backend` and `frontend-and-stack` jobs for pull requests and pushes to main. It validates real PostgreSQL and Docker browser/persistence flows. A workflow does not configure branch protection; the historical settings above are not a current enforcement claim.
 
 ## Recommended GitHub hardening
 
 The following changes require separate maintainer approval because they alter remote repository policy:
 
-1. Add pull-request CI that runs backend unit/integration tests and frontend typecheck/tests/build.
+1. Require the new CI jobs in the selected branch-protection policy after confirming their remote runs.
 2. Protect `main` or add a ruleset requiring pull requests and successful CI checks.
 3. Decide whether approving reviews are mandatory.
 4. Select a preferred merge method and enable automatic branch deletion if desired.

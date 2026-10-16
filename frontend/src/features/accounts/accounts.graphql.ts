@@ -33,6 +33,7 @@ export interface Account {
   name: string;
   type: AccountType;
   currency: string;
+  /** Signed integer cents encoded as text to preserve int64 precision. */
   initialBalance: string;
   archived: boolean;
 }

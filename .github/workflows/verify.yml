@@ -1,0 +1,70 @@
+name: Verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  backend:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: gentum_test
+          POSTGRES_USER: gentum
+          POSTGRES_PASSWORD: gentum_test_only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gentum -d gentum_test"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go test -race -tags=integration -coverpkg=./... -coverprofile=coverage.out ./...
+        env:
+          GENTUM_TEST_DATABASE_URL: postgres://gentum:gentum_test_only@localhost:5432/gentum_test?sslmode=disable
+      - run: go vet ./...
+      - run: go build -o bin/gentum ./cmd/server
+  frontend-and-stack:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck && npm run test:coverage && npm run build
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: ./gentum start
+      - run: npm run test:e2e
+        working-directory: frontend
+      - run: node scripts/check-persistence.mjs
+      - if: failure()
+        run: docker compose logs --tail=100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-report
+          path: frontend/playwright-report
+          retention-days: 7
+      - if: always()
+        run: ./gentum stop
