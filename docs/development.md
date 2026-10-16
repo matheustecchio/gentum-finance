@@ -48,10 +48,11 @@ cd frontend
 npx playwright install --with-deps chromium
 npm run test:e2e
 cd ..
+node --test scripts/persistence-client.test.mjs
 node scripts/check-persistence.mjs
 ```
 
-`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite creates fictional profiles and verifies actual cookies, accounts, cents, transactions, linked transfers, budgets, idempotent recurrence, atomic CSV validation/export, re-login and unauthenticated isolation. The persistence script invokes the real launcher status/stop/start and verifies a profile and exact account amount survive. These fixtures remain in the local database under separate fictional profiles and do not appear in other users' ledgers.
+`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite creates fictional profiles and verifies actual cookies, accounts, cents, transactions, linked transfers, budgets, idempotent recurrence, atomic CSV validation/export, re-login and unauthenticated isolation. Persistence requests explicitly close their HTTP connections so synchronous Docker restarts cannot reuse stale pooled sockets on Node 22. Verification failures surface immediately, with no automatic retries of financial writes. The persistence script invokes the real launcher status/stop/start and verifies a profile and exact account amount survive. These fixtures remain in the local database under separate fictional profiles and do not appear in other users' ledgers.
 
 Backend integration tests isolate schemas in the configured test database and cover migration adoption/checksum/rollback, session revocation/expiry, cross-user references, exact amounts above JavaScript's safe integer range, account overflow, monthly budget actuals, recurring idempotence and CSV atomicity. Never point tests at production data. Coverage is reported as a baseline; no percentage gate is enforced.
 
