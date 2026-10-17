@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { History, clearFilters, type Filters } from "./History";
+import trashIcon from "../../assets/icons/trash.svg";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   LocalAccess,
   useLocalAccess,
@@ -137,6 +145,7 @@ const tabs = [
   "Overview",
   "Accounts",
   "Categories",
+  "Add transaction",
   "Transactions",
   "Transfers",
   "Budgets",
@@ -153,6 +162,16 @@ export function FinanceApp() {
 }
 function Wallet() {
   const { status, lock } = useLocalAccess();
+  const [filters, setFilters] = useState<Filters>({ ...clearFilters });
+  const deleteDialog = useRef<HTMLDialogElement>(null);
+  const deleteTrigger = useRef<HTMLButtonElement | null>(null);
+  const [deleting, setDeleting] = useState<Row>();
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  useEffect(() => {
+    if (deleting) deleteDialog.current?.showModal();
+    else deleteTrigger.current?.focus();
+  }, [deleting]);
   const [tab, setTab] = useState("Overview");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [data, setData] = useState<Snapshot>(empty);
@@ -164,11 +183,11 @@ function Wallet() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await graphql<{ finance: Snapshot }>(
-        "query Finance($month:String!){finance(month:$month)}",
+      const result = await graphql<{ financeSummary: Snapshot }>(
+        "query Finance($month:String!){financeSummary(month:$month)}",
         { month },
       );
-      setData(result.finance);
+      setData(result.financeSummary);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load");
@@ -206,8 +225,8 @@ function Wallet() {
   const account = (id: string) =>
     data.accounts.find((a) => a.id === id)?.name ?? id;
   const category = (id: string) =>
-    (data.categories.find((a) => a.id === id)?.path ||
-      data.categories.find((a) => a.id === id)?.name) ??
+    data.categories.find((c) => c.id === id)?.path ||
+    data.categories.find((c) => c.id === id)?.name ||
     "Transfer";
   const eligibleAccounts = data.accounts.filter((a) => a.archived !== "true");
   const destination =
@@ -236,12 +255,14 @@ function Wallet() {
           {tabs.map((t) => (
             <button
               key={t}
-              className={tab === t ? "active" : ""}
+              className={`${tab === t ? "active" : ""} ${t === "Add transaction" ? "add-transaction" : ""}`}
+              aria-current={tab === t ? "page" : undefined}
               onClick={() => {
                 setTab(t);
                 setNotice("");
               }}
             >
+              {t === "Add transaction" && <span aria-hidden="true">+ </span>}
               {t}
             </button>
           ))}
@@ -437,6 +458,17 @@ function Wallet() {
                   <li key={c.id}>
                     <strong>{c.path || c.name}</strong>
                     <span className="badge">{c.kind}</span>
+                    <button
+                      className="delete-category"
+                      aria-label={`Delete ${c.path || c.name}`}
+                      onClick={(e) => {
+                        deleteTrigger.current = e.currentTarget;
+                        setDeleting(c);
+                        setDeleteError("");
+                      }}
+                    >
+                      <img src={trashIcon} alt="" />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -444,52 +476,83 @@ function Wallet() {
             </section>
           </>
         )}
+        {tab === "Add transaction" && (
+          <Form
+            title="Record a transaction"
+            submit="Save transaction"
+            fields={entryFields}
+            onSubmit={(values) => save("transaction", values)}
+          />
+        )}
         {tab === "Transactions" && (
-          <>
-            <Form
-              title="Record a transaction"
-              submit="Save transaction"
-              fields={entryFields}
-              onSubmit={(values) => save("transaction", values)}
-            />
-            <section className="panel">
-              <h2>Transactions · {month}</h2>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Account / category</th>
-                      <th>Description</th>
-                      <th>Kind</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.entries
-                      .filter((e) => e.date.startsWith(month))
-                      .map((e) => (
-                        <tr key={e.id}>
-                          <td>{e.date}</td>
-                          <td>
-                            {account(e.accountId)}
-                            <small>{category(e.categoryId)}</small>
-                          </td>
-                          <td>{e.description || "—"}</td>
-                          <td>{e.kind.replace("_", " ")}</td>
-                          <td className="money">
-                            {formatMoney(e.amount, e.currency)}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="muted">
-                Transfers appear as linked outgoing and incoming entries.
+          <History
+            categories={data.categories}
+            accounts={data.accounts}
+            filters={filters}
+            onFilters={setFilters}
+          />
+        )}
+        {deleting && (
+          <dialog
+            ref={deleteDialog}
+            aria-labelledby="delete-category-title"
+            className="category-dialog"
+            onCancel={(e) => {
+              e.preventDefault();
+              if (!deleteBusy) setDeleting(undefined);
+            }}
+          >
+            <div className="panel">
+              <h2 id="delete-category-title">
+                Delete {deleting.path || deleting.name}?
+              </h2>
+              <p>
+                Only categories without children, transactions, budgets or
+                schedules can be deleted.
               </p>
-            </section>
-          </>
+              {deleteError && <p role="alert">{deleteError}</p>}
+              <div className="actions">
+                <button
+                  autoFocus
+                  disabled={deleteBusy}
+                  onClick={() => setDeleting(undefined)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="delete-category-confirm"
+                  disabled={deleteBusy}
+                  onClick={async () => {
+                    setDeleteBusy(true);
+                    setDeleteError("");
+                    try {
+                      await execute("deleteCategory", { id: deleting.id });
+                      setFilters((f) =>
+                        f.categoryId === deleting.id
+                          ? { ...f, categoryId: "", subcategoryId: "" }
+                          : f.subcategoryId === deleting.id
+                            ? { ...f, subcategoryId: "" }
+                            : f,
+                      );
+                      setNotice("Category deleted");
+                      setDeleting(undefined);
+                      await load();
+                    } catch (e) {
+                      setDeleteError(
+                        e instanceof Error
+                          ? e.message
+                          : "Unable to delete category",
+                      );
+                    } finally {
+                      setDeleteBusy(false);
+                    }
+                  }}
+                >
+                  {deleteBusy ? "Deleting…" : "Delete category"}
+                </button>
+              </div>
+            </div>
+          </dialog>
         )}
         {tab === "Transfers" && (
           <>

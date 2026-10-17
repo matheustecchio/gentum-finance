@@ -31,7 +31,9 @@ async function choose(page: Page, label: string, prefix: string) {
   const option = await select
     .locator("option")
     .filter({
-      hasText: new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?: ·|$)"),
+      hasText: new RegExp(
+        "^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?: ·|$)",
+      ),
     })
     .getAttribute("value");
   await select.selectOption(option!);
@@ -79,19 +81,31 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await createCategory(page, "Food", "EXPENSE");
   await createCategory(page, "Salary", "INCOME");
   await nav(page, "Categories");
-  await expect(page.getByText("Vacations / Food", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Vacations / Food", { exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Category name").fill("Coffee shop");
   await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
   await choose(page, "Parent category (optional)", "Food");
   await page.getByRole("button", { name: "Create category" }).click();
-  await expect(page.getByText("Food / Coffee shop", { exact: true })).toBeVisible();
-  await nav(page, "Transactions");
+  await expect(
+    page.getByText("Food / Coffee shop", { exact: true }),
+  ).toBeVisible();
+  await nav(page, "Add transaction");
   await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
   const accountId = await choose(page, "Account", "Daily wallet");
-  const categoryId = await choose(page, "Category (must match kind)", "Food / Coffee shop");
+  const categoryId = await choose(
+    page,
+    "Category (must match kind)",
+    "Food / Coffee shop",
+  );
   await page.getByLabel("Amount (decimal, account currency)").fill("0.29");
   await page.getByLabel("Description", { exact: true }).fill("Coffee");
   await page.getByRole("button", { name: "Save transaction" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Saved" }),
+  ).toBeVisible();
+  await nav(page, "Transactions");
   await expect(
     page.getByRole("cell", { name: "Coffee", exact: true }),
   ).toBeVisible();
@@ -223,4 +237,172 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
     directPage.getByText("Daily wallet", { exact: true }),
   ).toBeVisible();
   await direct.close();
+});
+
+test("bounded history, separate recording and category deletion work with keyboard and narrow navigation", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.GENTUM_VERIFICATION_FIXTURE !== "1",
+    "Requires a disposable verification stack",
+  );
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Overview", exact: true }),
+  ).toBeVisible();
+  await createAccount(page, "History wallet");
+  await createCategory(page, "History root", "EXPENSE");
+  const api = async (query: string, variables: unknown = {}) =>
+    page.evaluate(
+      async ({ query, variables }) => {
+        const response = await fetch("/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, variables }),
+        });
+        const result = await response.json();
+        if (result.errors) throw new Error(JSON.stringify(result.errors));
+        return result.data;
+      },
+      { query, variables },
+    );
+  const snapshot = (await api('{financeSummary(month:"2026-10")}'))
+    .financeSummary;
+  expect(snapshot.entries).toEqual([]);
+  const root = snapshot.categories.find(
+    (c: Record<string, string>) => c.name === "History root",
+  ).id;
+  const accountId = snapshot.accounts.find(
+    (a: Record<string, string>) => a.name === "History wallet",
+  ).id;
+  const action = (action: string, input: Record<string, string>) =>
+    api(
+      "mutation($action:String!,$input:FinanceInput!){executeFinance(action:$action,input:$input)}",
+      { action, input },
+    );
+  await action("category", {
+    name: "History child",
+    kind: "EXPENSE",
+    parentId: root,
+  });
+  const categories = (await api('{financeSummary(month:"2026-10")}'))
+    .financeSummary.categories;
+  const child = categories.find(
+    (c: Record<string, string>) => c.name === "History child",
+  ).id;
+  for (let i = 0; i < 23; i++)
+    await action("transaction", {
+      accountId,
+      categoryId: i % 2 ? root : child,
+      kind: "EXPENSE",
+      amount: "29",
+      date: "2020-01-01",
+      description: `History fixture ${i}`,
+    });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Overview", exact: true }),
+  ).toBeVisible();
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 850 });
+    const add = page
+      .getByRole("navigation")
+      .getByRole("button", { name: "Add transaction" });
+    await add.focus();
+    await expect(add).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Record a transaction" }),
+    ).toBeVisible();
+    await expect(add).toHaveAttribute("aria-current", "page");
+    await expect(add).toContainText("+");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    const actionBounds = await add.boundingBox();
+    expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(width);
+    expect(
+      await add.evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).not.toEqual(
+      await page
+        .getByRole("button", { name: "Transactions", exact: true })
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    );
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Transaction history" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save transaction" }),
+    ).toHaveCount(0);
+    await page.getByLabel("Category", { exact: true }).selectOption(root);
+    await expect(page.locator("tbody tr")).toHaveCount(10);
+    await expect(
+      page.getByRole("cell", { name: "2020-01-01", exact: true }),
+    ).toHaveCount(10);
+    const first = await page.locator("tbody tr").allTextContents();
+    await page.getByRole("button", { name: "Older", exact: true }).click();
+    await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(10);
+    await expect
+      .poll(async () => {
+        const second = await page.locator("tbody tr").allTextContents();
+        return (
+          second.length === 10 && !second.some((row) => first.includes(row))
+        );
+      })
+      .toBe(true);
+    await page.getByRole("button", { name: "Older", exact: true }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(3);
+    await expect(
+      page.getByRole("button", { name: "Older", exact: true }),
+    ).toBeDisabled();
+    await page.getByLabel("Subcategory").selectOption(child);
+    await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(10);
+    await page.getByLabel("Start date").fill("2021-01-01");
+    await expect(
+      page.getByText("No transactions match these filters."),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await expect(page.getByLabel("Subcategory")).toBeDisabled();
+    await page.screenshot({
+      path: `test-results/history-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await nav(page, "Categories");
+  await page.getByLabel("Category name").fill("Delete fixture");
+  await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
+  await page.getByRole("button", { name: "Create category" }).click();
+  const del = page.getByRole("button", {
+    name: "Delete Delete fixture",
+    exact: true,
+  });
+  await del.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toHaveAccessibleName(
+    "Delete Delete fixture?",
+  );
+  await page.keyboard.press("Escape");
+  await expect(del).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page
+    .getByRole("button", { name: "Delete category", exact: true })
+    .click();
+  await expect(del).toHaveCount(0);
+  await page
+    .getByRole("button", {
+      name: "Delete History root / History child",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("button", { name: "Delete category", exact: true })
+    .click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "Category is used",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
 });

@@ -19,7 +19,7 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
                 }
               : {
                   data: {
-                    finance: {
+                    financeSummary: {
                       accounts: [
                         {
                           id: "a",
@@ -121,7 +121,7 @@ function mockLedger(
               data: body.variables?.action
                 ? { executeFinance: "Saved" }
                 : {
-                    finance: {
+                    financeSummary: {
                       accounts,
                       categories,
                       entries: [],
@@ -190,7 +190,7 @@ it("filters transaction and recurring category paths by kind and expands direct 
   await userEvent.click(screen.getByText(/Home · expense/));
   expect(screen.getByText(/Direct entries · €0.29/)).toBeVisible();
   expect(screen.getByText(/Home \/ Repairs · €1.00/)).toBeVisible();
-  for (const tab of ["Transactions", "Recurring"]) {
+  for (const tab of ["Add transaction", "Recurring"]) {
     await userEvent.click(screen.getByRole("button", { name: tab }));
     await userEvent.selectOptions(
       screen.getByLabelText("Kind", { exact: true }),
@@ -275,4 +275,235 @@ it("requires a destination choice for multiple accounts and explains missing acc
     screen.getByRole("button", { name: "Import & export" }),
   );
   expect(screen.getByText("Create an account before importing.")).toBeVisible();
+});
+
+it("separates recording from history, preserves exact cents, resets and refreshes on return", async () => {
+  const base = mockLedger();
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    const body = init?.body ? JSON.parse(String(init.body)) : {};
+    if (body.query?.includes("entryHistory"))
+      return new Response(
+        JSON.stringify({
+          data: {
+            entryHistory: { entries: [], hasEntries: false, nextCursor: "" },
+          },
+        }),
+      );
+    return base(url, init);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<FinanceApp />);
+  await screen.findByText("Wallet");
+  await userEvent.click(screen.getByRole("button", { name: "Transactions" }));
+  await screen.findByText(/No transactions yet/);
+  expect(
+    screen.queryByRole("button", { name: "Save transaction" }),
+  ).not.toBeInTheDocument();
+  const add = screen.getByRole("button", { name: "Add transaction" });
+  expect(add).toHaveClass("add-transaction");
+  add.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(add).toHaveAttribute("aria-current", "page");
+  await userEvent.selectOptions(
+    screen.getByLabelText("Kind", { exact: true }),
+    "EXPENSE",
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Account", { exact: true }),
+    "a",
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Category (must match kind)"),
+    "child",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Amount (decimal, account currency)"),
+    "0.29",
+  );
+  await userEvent.type(screen.getByLabelText("Description"), "Coffee");
+  await userEvent.clear(
+    screen.getByLabelText("Amount (decimal, account currency)"),
+  );
+  await userEvent.type(
+    screen.getByLabelText("Amount (decimal, account currency)"),
+    "0.001",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save transaction" }),
+  );
+  await screen.findByText("Use a number with up to two decimal places");
+  await userEvent.clear(
+    screen.getByLabelText("Amount (decimal, account currency)"),
+  );
+  await userEvent.type(
+    screen.getByLabelText("Amount (decimal, account currency)"),
+    "0.29",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save transaction" }),
+  );
+  await screen.findByText("Saved");
+  expect(screen.getByLabelText("Description")).toHaveValue("");
+  expect(
+    fetcher.mock.calls.some(([, init]) =>
+      String(init?.body).includes('"amount":"29"'),
+    ),
+  ).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: "Transactions" }));
+  await screen.findByText(/No transactions yet/);
+  expect(
+    fetcher.mock.calls.filter(([, init]) =>
+      String(init?.body).includes("entryHistory"),
+    ),
+  ).toHaveLength(2);
+  expect(
+    fetcher.mock.calls.some(([, init]) =>
+      String(init?.body).includes("{finance(month"),
+    ),
+  ).toBe(false);
+});
+
+it("confirms or cancels category deletion and displays server rejection", async () => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  const base = mockLedger();
+  let reject = true;
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (String(init?.body).includes('"action":"deleteCategory"'))
+      return new Response(
+        JSON.stringify(
+          reject
+            ? { errors: [{ message: "Category is used by transactions" }] }
+            : { data: { executeFinance: "Saved" } },
+        ),
+      );
+    return base(url, init);
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<FinanceApp />);
+  await screen.findByText("Wallet");
+  await userEvent.click(screen.getByRole("button", { name: "Categories" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Delete Home / Repairs" }),
+  );
+  expect(screen.getByRole("dialog")).toHaveAccessibleName(
+    "Delete Home / Repairs?",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(
+    fetcher.mock.calls.some(([, init]) =>
+      String(init?.body).includes('"action":"deleteCategory"'),
+    ),
+  ).toBe(false);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Delete Home / Repairs" }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Delete category" }),
+  );
+  await screen.findByText("Category is used by transactions");
+  reject = false;
+  await userEvent.click(
+    screen.getByRole("button", { name: "Delete category" }),
+  );
+  await screen.findByText("Category deleted");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  vi.restoreAllMocks();
+});
+
+it("removes deleted categories from history filters and clears the active child", async () => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  let deleted = false;
+  const categories = [
+    { id: "root", name: "Home", path: "Home", kind: "EXPENSE", parentId: "" },
+    {
+      id: "child",
+      name: "Repairs",
+      path: "Home / Repairs",
+      kind: "EXPENSE",
+      parentId: "root",
+    },
+  ];
+  const requests: Record<string, string>[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (url === "/auth/status")
+        return new Response(
+          JSON.stringify({
+            setupRequired: false,
+            pinEnabled: false,
+            unlocked: true,
+          }),
+        );
+      if (body.variables?.action === "deleteCategory") {
+        deleted = true;
+        return new Response(
+          JSON.stringify({ data: { executeFinance: "Saved" } }),
+        );
+      }
+      if (body.query.includes("entryHistory")) {
+        requests.push(body.variables);
+        return new Response(
+          JSON.stringify({
+            data: {
+              entryHistory: { entries: [], hasEntries: false, nextCursor: "" },
+            },
+          }),
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          data: {
+            financeSummary: {
+              accounts: [],
+              categories: deleted ? categories.slice(0, 1) : categories,
+              entries: [],
+              recurring: [],
+              budgets: [],
+              totals: [],
+            },
+          },
+        }),
+      );
+    }),
+  );
+  render(<FinanceApp />);
+  await screen.findByText("A fresh start");
+  await userEvent.click(screen.getByRole("button", { name: "Transactions" }));
+  await userEvent.selectOptions(
+    screen.getByLabelText("Category", { exact: true }),
+    "root",
+  );
+  await userEvent.selectOptions(screen.getByLabelText("Subcategory"), "child");
+  await userEvent.click(screen.getByRole("button", { name: "Categories" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Delete Home / Repairs" }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Delete category" }),
+  );
+  await screen.findByText("Category deleted");
+  await userEvent.click(screen.getByRole("button", { name: "Transactions" }));
+  await screen.findByText(/No transactions yet/);
+  expect(screen.getByLabelText("Category", { exact: true })).toHaveValue(
+    "root",
+  );
+  expect(screen.getByLabelText("Subcategory")).toHaveValue("");
+  expect(screen.getByLabelText("Subcategory")).toBeDisabled();
+  expect(requests.at(-1)).toMatchObject({
+    categoryId: "root",
+    subcategoryId: "",
+    after: "",
+  });
 });

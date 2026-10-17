@@ -111,3 +111,49 @@ Only `INCOME` and `EXPENSE` are accepted. An empty file, invalid date, nonpositi
 The user selected **separate files per account, preserving all history** for issue #7. `export` returns a base64-encoded ZIP downloaded as `gentum-transactions.zip`. Each account has one five-column CSV, named with an ordinal, sanitized account name and currency. Ordinals distinguish duplicate names without exposing account IDs. All owned accounts, including archived accounts, and all income/expense dates are included, independently of reporting month or UI filters. Empty accounts produce header-only files. Currency is fixed per account and recorded in the filename. Import each CSV into its corresponding selected account.
 
 Transfers, budgets and schedules are excluded. Formula-looking descriptions (including whitespace-prefixed `=`, `+`, `-`, `@`, control prefixes or an existing apostrophe) receive a leading apostrophe. That apostrophe remains on reimport. Category IDs remain references to the original profile; this is portable transaction interchange, not a full backup.
+
+## Bounded transaction history
+
+The app uses `financeSummary(month: String!)` for accounts, categories, budgets,
+schedules, monthly category breakdown and totals. It returns the same snapshot
+shape with an empty `entries` array and does not query entry history. Existing
+`finance(month: String!)` consumers retain their full-history snapshot contract.
+CSV exports continue to use all owned history, independently of these queries.
+
+```graphql
+query History($start: String, $end: String, $categoryId: String,
+              $subcategoryId: String, $after: String) {
+  entryHistory(start: $start, end: $end, categoryId: $categoryId,
+               subcategoryId: $subcategoryId, after: $after)
+}
+```
+
+`entryHistory` returns `{entries, nextCursor, hasEntries}` through the existing
+`FinanceData` scalar. Pages contain at most 10 entries, ordered by financial date,
+creation timestamp and ID, all descending. An empty `nextCursor` marks the last
+page. Pass the opaque cursor as `after` for older entries; clients retain earlier
+cursors for newer pages. Cursors are bound to the active filters; reset them after
+filter changes or writes. They are not snapshot tokens: concurrent writes may
+change the result set. An unchanged ledger has no page duplicates or omissions.
+
+All filters combine with AND. Dates are optional inclusive date-only bounds;
+invalid dates and reversed ranges are rejected. There is no implicit month filter.
+A category must be an owned root and includes direct entries and all children.
+A subcategory must be its owned child and narrows to that child. Without a category
+filter, linked transfer legs are included. `hasEntries` describes the owned ledger
+independently of filters, distinguishing an empty ledger from no matching entries.
+Money remains integer cents encoded as strings. Errors do not expose SQL details.
+
+`executeFinance(action: "deleteCategory", input: {id: "..."})` deletes only an
+owned category with no children and no references from entries, budgets or any
+recurring schedules, including stopped schedules. The owner write lock serializes
+reference checks and deletion with other application writes; foreign keys also
+prevent concurrent database writes from leaving dangling references. No financial
+record is cascaded or reassigned. The app requires confirmation naming the category.
+Deletion is allowed for starter categories. Reads and restarts never restore them;
+only the explicit **Add starter categories** action may restore missing defaults.
+
+The dedicated **Add transaction** screen preserves income/expense entry behavior.
+**Transactions** contains only history, filters and pages; visiting it after saving
+requests fresh history while retaining filters. The distinct plus action keeps its
+text, selected state and keyboard focus on desktop and narrow navigation.

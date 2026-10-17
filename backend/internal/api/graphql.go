@@ -91,6 +91,29 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			}
 			return result, nil
 		}}
+		financeFields["financeSummary"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"month": {Type: graphql.NewNonNull(graphql.String)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			result, err := fs.Summary(p.Context, p.Args["month"].(string))
+			if err != nil {
+				return nil, errors.New("Unable to load finance summary")
+			}
+			return result, nil
+		}}
+		historyArgs := graphql.FieldConfigArgument{}
+		for _, key := range []string{"start", "end", "categoryId", "subcategoryId", "after"} {
+			historyArgs[key] = &graphql.ArgumentConfig{Type: graphql.String}
+		}
+		financeFields["entryHistory"] = &graphql.Field{Type: data, Args: historyArgs, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			value := func(key string) string { v, _ := p.Args[key].(string); return v }
+			result, err := fs.History(p.Context, finance.HistoryFilter{Start: value("start"), End: value("end"), CategoryID: value("categoryId"), SubcategoryID: value("subcategoryId"), After: value("after")})
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load transaction history")
+			}
+			return result, nil
+		}}
 		financeMutations["executeFinance"] = &graphql.Field{Type: graphql.String, Args: graphql.FieldConfigArgument{"action": {Type: graphql.NewNonNull(graphql.String)}, "input": {Type: graphql.NewNonNull(input)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			in := finance.Row{}
 			for k, v := range p.Args["input"].(map[string]interface{}) {
