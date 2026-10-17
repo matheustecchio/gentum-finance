@@ -273,6 +273,17 @@ func TestNewWalletDoesNotRequireOrExposeExistingProfiles(t *testing.T) {
 			if configured == oldOwner || configured == "00000000-0000-0000-0000-000000000001" {
 				t.Fatal("new wallet claimed an old identity")
 			}
+			var categories int
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1`, configured).Scan(&categories); err != nil || categories != 38 {
+				t.Fatal("incomplete starter catalog", categories, err)
+			}
+			if _, err := c.pool.Exec(ctx, `DELETE FROM category WHERE user_id=$1 AND name='Education'`, configured); err != nil {
+				t.Fatal(err)
+			}
+			c.expect("/graphql", `{"query":"{finance(month:\"2026-10\")}"}`, 200)
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1`, configured).Scan(&categories); err != nil || categories != 37 {
+				t.Fatal("deleted default recreated", categories, err)
+			}
 			var owners, accounts int
 			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM gentum_user`).Scan(&owners); err != nil {
 				t.Fatal(err)

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 async function nav(page: Page, name: string) {
   await page
@@ -29,7 +30,9 @@ async function choose(page: Page, label: string, prefix: string) {
   const select = page.getByLabel(label, { exact: true });
   const option = await select
     .locator("option")
-    .filter({ hasText: prefix })
+    .filter({
+      hasText: new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?: ·|$)"),
+    })
     .getAttribute("value");
   await select.selectOption(option!);
   return option!;
@@ -75,10 +78,17 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await createAccount(page, "Rainy day");
   await createCategory(page, "Food", "EXPENSE");
   await createCategory(page, "Salary", "INCOME");
+  await nav(page, "Categories");
+  await expect(page.getByText("Vacations / Food", { exact: true })).toBeVisible();
+  await page.getByLabel("Category name").fill("Coffee shop");
+  await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
+  await choose(page, "Parent category (optional)", "Food");
+  await page.getByRole("button", { name: "Create category" }).click();
+  await expect(page.getByText("Food / Coffee shop", { exact: true })).toBeVisible();
   await nav(page, "Transactions");
   await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
   const accountId = await choose(page, "Account", "Daily wallet");
-  const categoryId = await choose(page, "Category (must match kind)", "Food");
+  const categoryId = await choose(page, "Category (must match kind)", "Food / Coffee shop");
   await page.getByLabel("Amount (decimal, account currency)").fill("0.29");
   await page.getByLabel("Description", { exact: true }).fill("Coffee");
   await page.getByRole("button", { name: "Save transaction" }).click();
@@ -120,18 +130,22 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   ).toBeVisible();
   await nav(page, "Import & export");
   const date = new Date().toISOString().slice(0, 10);
-  const header = "date,account_id,category_id,kind,amount_cents,description\n";
+  const header = "date,kind,category_id,amount_cents,description\n";
+  await page.getByLabel("Import into account").selectOption(accountId);
+  await expect(page.getByRole("heading", { name: "Account IDs" })).toHaveCount(
+    0,
+  );
   await page
     .getByLabel("CSV content")
     .fill(
       header +
-        `${date},${accountId},${categoryId},EXPENSE,1,=formula\n${date},${accountId},${categoryId},EXPENSE,0,invalid\n`,
+        `${date},EXPENSE,${categoryId},1,=formula\n${date},EXPENSE,${categoryId},0,invalid\n`,
     );
   await page.getByRole("button", { name: "Import CSV", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
   await page
     .getByLabel("CSV content")
-    .fill(header + `${date},${accountId},${categoryId},EXPENSE,1,=formula\n`);
+    .fill(header + `${date},EXPENSE,${categoryId},1,=formula\n`);
   await page.getByRole("button", { name: "Import CSV", exact: true }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Imported 1 transactions" }),
@@ -139,9 +153,12 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   const downloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export CSV" }).click();
   const download = await downloadEvent;
-  const stream = await download.createReadStream();
-  let exported = "";
-  for await (const chunk of stream!) exported += chunk.toString();
+  expect(download.suggestedFilename()).toBe("gentum-transactions.zip");
+  const exported = execFileSync("unzip", ["-p", (await download.path())!], {
+    encoding: "utf8",
+  });
+  expect(exported).toContain("date,kind,category_id,amount_cents,description");
+  expect(exported).not.toContain(accountId);
   expect(exported).toContain("'=formula");
   expect(exported).not.toContain("invalid");
   await nav(page, "Budgets");
