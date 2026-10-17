@@ -51,7 +51,10 @@ func (r PostgresRepository) Snapshot(ctx context.Context, user, month string) (S
 	}
 	return s, tx.Commit(ctx)
 }
-func snapshot(ctx context.Context, q queryer, user, month string) (s Snapshot, err error) {
+func snapshot(ctx context.Context, q queryer, user, month string) (Snapshot, error) {
+	return snapshotData(ctx, q, user, month, true)
+}
+func snapshotData(ctx context.Context, q queryer, user, month string, includeEntries bool) (s Snapshot, err error) {
 	s.Accounts, err = rows(ctx, q, `SELECT a.id::text,a.name,a.type,a.currency,a.archived::text,a.initial_balance::text,(a.initial_balance::numeric+COALESCE(sum(CASE WHEN e.kind IN ('INCOME','TRANSFER_IN') THEN e.amount::numeric ELSE -e.amount::numeric END),0))::text FROM account a LEFT JOIN entry e ON e.user_id=a.user_id AND e.account_id=a.id WHERE a.user_id=$1 GROUP BY a.id ORDER BY a.created_at,a.id`, []string{"id", "name", "type", "currency", "archived", "initialBalance", "balance"}, user)
 	if err != nil {
 		return
@@ -65,10 +68,15 @@ func snapshot(ctx context.Context, q queryer, user, month string) (s Snapshot, e
 	if err != nil {
 		return
 	}
-	s.Entries, err = rows(ctx, q, `SELECT e.id::text,e.account_id::text,e.category_id::text,e.kind,e.amount::text,e.description,to_char(e.entry_date,'YYYY-MM-DD'),a.currency,e.transfer_id::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=$1 ORDER BY e.entry_date DESC,e.created_at DESC,e.id`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "date", "currency", "transferId"}, user)
-	if err != nil {
-		return
+	if includeEntries {
+		s.Entries, err = rows(ctx, q, `SELECT e.id::text,e.account_id::text,e.category_id::text,e.kind,e.amount::text,e.description,to_char(e.entry_date,'YYYY-MM-DD'),a.currency,e.transfer_id::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=$1 ORDER BY e.entry_date DESC,e.created_at DESC,e.id`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "date", "currency", "transferId"}, user)
+		if err != nil {
+			return
+		}
+	} else {
+		s.Entries = []Row{}
 	}
+
 	s.Budgets, err = rows(ctx, q, `SELECT b.id::text,b.category_id::text,b.currency,to_char(b.month,'YYYY-MM'),b.amount::text,COALESCE((SELECT sum(e.amount::numeric) FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=b.user_id AND (e.category_id=b.category_id OR e.category_id IN (SELECT id FROM category WHERE user_id=b.user_id AND parent_id=b.category_id)) AND e.kind='EXPENSE' AND a.currency=b.currency AND date_trunc('month',e.entry_date)=b.month),0)::text FROM budget b WHERE b.user_id=$1 AND b.month=$2::date ORDER BY b.currency,b.category_id`, []string{"id", "categoryId", "currency", "month", "amount", "spent"}, user, month+"-01")
 	if err != nil {
 		return
@@ -118,6 +126,8 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 	}
 	result := "Saved"
 	switch action {
+	case "deleteCategory":
+		err = deleteCategory(ctx, tx, user, in["id"])
 	case "category":
 		err = createCategory(ctx, tx, user, in)
 	case "starterCategories":
