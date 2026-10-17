@@ -1,6 +1,6 @@
 # ADR 0004: Authenticated local finance MVP
 
-Status: Accepted
+Status: Accepted; local registration/login and profile access superseded by [ADR 0005](0005-local-profile-and-optional-pin.md)
 
 ## Context
 

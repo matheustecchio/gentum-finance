@@ -1,6 +1,21 @@
 # Finance MVP API and CSV contract
 
-All application routes require a session except registration, login and health checks. `POST /auth/register` and `/auth/login` accept JSON `{ "email": "fiction@example.test", "password": "fictional-password-123" }`. Registration signs in immediately. `GET /auth/me` returns the current email; `POST /auth/logout` revokes the session. Mutation requests require `Origin` equal to the configured frontend origin and `Content-Type: application/json`.
+Financial routes require a verified session in both direct-access and PIN modes. All POSTs require `Origin` equal to the configured frontend origin and `Content-Type: application/json`. Access request bodies are limited to 4 KiB and reject unknown fields. Responses use `Cache-Control: no-store`.
+
+| Route | Request and behavior |
+| --- | --- |
+| `GET /auth/status` | Returns `setupRequired`, `legacyRequired`, `pinEnabled`, and `unlocked`; never returns PINs or recovery hashes. |
+| `POST /auth/setup` | `{ "mode": "open" }` or `{ "mode": "pin", "pin": "0123" }`. Creates the installation's local access configuration exactly once and opens a session. If `legacyRequired`, include the existing `email` and `password` to select its owner. |
+| `POST /auth/open` | `{}` obtains a session only when PIN protection is disabled. |
+| `POST /auth/unlock` | `{ "pin": "0123" }` verifies the PIN and opens a session. |
+| `POST /auth/lock` | `{}` requires an unlocked PIN-protected session and revokes all sessions. |
+| `POST /auth/pin` | `{ "pin": "2345", "currentPin": "0123" }` requires a session. Current PIN is required only when protection is already enabled. Rotates recovery code and all sessions. |
+| `POST /auth/disable-pin` | `{ "currentPin": "0123" }` requires a session and current PIN; removes PIN/recovery hashes and rotates sessions. |
+| `POST /auth/recover` | `{ "recoveryCode": "YOUR-SAVED-CODE", "pin": "5678" }` replaces a forgotten PIN, rotates recovery code and all sessions, and preserves ledger data. |
+
+PIN creation/change/recovery returns `{ "recoveryCode": "..." }` exactly once. Other successful access POSTs return `{}`. Codes are random 160-bit Base32 strings grouped with hyphens; recovery accepts lowercase and omitted hyphens. PINs must be strings of exactly four ASCII digits, including leading zeros. Session cookies are browser-session cookies; server expiry is 24 hours. `Lock now` revokes them even in other browsers. Old registration, password-login, logout, and `/auth/me` routes are no longer supported.
+
+Errors use HTTP 400 for invalid input, 401 for failed verification or missing session, 409 for setup state conflicts, 429 for throttling, and 503 for database failures. After five failed verifications, waits grow from one minute to a maximum of 16 minutes, persisted across restarts and shared by all clients. A throttled response includes `Retry-After` seconds. PIN, recovery, and legacy adoption use separate counters; valid recovery clears them all. The PIN does not encrypt data at rest.
 
 GraphQL retains `accounts` and `createAccount(input: CreateAccountInput!)`. Opening balance is a `Cents` integer string. No API accepts a client-supplied user ID.
 

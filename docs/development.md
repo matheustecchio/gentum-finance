@@ -10,7 +10,7 @@ Docker Engine and Compose v2 with `up --wait` are sufficient:
 ./gentum stop
 ```
 
-Open http://localhost:5173 and register a fictional profile. `.env` overrides the optional port, database name/user/password and persistent volume. Keep credentials consistent with initialized volumes. Backend/PostgreSQL are internal; the frontend is the only published loopback port. The launcher waits for all service health checks and never deletes data.
+Open http://localhost:5173 and choose direct access or a PIN for your local ledger. `.env` overrides the optional port, database name/user/password and persistent volume. Keep credentials consistent with initialized volumes. Backend/PostgreSQL are internal; the frontend is the only published loopback port. The launcher waits for all service health checks and never deletes data.
 
 ## Host development
 
@@ -52,7 +52,23 @@ node --test scripts/persistence-client.test.mjs
 node scripts/check-persistence.mjs
 ```
 
-`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite creates fictional profiles and verifies actual cookies, accounts, cents, transactions, linked transfers, budgets, idempotent recurrence, atomic CSV validation/export, re-login and unauthenticated isolation. Persistence requests explicitly close their HTTP connections so synchronous Docker restarts cannot reuse stale pooled sockets on Node 22. Verification failures surface immediately, with no automatic retries of financial writes. The persistence script invokes the real launcher status/stop/start and verifies a profile and exact account amount survive. These fixtures remain in the local database under separate fictional profiles and do not appear in other users' ledgers.
+`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite verifies optional PIN setup, recovery-code acknowledgement, wrong/correct unlock, lock isolation, PIN change, recovery, disabling protection, exact cents, transfers, budgets, recurrence and CSV. The persistence script invokes the real launcher status/stop/start and verifies local access and exact account cents survive. Both create fictional data in the single local ledger: run them only against a disposable stack and set `GENTUM_VERIFICATION_FIXTURE=1`. They must not target your normal database.
+
+For an isolated local run, export these variables in the shell before starting the launcher and keep them set for browser and persistence checks:
+
+```bash
+export COMPOSE_PROJECT_NAME=gentum-verification
+export GENTUM_PORT=5187
+export GENTUM_DATABASE_VOLUME=gentum-verification-data
+export GENTUM_E2E_URL=http://localhost:5187
+export GENTUM_VERIFICATION_FIXTURE=1
+./gentum start
+(cd frontend && npm run test:e2e)
+node scripts/check-persistence.mjs
+./gentum stop
+```
+
+Use a fresh, disposable verification volume for a fresh E2E run. Do not remove an existing data volume to rerun tests. CI uses disposable runners and a dedicated verification volume. Persistence requests close their HTTP connections explicitly so launcher restarts do not reuse stale sockets; financial writes are never automatically retried.
 
 Backend integration tests isolate schemas in the configured test database and cover migration adoption/checksum/rollback, session revocation/expiry, cross-user references, exact amounts above JavaScript's safe integer range, account overflow, monthly budget actuals, recurring idempotence and CSV atomicity. Never point tests at production data. Coverage is reported as a baseline; no percentage gate is enforced.
 

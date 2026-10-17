@@ -10,7 +10,7 @@ Install Docker Engine with Docker Compose v2 (including `up --wait`), then run:
 ./gentum start
 ```
 
-Open **http://localhost:5173** and create a local profile with an email and a password of at least 12 characters. There are no default login credentials. Use fictional data while evaluating this early MVP.
+Open **http://localhost:5173** and choose **Use without a PIN** or **Protect with a PIN**. No email or online account is needed. If you choose a four-digit PIN, save the recovery code before continuing. Use fictional data while evaluating this early MVP. Existing password profiles require their old email/password once to select the ledger to keep using; other profiles remain stored but are not available in the new single-profile UI.
 
 ```bash
 ./gentum status # container health and published address
@@ -27,7 +27,8 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 
 ## Features
 
-- Local profiles, password login, 24-hour cookie sessions and logout.
+- A local profile without registration, optional four-digit PIN, Lock now, and recovery-code reset.
+- Settings to enable, change, or disable the PIN; copy/download of replacement recovery codes.
 - Current, savings, cash and credit-card accounts in EUR, GBP, USD or BRL.
 - Income/expense categories and date-only transactions with descriptions.
 - Atomic linked transfers between accounts in the same currency.
@@ -38,13 +39,15 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 
 Money uses signed `int64`/PostgreSQL `BIGINT` integer cents: **100 = 1.00**. The browser converts decimal text with `BigInt`; GraphQL transports money as exact integer strings. Overflowing balances and monthly totals are rejected atomically. Transfers require the same currency; no exchange rates or mixed-currency sum is implied. Opening balances and transfers do not count as income or spending.
 
-This MVP supports creating records and stopping recurring schedules. Editing/deleting ledger records, password recovery, automatic bank connections, exchange rates and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
+This MVP supports creating records and stopping recurring schedules. Editing/deleting ledger records, automatic bank connections, exchange rates and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
 
 ## Security and operation
 
-Passwords use PBKDF2-SHA256 with individual salts and 600,000 iterations. Session tokens are random, stored as hashes, HttpOnly and SameSite Strict; mutations require the configured exact Origin and JSON content type. Login/registration attempts are rate limited, and password hashing concurrency is bounded. Ownership comes from the server session and is enforced in queries and composite foreign keys. Legacy development-user data is retained by migrations but has no login password and is not automatically assigned to new profiles.
+PINs use PBKDF2-SHA256 with individual salts and 600,000 iterations. Recovery codes contain 160 random bits and are stored only as SHA-256 digests. Creating, changing, or recovering a PIN generates a new recovery code and revokes previous sessions. Recovery preserves the ledger; previous recovery codes stop working. If both PIN and recovery code are lost, there is no supported recovery flow in this version.
 
-Local HTTP cookies intentionally lack `Secure` for loopback HTTP. The application is intended for trusted local use; do not expose Compose services to a public network. Database credentials are local defaults, and data at rest is not encrypted by the application.
+Session tokens are random, stored as hashes, HttpOnly and SameSite Strict. Cookies last for the browser session, with a 24-hour server expiry; reloads and browser session restoration may retain them, so use **Lock now** before leaving a protected ledger unattended. Mutations require the exact configured Origin and JSON content type. Failed PIN/recovery/adoption attempts use persistent, installation-wide progressive waits after five failures, capped at 16 minutes. Hashing concurrency is bounded. Ownership remains server-derived and enforced in queries and composite foreign keys, including direct-access mode.
+
+Local HTTP cookies intentionally lack `Secure` for loopback HTTP. The application is intended for trusted local use; do not expose Compose services to a public network. Database credentials are local defaults, and data at rest is not encrypted by the application. The PIN is a casual-access app lock, not protection against someone who controls this computer. See [the local access decision](docs/decisions/0005-local-profile-and-optional-pin.md).
 
 ## Development and validation
 
