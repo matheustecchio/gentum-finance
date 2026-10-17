@@ -12,6 +12,8 @@ Docker Engine and Compose v2 with `up --wait` are sufficient:
 
 Open http://localhost:5173 and choose direct access or a PIN for your local wallet. `.env` overrides the optional port, database name/user/password and persistent volume. Keep credentials consistent with initialized volumes. Backend/PostgreSQL are internal; the frontend is the only published loopback port. The launcher waits for all service health checks and never deletes data.
 
+The sidebar displays the installed build version from `frontend/package.json`. Vite embeds it at build time, so it works offline and stays unchanged until the app is rebuilt. The development server adds `(dev)`; production builds show only `v<version>`. Missing or invalid version metadata stops the build.
+
 ## Host development
 
 Use Go 1.26.9+ and Node.js 20.19+ (Node 22 is used by Docker and CI). Use a dedicated disposable PostgreSQL database for tests. To expose PostgreSQL for host development, use your own database or an explicit temporary Compose override binding its port only to `127.0.0.1`. The default Compose configuration deliberately does not publish it.

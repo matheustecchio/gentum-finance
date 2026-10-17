@@ -318,7 +318,7 @@ it("separates recording from history, preserves exact cents, resets and refreshe
     "+ Add transaction",
   ]);
   expect(
-    add.compareDocumentPosition(screen.getByText(/Local wallet ·/)) &
+    add.compareDocumentPosition(screen.getByText(/Local wallet/)) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(add).toHaveClass("add-transaction");
@@ -530,3 +530,18 @@ it("removes deleted categories from history filters and clears the active child"
     after: "",
   });
 });
+
+for (const pinEnabled of [false, true]) {
+  it(`shows the development version and preserves the lock control with PIN ${pinEnabled}`, async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(
+      url === "/auth/status"
+        ? { setupRequired: false, pinEnabled, unlocked: true }
+        : { data: { financeSummary: { accounts: [], categories: [], entries: [], budgets: [], recurring: [], totals: [] } } }
+    ))));
+    render(<FinanceApp />);
+    await screen.findByText("Local wallet");
+    expect(screen.getByText(`v${__APP_VERSION__} (dev)`)).toBeInTheDocument();
+    expect(screen.queryByText(/No PIN|PIN enabled/)).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: "Lock now" })).toHaveLength(pinEnabled ? 1 : 0);
+  });
+}

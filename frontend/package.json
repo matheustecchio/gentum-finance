@@ -9,9 +9,9 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/version.test.mjs",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage && node --test scripts/version.test.mjs",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.app.json --pretty false && tsc --noEmit -p tsconfig.node.json --pretty false"
   },
