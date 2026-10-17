@@ -2,6 +2,9 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { FinanceApp } from "./FinanceApp";
+Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+  configurable: true, value: function (this: HTMLDialogElement) { this.open = true; },
+});
 afterEach(() => vi.unstubAllGlobals());
 it("shows authenticated balances and monthly budgets with exact cents", async () => {
   vi.stubGlobal(
@@ -156,7 +159,8 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
   const fetcher = mockLedger();
   render(<FinanceApp />);
   await screen.findByText("Wallet");
-  await userEvent.click(screen.getByRole("button", { name: "Categories" }));
+  await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create category" }));
   await userEvent.selectOptions(screen.getByLabelText("Kind"), "EXPENSE");
   const parent = screen.getByLabelText("Parent category (optional)");
   expect(parent).toHaveTextContent("Home");
@@ -165,7 +169,7 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
   await userEvent.type(screen.getByLabelText("Category name"), "Utilities");
   await userEvent.selectOptions(parent, "root");
   await userEvent.click(
-    screen.getByRole("button", { name: "Create category" }),
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Create category" }),
   );
   await screen.findByRole("status");
   expect(
@@ -307,8 +311,6 @@ it("separates recording from history, preserves exact cents, resets and refreshe
       .map((button) => button.textContent),
   ).toEqual([
     "Overview",
-    "Accounts",
-    "Categories",
     "Transactions",
     "Transfers",
     "Budgets",
@@ -409,7 +411,7 @@ it("confirms or cancels category deletion and displays server rejection", async 
   vi.stubGlobal("fetch", fetcher);
   render(<FinanceApp />);
   await screen.findByText("Wallet");
-  await userEvent.click(screen.getByRole("button", { name: "Categories" }));
+  await userEvent.click(screen.getByRole("button", { name: "Settings" }));
   await userEvent.click(
     screen.getByRole("button", { name: "Delete Home / Repairs" }),
   );
@@ -509,7 +511,7 @@ it("removes deleted categories from history filters and clears the active child"
     "root",
   );
   await userEvent.selectOptions(screen.getByLabelText("Subcategory"), "child");
-  await userEvent.click(screen.getByRole("button", { name: "Categories" }));
+  await userEvent.click(screen.getByRole("button", { name: "Settings" }));
   await userEvent.click(
     screen.getByRole("button", { name: "Delete Home / Repairs" }),
   );

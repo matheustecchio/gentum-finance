@@ -27,7 +27,7 @@ for (const viewport of [
       const add = page.getByRole("button", { name: "Add transaction", exact: true });
       await expect(add).toHaveCount(1);
       await expect(nav.getByRole("button")).toHaveText([
-        "Overview", "Accounts", "Categories", "Transactions", "Transfers",
+        "Overview", "Transactions", "Transfers",
         "Budgets", "Recurring", "Import & export", "Settings", "+ Add transaction",
       ]);
       await expect(add).toHaveCSS("background-color", "rgb(228, 193, 111)");

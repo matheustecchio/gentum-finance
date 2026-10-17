@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import {
   LocalAccess,
@@ -37,7 +38,9 @@ function Form({
   fields,
   submit,
   onSubmit,
+  onBusy,
 }: {
+  onBusy?: (busy: boolean) => void;
   title: string;
   fields: Field[];
   submit: string;
@@ -50,6 +53,7 @@ function Form({
     e.preventDefault();
     const form = e.currentTarget;
     setBusy(true);
+    onBusy?.(true);
     setError("");
     try {
       await onSubmit(Object.fromEntries(new FormData(form).entries()) as Row);
@@ -59,6 +63,7 @@ function Form({
       setError(e instanceof Error ? e.message : "Unable to save");
     } finally {
       setBusy(false);
+      onBusy?.(false);
     }
   }
   return (
@@ -143,8 +148,6 @@ const empty: Snapshot = {
 };
 const tabs = [
   "Overview",
-  "Accounts",
-  "Categories",
   "Transactions",
   "Transfers",
   "Budgets",
@@ -178,7 +181,23 @@ function Wallet() {
   const [error, setError] = useState("");
   const [csv, setCsv] = useState("");
   const [importAccount, setImportAccount] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [setupDismissed, setSetupDismissed] = useState(false);
+  const [creating, setCreating] = useState<"account" | "category">();
+  const [createBusy, setCreateBusy] = useState(false);
+  const createTrigger = useRef<HTMLButtonElement | null>(null);
+  const openCreation = (
+    kind: "account" | "category",
+    trigger: HTMLButtonElement,
+  ) => {
+    createTrigger.current = trigger;
+    setCreating(kind);
+  };
+  const closeCreation = () => setCreating(undefined);
+  useEffect(() => {
+    if (!creating) createTrigger.current?.focus();
+  }, [creating]);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -187,6 +206,7 @@ function Wallet() {
         { month },
       );
       setData(result.financeSummary);
+      setLoaded(true);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load");
@@ -281,7 +301,8 @@ function Wallet() {
           <small>
             Local wallet
             <span className="app-version">
-              v{__APP_VERSION__}{import.meta.env.DEV ? " (dev)" : ""}
+              v{__APP_VERSION__}
+              {import.meta.env.DEV ? " (dev)" : ""}
             </span>
           </small>
           {status.pinEnabled && (
@@ -330,7 +351,38 @@ function Wallet() {
           </p>
         )}
         {loading && <p role="status">Refreshing…</p>}
-        {tab === "Settings" && <AccessSettings />}
+        {loaded &&
+          !loading &&
+          !error &&
+          !setupDismissed &&
+          (!data.accounts.length || !data.categories.length) && (
+            <section className="panel" aria-labelledby="setup-title">
+              <h2 id="setup-title">Complete your wallet setup</h2>
+              <p>
+                {!data.accounts.length && !data.categories.length
+                  ? "Create an account and categories to start recording transactions."
+                  : !data.accounts.length
+                    ? "Create an account to start recording transactions."
+                    : "Create categories to organize your transactions."}
+              </p>
+              <div className="actions">
+                <button
+                  onClick={() => {
+                    setSetupDismissed(true);
+                    setTab("Settings");
+                  }}
+                >
+                  Open Settings
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => setSetupDismissed(true)}
+                >
+                  Configure later
+                </button>
+              </div>
+            </section>
+          )}
         {tab === "Overview" && (
           <>
             <div className="stats-grid">
@@ -399,78 +451,124 @@ function Wallet() {
                   Create an account, add categories, then record your first
                   transaction.
                 </p>
-                <button onClick={() => setTab("Accounts")}>
+                <button onClick={() => setTab("Settings")}>
                   Create your first account
                 </button>
               </section>
             )}
           </>
         )}
-        {tab === "Accounts" && (
+        {tab === "Settings" && (
           <>
-            <Form
-              title="Add an account"
-              submit="Create account"
-              fields={[
-                { name: "name", label: "Account name" },
-                {
-                  name: "type",
-                  label: "Account type",
-                  options: ["CURRENT", "SAVINGS", "CASH", "CREDIT_CARD"].map(
-                    (value) => ({ value, label: value.replace("_", " ") }),
-                  ),
-                },
-                { name: "currency", label: "Currency", options: currencies },
-                {
-                  name: "initialBalance",
-                  label: "Opening balance",
-                  value: "0.00",
-                },
-              ]}
-              onSubmit={async (values) => {
-                await graphql(
-                  "mutation Account($input:CreateAccountInput!){createAccount(input:$input){id}}",
-                  {
-                    input: {
-                      ...values,
-                      initialBalance: toCents(values.initialBalance),
-                    },
-                  },
-                );
-                setNotice("Account created");
-                await load();
-              }}
+            <AccountList
+              rows={data.accounts}
+              onCreate={(e) => openCreation("account", e.currentTarget)}
             />
-            <AccountList rows={data.accounts} />
+            {creating === "account" && (
+              <CreationDialog
+                title="Create account"
+                busy={createBusy}
+                onClose={closeCreation}
+              >
+                <Form
+                  onBusy={setCreateBusy}
+                  title="Add an account"
+                  submit="Create account"
+                  fields={[
+                    { name: "name", label: "Account name" },
+                    {
+                      name: "type",
+                      label: "Account type",
+                      options: [
+                        "CURRENT",
+                        "SAVINGS",
+                        "CASH",
+                        "CREDIT_CARD",
+                      ].map((value) => ({
+                        value,
+                        label: value.replace("_", " "),
+                      })),
+                    },
+                    {
+                      name: "currency",
+                      label: "Currency",
+                      options: currencies,
+                    },
+                    {
+                      name: "initialBalance",
+                      label: "Opening balance",
+                      value: "0.00",
+                    },
+                  ]}
+                  onSubmit={async (values) => {
+                    await graphql(
+                      "mutation Account($input:CreateAccountInput!){createAccount(input:$input){id}}",
+                      {
+                        input: {
+                          ...values,
+                          initialBalance: toCents(values.initialBalance),
+                        },
+                      },
+                    );
+                    setNotice("Account created");
+                    await load();
+                    closeCreation();
+                  }}
+                />
+              </CreationDialog>
+            )}
           </>
         )}
-        {tab === "Categories" && (
+        {tab === "Settings" && (
           <>
-            <Form
-              title="Add a category"
-              submit="Create category"
-              fields={[
-                { name: "name", label: "Category name" },
-                { name: "kind", label: "Kind", options: kinds },
-                {
-                  name: "parentId",
-                  label: "Parent category (optional)",
-                  optional: true,
-                  options: options(data.categories.filter((c) => !c.parentId)),
-                },
-              ]}
-              onSubmit={(values) => save("category", values)}
-            />
+            {creating === "category" && (
+              <CreationDialog
+                title="Create category"
+                busy={createBusy}
+                onClose={closeCreation}
+              >
+                <Form
+                  onBusy={setCreateBusy}
+                  title="Add a category"
+                  submit="Create category"
+                  fields={[
+                    { name: "name", label: "Category name" },
+                    { name: "kind", label: "Kind", options: kinds },
+                    {
+                      name: "parentId",
+                      label: "Parent category (optional)",
+                      optional: true,
+                      options: options(
+                        data.categories.filter((c) => !c.parentId),
+                      ),
+                    },
+                  ]}
+                  onSubmit={async (values) => {
+                    await save("category", values);
+                    closeCreation();
+                  }}
+                />
+              </CreationDialog>
+            )}
             <section className="panel">
-              <h2>Your categories</h2>
+              <div className="section-heading">
+                <h2>Your categories</h2>
+                <button
+                  onClick={(e) => openCreation("category", e.currentTarget)}
+                >
+                  Create category
+                </button>
+              </div>
               <button onClick={() => void act("starterCategories")}>
                 Add starter categories
               </button>
-              <ul className="item-list">
+              <ul className="item-list category-list">
                 {data.categories.map((c) => (
                   <li key={c.id}>
                     <strong>{c.path || c.name}</strong>
-                    <span className="badge">{c.kind}</span>
+                    <span className="badge">
+                      {c.kind === "INCOME" ? "Income" : "Expense"}
+                    </span>
                     <button
                       className="delete-category"
                       aria-label={`Delete ${c.path || c.name}`}
@@ -489,6 +587,7 @@ function Wallet() {
             </section>
           </>
         )}
+        {tab === "Settings" && <AccessSettings />}
         {tab === "Add transaction" && (
           <Form
             title="Record a transaction"
@@ -828,10 +927,19 @@ function Wallet() {
     </div>
   );
 }
-function AccountList({ rows }: { rows: Row[] }) {
+function AccountList({
+  rows,
+  onCreate,
+}: {
+  rows: Row[];
+  onCreate?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
   return (
     <section className="panel">
-      <h2>Your accounts</h2>
+      <div className="section-heading">
+        <h2>Your accounts</h2>
+        {onCreate && <button onClick={onCreate}>Create account</button>}
+      </div>
       <ul className="item-list">
         {rows.map((a) => (
           <li key={a.id}>
@@ -848,5 +956,56 @@ function AccountList({ rows }: { rows: Row[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+function CreationDialog({
+  title,
+  busy,
+  onClose,
+  children,
+}: {
+  title: string;
+  busy: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="category-dialog creation-dialog"
+      aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const controls = dialog.current?.querySelectorAll<HTMLElement>(
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]",
+        );
+        if (!controls?.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+    >
+      {children}
+      <div className="dialog-footer">
+        <button className="secondary" disabled={busy} onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </dialog>
   );
 }

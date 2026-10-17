@@ -28,11 +28,13 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 ## Features
 
 - A local profile without registration, optional four-digit PIN, Lock now, and recovery-code reset.
-- Settings to enable, change, or disable the PIN; copy/download of replacement recovery codes.
+- Settings lists Your accounts followed by Your categories, with creation forms in accessible, dismissible modals. It also keeps PIN and recovery controls.
+- Incomplete wallets receive a setup invitation after loading. Open Settings or choose Configure later to dismiss it for the current app visit.
+- Settings can enable, change, or disable the PIN; copy/download replacement recovery codes.
 - Current, savings, cash and credit-card accounts in EUR, GBP, USD or BRL.
 - Income/expense categories and date-only transactions with descriptions. Record income and expenses in **Add transaction**, the gold plus action in the navigation.
 - **Transactions** shows the latest 10 entries across all dates, with older/newer pages, inclusive date filters, and root/subcategory filters. Reporting month affects dashboard totals, not history.
-- Delete unused categories from **Categories**, after confirmation. Categories with children or references from transactions, budgets or schedules cannot be deleted.
+- Delete unused categories from **Settings**, after confirmation. Categories with children or references from transactions, budgets or schedules cannot be deleted.
 - Atomic linked transfers between accounts in the same currency.
 - Account balances and monthly income/expense totals, separated by currency.
 - Monthly category budgets with actual spending and percentage used.

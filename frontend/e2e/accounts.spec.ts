@@ -7,12 +7,16 @@ async function nav(page: Page, name: string) {
     .click();
 }
 async function createAccount(page: Page, name: string, balance = "0.00") {
-  await nav(page, "Accounts");
+  await nav(page, "Settings");
+  await page
+    .getByRole("button", { name: "Create account", exact: true })
+    .click();
   await page.getByLabel("Account name", { exact: true }).fill(name);
   await page.getByLabel("Account type", { exact: true }).selectOption("CASH");
   await page.getByLabel("Currency", { exact: true }).selectOption("EUR");
   await page.getByLabel("Opening balance").fill(balance);
   await page
+    .getByRole("dialog")
     .getByRole("button", { name: "Create account", exact: true })
     .click();
   await expect(
@@ -20,10 +24,16 @@ async function createAccount(page: Page, name: string, balance = "0.00") {
   ).toBeVisible();
 }
 async function createCategory(page: Page, name: string, kind: string) {
-  await nav(page, "Categories");
+  await nav(page, "Settings");
+  await page
+    .getByRole("button", { name: "Create category", exact: true })
+    .click();
   await page.getByLabel("Category name").fill(name);
   await page.getByLabel("Kind", { exact: true }).selectOption(kind);
-  await page.getByRole("button", { name: "Create category" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Create category" })
+    .click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 }
 async function choose(page: Page, label: string, prefix: string) {
@@ -80,14 +90,20 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await createAccount(page, "Rainy day");
   await createCategory(page, "Food", "EXPENSE");
   await createCategory(page, "Salary", "INCOME");
-  await nav(page, "Categories");
+  await nav(page, "Settings");
   await expect(
     page.getByText("Vacations / Food", { exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create category", exact: true })
+    .click();
   await page.getByLabel("Category name").fill("Coffee shop");
   await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
   await choose(page, "Parent category (optional)", "Food");
-  await page.getByRole("button", { name: "Create category" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Create category" })
+    .click();
   await expect(
     page.getByText("Food / Coffee shop", { exact: true }),
   ).toBeVisible();
@@ -117,7 +133,7 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(
     page.getByRole("status").filter({ hasText: "Saved" }),
   ).toBeVisible();
-  await nav(page, "Accounts");
+  await nav(page, "Settings");
   await expect(page.getByText("€89.71", { exact: true })).toBeVisible();
   await expect(page.getByText("€10.00", { exact: true })).toBeVisible();
   await nav(page, "Budgets");
@@ -328,7 +344,7 @@ test("bounded history, separate recording and category deletion work with keyboa
         .getByRole("button", { name: "Transactions", exact: true })
         .evaluate((el) => getComputedStyle(el).backgroundColor),
     );
-    await page.getByRole("button", { name: "Categories", exact: true }).focus();
+    await page.getByRole("button", { name: "Overview", exact: true }).focus();
     await page.keyboard.press("Tab");
     await expect(
       page.getByRole("button", { name: "Transactions", exact: true }),
@@ -376,10 +392,16 @@ test("bounded history, separate recording and category deletion work with keyboa
       fullPage: true,
     });
   }
-  await nav(page, "Categories");
+  await nav(page, "Settings");
+  await page
+    .getByRole("button", { name: "Create category", exact: true })
+    .click();
   await page.getByLabel("Category name").fill("Delete fixture");
   await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
-  await page.getByRole("button", { name: "Create category" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Create category" })
+    .click();
   const del = page.getByRole("button", {
     name: "Delete Delete fixture",
     exact: true,
