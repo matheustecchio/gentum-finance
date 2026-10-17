@@ -30,7 +30,9 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 - A local profile without registration, optional four-digit PIN, Lock now, and recovery-code reset.
 - Settings to enable, change, or disable the PIN; copy/download of replacement recovery codes.
 - Current, savings, cash and credit-card accounts in EUR, GBP, USD or BRL.
-- Income/expense categories and date-only transactions with descriptions.
+- Income/expense categories and date-only transactions with descriptions. Record income and expenses in **Add transaction**, the gold plus action in the navigation.
+- **Transactions** shows the latest 10 entries across all dates, with older/newer pages, inclusive date filters, and root/subcategory filters. Reporting month affects dashboard totals, not history.
+- Delete unused categories from **Categories**, after confirmation. Categories with children or references from transactions, budgets or schedules cannot be deleted.
 - Atomic linked transfers between accounts in the same currency.
 - Account balances and monthly income/expense totals, separated by currency.
 - Monthly category budgets with actual spending and percentage used.
@@ -39,7 +41,7 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 
 Money uses signed `int64`/PostgreSQL `BIGINT` integer cents: **100 = 1.00**. The browser converts decimal text with `BigInt`; GraphQL transports money as exact integer strings. Overflowing balances and monthly totals are rejected atomically. Transfers require the same currency; no exchange rates or mixed-currency sum is implied. Opening balances and transfers do not count as income or spending.
 
-This MVP supports creating records and stopping recurring schedules. Editing/deleting wallet records, automatic bank connections, exchange rates and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
+This MVP supports creating records and stopping recurring schedules. Editing/deleting transactions, automatic bank connections, exchange rates and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
 
 ## Security and operation
 
