@@ -1,16 +1,30 @@
-name: Verify
+name: CI
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 concurrency:
-  group: verify-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
 jobs:
-  backend:
+  backend-checks:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go vet ./...
+      - run: go build -o bin/gentum ./cmd/server
+  backend-tests:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     services:
@@ -36,9 +50,37 @@ jobs:
       - run: go test -race -tags=integration -coverpkg=./... -coverprofile=coverage.out ./...
         env:
           GENTUM_TEST_DATABASE_URL: postgres://gentum:gentum_test_only@localhost:5432/gentum_test?sslmode=disable
-      - run: go vet ./...
-      - run: go build -o bin/gentum ./cmd/server
-  frontend-and-stack:
+  frontend-checks:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+  frontend-tests:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test:coverage
+  end-to-end:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
@@ -50,8 +92,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: node --test scripts/persistence-client.test.mjs
       - run: npm ci
-        working-directory: frontend
-      - run: npm run typecheck && npm run test:coverage && npm run build
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
