@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+case "${1:-start}" in
+  start) docker compose up --build --detach --wait; published="$(docker compose port frontend 80)"; printf '\nGentum Finance: http://localhost:%s\n' "${published##*:}" ;;
+  status) docker compose ps ;;
+  stop) docker compose stop ;;
+  logs) docker compose logs --tail=100 ;;
+  *) printf 'Usage: ./gentum [start|status|stop|logs]\n' >&2; exit 2 ;;
+esac

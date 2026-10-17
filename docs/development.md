@@ -1,122 +1,65 @@
-# Development and testing
+# Development
 
-## Prerequisites
+## Full stack
 
-- Java 21
-- Node.js 20.19 or newer
-- npm 9 or newer
-- Docker with Compose
-
-The backend uses its checked-in Gradle wrapper. The frontend lockfile is authoritative; use `npm ci` for a reproducible install.
-
-## Start the development environment
-
-The application is web-based but all services and data run locally. The current Phase 0 workflow requires PostgreSQL, Spring Boot, and Vite to be started separately. A one-command full-stack Compose profile or launcher is planned but is not available yet.
-
-From the repository root:
+Docker Engine and Compose v2 with `up --wait` are sufficient:
 
 ```bash
-cp .env.example .env
-docker compose up -d
+./gentum start
+./gentum status
+./gentum stop
 ```
 
-The Compose file starts PostgreSQL 17.6, binds it to `127.0.0.1`, and persists local data in the `ledger-postgres-data` volume.
+Open http://localhost:5173 and register a fictional profile. `.env` overrides the optional port, database name/user/password and persistent volume. Keep credentials consistent with initialized volumes. Backend/PostgreSQL are internal; the frontend is the only published loopback port. The launcher waits for all service health checks and never deletes data.
 
-Start the backend in one terminal:
+## Host development
+
+Use Go 1.26.9+ and Node.js 20.19+ (Node 22 is used by Docker and CI). Use a dedicated disposable PostgreSQL database for tests. To expose PostgreSQL for host development, use your own database or an explicit temporary Compose override binding its port only to `127.0.0.1`. The default Compose configuration deliberately does not publish it.
 
 ```bash
 cd backend
-./gradlew bootRun
+go test -race ./...
+go vet ./...
+GENTUM_TEST_DATABASE_URL=postgres://gentum:gentum_test_only@localhost:55439/gentum_test?sslmode=disable go test -race -tags=integration -coverprofile=coverage.out ./...
+go build -o bin/gentum ./cmd/server
+GENTUM_DATABASE_URL=postgres://gentum:gentum_dev_only@localhost:5432/gentum_finance?sslmode=disable go run ./cmd/server
 ```
 
-Start the frontend in another terminal:
+The backend defaults to `127.0.0.1:8080` and `GENTUM_FRONTEND_ORIGIN=http://localhost:5173`. In Docker, `GENTUM_DATABASE_HOST`, `GENTUM_DATABASE_NAME`, `GENTUM_DATABASE_USERNAME`, `GENTUM_DATABASE_PASSWORD` are discrete overrides, avoiding URL escaping issues. HTTP has bounded read/write/header timeouts; embedded migrations run atomically at startup with checksum verification.
 
 ```bash
 cd frontend
 npm ci
-npm run dev
-```
-
-Open `http://localhost:5173`. Vite proxies `/graphql` to `http://localhost:8080`. The local GraphiQL UI is at `http://localhost:8080/graphiql`.
-
-Spring Boot binds to `127.0.0.1` by default. Do not change the database or backend bind address to a network-accessible interface while the development identity and open GraphQL endpoint are in use.
-
-## Configuration
-
-Local defaults are documented in `.env.example`. Keep personal overrides in `.env`, which is ignored by Git. Never commit production secrets or real credentials.
-
-The backend reads its JDBC URL, username, password, bind address, allowed frontend origin, and GraphiQL setting from environment variables. `VITE_GRAPHQL_URL` optionally overrides the frontend endpoint; its default is `/graphql`.
-
-## Backend verification
-
-Run commands from `backend/`:
-
-```bash
-./gradlew test
-./gradlew integrationTest
-./gradlew jacocoTestReport
-./gradlew check
-./gradlew build
-```
-
-- `test` runs fast unit tests and excludes the `integration` JUnit tag.
-- `integrationTest` starts PostgreSQL 17.6 with Testcontainers and verifies Flyway, JPA, Spring Security, and GraphQL over HTTP.
-- `jacocoTestReport` combines unit and integration execution data into XML and HTML reports.
-- `check` runs both unit and integration suites.
-- `build` compiles, verifies, and packages the Spring Boot application.
-
-The HTML coverage report is written to `backend/build/reports/jacoco/test/html/index.html`.
-
-## Frontend verification
-
-Run commands from `frontend/`:
-
-```bash
 npm run typecheck
 npm test
 npm run test:coverage
 npm run build
+npm run dev
 ```
 
-- `typecheck` checks application, Vite, and Playwright TypeScript configuration without emitting files.
-- `test` runs Vitest tests under `src/`.
-- `test:coverage` writes the HTML report to `frontend/coverage/index.html`.
-- `build` type-checks and creates the production bundle under `frontend/dist/`.
+Vite proxies `/auth` and `/graphql` to the host backend. Browse using `localhost` to match Origin validation.
 
-`npm run test:e2e` is configured for Playwright, but the current account journey is explicitly skipped until the full application Compose profile exists. Do not count it as a passing test.
+## Real stack checks
 
-## Match checks to changes
-
-- Run backend unit and integration tests for Java behavior or configuration changes.
-- Run the integration suite for Flyway or JPA changes.
-- Run backend and frontend checks for GraphQL schema changes.
-- Run frontend typecheck, tests, and build for UI or client changes.
-- For documentation-only changes, validate links and commands against manifests and run `git diff --check`; a full application build is optional unless a claim is disputed.
-
-## Stop the environment
-
-Stop containers while preserving the PostgreSQL volume:
+With the full Compose stack running:
 
 ```bash
-docker compose down
+cd frontend
+npx playwright install --with-deps chromium
+npm run test:e2e
+cd ..
+node --test scripts/persistence-client.test.mjs
+node scripts/check-persistence.mjs
 ```
 
-Deleting the volume also deletes local database data and should only be done intentionally.
+`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite creates fictional profiles and verifies actual cookies, accounts, cents, transactions, linked transfers, budgets, idempotent recurrence, atomic CSV validation/export, re-login and unauthenticated isolation. Persistence requests explicitly close their HTTP connections so synchronous Docker restarts cannot reuse stale pooled sockets on Node 22. Verification failures surface immediately, with no automatic retries of financial writes. The persistence script invokes the real launcher status/stop/start and verifies a profile and exact account amount survive. These fixtures remain in the local database under separate fictional profiles and do not appear in other users' ledgers.
+
+Backend integration tests isolate schemas in the configured test database and cover migration adoption/checksum/rollback, session revocation/expiry, cross-user references, exact amounts above JavaScript's safe integer range, account overflow, monthly budget actuals, recurring idempotence and CSV atomicity. Never point tests at production data. Coverage is reported as a baseline; no percentage gate is enforced.
 
 ## Troubleshooting
 
-### PostgreSQL does not become healthy
-
-Run `docker compose ps` and inspect the PostgreSQL service logs. Confirm that port `5432`, or the configured `LEDGER_DATABASE_PORT`, is not already in use.
-
-### The backend cannot connect to PostgreSQL
-
-Confirm the container is healthy and that `LEDGER_DATABASE_URL`, `LEDGER_DATABASE_USERNAME`, and `LEDGER_DATABASE_PASSWORD` match the Compose values. Do not print secret-bearing production environment values while diagnosing the problem.
-
-### npm reports an unsupported engine
-
-Check `node --version`. The frontend requires Node.js 20.19 or newer because its pinned Vite, React Router, and Playwright toolchain does not support Node 18.
-
-### Flyway or Hibernate validation fails
-
-Treat this as a schema/mapping mismatch. Add or correct a Flyway migration and align the JPA mapping; do not enable Hibernate schema mutation to bypass validation.
+- Docker permission error: ensure your user can access the Docker daemon through your operating system's normal setup.
+- Port in use: set `GENTUM_PORT` in `.env`, then run `./gentum start` again.
+- Authentication origin rejection: open the exact printed `http://localhost:PORT` URL.
+- Database authentication failure after changing configuration: restore credentials matching the existing volume; do not delete a volume to fix a password mismatch.
+- Migration rejects fractional cents or checksums: preserve the database and investigate; do not edit applied migration files or bypass checks.

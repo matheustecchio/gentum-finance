@@ -1,6 +1,6 @@
-# Contributing to Ledger
+# Contributing to Gentum Finance
 
-Ledger is an early-stage personal finance application. Contributions should preserve its modular-monolith boundaries, financial correctness rules, and explicit security limitations.
+Gentum Finance is an early-stage personal finance application. Contributions should preserve its modular-monolith boundaries, financial correctness rules, and explicit security limitations.
 
 ## Before starting
 
@@ -9,7 +9,7 @@ Ledger is an early-stage personal finance application. Contributions should pres
 3. Use an issue to discuss substantial features, architecture changes, or behavior changes before investing in implementation.
 4. Never use real credentials, bank data, or personal financial data in development, tests, screenshots, logs, or examples.
 
-The current GraphQL endpoint uses a fixed development identity and is not safe for public deployment. Do not weaken or describe that limitation as authentication.
+The runtime uses cookie-authenticated local profiles. Preserve session, Origin and ownership checks, and keep the application on trusted loopback.
 
 ## Set up the project
 
@@ -22,7 +22,7 @@ cd frontend
 npm ci
 ```
 
-Use the checked-in Gradle wrapper for backend work; a global Gradle installation is not required.
+Use Go 1.26.9 or newer and the checked-in go.mod/go.sum for backend work.
 
 ## Create a branch
 
@@ -41,9 +41,9 @@ If the worktree already contains changes, inspect and preserve them before switc
 ## Make focused changes
 
 - Organize backend code by domain module and preserve the GraphQL → application → domain → infrastructure dependency direction.
-- Use `BigDecimal` and PostgreSQL `NUMERIC(19, 4)` for money.
+- Use Go `int64` and PostgreSQL `BIGINT` for integer cents. Encode GraphQL money as integer strings and convert decimal input only in the UI.
 - Derive resource ownership server-side and scope persistence queries to the current user.
-- Add database changes as new Flyway migrations; do not edit an applied migration.
+- Add database changes as new embedded SQL migrations; do not edit an applied migration.
 - Keep frontend code feature-owned and backend financial rules authoritative.
 - Add or update tests for changed observable behavior.
 - Update the matching API, architecture, development, or README documentation in the same pull request.
@@ -56,8 +56,8 @@ Run checks in the package they apply to:
 
 | Change | Required checks |
 | --- | --- |
-| Backend Java or configuration | `cd backend && ./gradlew test integrationTest` |
-| Database migration or JPA mapping | `cd backend && ./gradlew integrationTest` |
+| Backend Go or configuration | `cd backend && go test -race ./... && go vet ./...` plus PostgreSQL integration tests |
+| Database migration or SQL persistence | `cd backend && GENTUM_TEST_DATABASE_URL=postgres://... go test -tags=integration ./...` |
 | GraphQL schema or contract | Backend checks, frontend typecheck/test/build, and `docs/api/` review |
 | Frontend TypeScript or UI | `cd frontend && npm run typecheck && npm test && npm run build` |
 | Test or coverage configuration | Relevant tests plus the relevant coverage command |
@@ -67,10 +67,12 @@ For the complete backend gate, run:
 
 ```bash
 cd backend
-./gradlew build
+go test -race ./...
+go vet ./...
+go build -o bin/gentum ./cmd/server
 ```
 
-Coverage commands are `./gradlew jacocoTestReport` in `backend/` and `npm run test:coverage` in `frontend/`. No percentage threshold is currently enforced. The Playwright account journey is skipped and must be reported as unavailable, not passing.
+Coverage commands are `go test -coverprofile=coverage.out ./...` in `backend/` and `npm run test:coverage` in `frontend/`. No percentage threshold is currently enforced. Run the enabled Playwright journey against the full Compose stack and `node scripts/check-persistence.mjs` when changing full-stack delivery.
 
 ## Commit the work
 

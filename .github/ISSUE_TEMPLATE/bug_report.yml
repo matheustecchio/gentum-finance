@@ -1,12 +1,12 @@
 name: Bug report
-description: Report reproducible incorrect behavior in Ledger.
+description: Report reproducible incorrect behavior in Gentum Finance.
 title: "[Bug]: "
 labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve Ledger. Do not include secrets, credentials, security vulnerabilities, or real financial data in this public issue.
+        Thanks for helping improve Gentum Finance. Do not include secrets, credentials, security vulnerabilities, or real financial data in this public issue.
   - type: checkboxes
     id: checks
     attributes:
@@ -30,7 +30,7 @@ body:
       label: Steps to reproduce
       description: Use synthetic data and provide the smallest reliable sequence.
       placeholder: |
-        1. Start Ledger with...
+        1. Start Gentum Finance with...
         2. Create a synthetic account...
         3. Observe...
     validations:
@@ -59,7 +59,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Include relevant OS, Java, Node.js, browser, and Docker versions without sensitive values.
+      description: Include relevant OS, Go, Node.js, browser, and Docker versions without sensitive values.
       render: text
   - type: textarea
     id: evidence
