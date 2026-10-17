@@ -198,3 +198,54 @@ for (const kind of ["account", "category"] as const) {
       ).toBe(true);
   });
 }
+
+it("keeps setup dismissed through PIN recovery acknowledgement and lock/unlock in the same visit", async () => {
+  const { fetcher } = ledger([], []);
+  let pinEnabled = false;
+  let unlocked = true;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/auth/status")
+        return new Response(
+          JSON.stringify({ setupRequired: false, pinEnabled, unlocked }),
+        );
+      if (url === "/auth/pin") {
+        pinEnabled = true;
+        return new Response(
+          JSON.stringify({ recoveryCode: "fictional-recovery-code" }),
+        );
+      }
+      if (url === "/auth/lock" || url === "/auth/unlock") {
+        unlocked = url === "/auth/unlock";
+        return new Response("{}");
+      }
+      return fetcher(url, init);
+    }),
+  );
+  render(<FinanceApp />);
+  await screen.findByText("Complete your wallet setup");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Configure later" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+  await userEvent.type(screen.getByLabelText("PIN (4 digits)"), "0123");
+  await userEvent.type(screen.getByLabelText("Confirm PIN"), "0123");
+  await userEvent.click(screen.getByRole("button", { name: "Enable PIN" }));
+  await screen.findByText("Save your recovery code");
+  await userEvent.click(screen.getByLabelText("I have saved my recovery code"));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Continue to wallet" }),
+  );
+  await screen.findByText("A fresh start");
+  expect(
+    screen.queryByText("Complete your wallet setup"),
+  ).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Lock now" }));
+  await userEvent.type(await screen.findByLabelText("PIN (4 digits)"), "0123");
+  await userEvent.click(screen.getByRole("button", { name: "Unlock" }));
+  await screen.findByText("A fresh start");
+  expect(
+    screen.queryByText("Complete your wallet setup"),
+  ).not.toBeInTheDocument();
+});

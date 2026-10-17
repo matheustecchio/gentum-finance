@@ -156,13 +156,23 @@ const tabs = [
   "Settings",
 ];
 export function FinanceApp() {
+  const [setupDismissed, setSetupDismissed] = useState(false);
   return (
     <LocalAccess>
-      <Wallet />
+      <Wallet
+        setupDismissed={setupDismissed}
+        dismissSetup={() => setSetupDismissed(true)}
+      />
     </LocalAccess>
   );
 }
-function Wallet() {
+function Wallet({
+  setupDismissed,
+  dismissSetup,
+}: {
+  setupDismissed: boolean;
+  dismissSetup: () => void;
+}) {
   const { status, lock } = useLocalAccess();
   const [filters, setFilters] = useState<Filters>({ ...clearFilters });
   const deleteDialog = useRef<HTMLDialogElement>(null);
@@ -183,7 +193,6 @@ function Wallet() {
   const [importAccount, setImportAccount] = useState("");
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [setupDismissed, setSetupDismissed] = useState(false);
   const [creating, setCreating] = useState<"account" | "category">();
   const [createBusy, setCreateBusy] = useState(false);
   const createTrigger = useRef<HTMLButtonElement | null>(null);
@@ -368,16 +377,13 @@ function Wallet() {
               <div className="actions">
                 <button
                   onClick={() => {
-                    setSetupDismissed(true);
+                    dismissSetup();
                     setTab("Settings");
                   }}
                 >
                   Open Settings
                 </button>
-                <button
-                  className="secondary"
-                  onClick={() => setSetupDismissed(true)}
-                >
+                <button className="secondary" onClick={dismissSetup}>
                   Configure later
                 </button>
               </div>
