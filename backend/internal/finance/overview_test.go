@@ -133,3 +133,12 @@ func TestOverviewRevaluesBothDatesAndComputesDeltaOnBackend(t *testing.T) {
 		t.Fatalf("partial total exposed %+v %v", o, err)
 	}
 }
+
+func TestOverviewDeltaOverflowKeepsCurrentWealthWithExplanation(t *testing.T) {
+	repo := &overviewFixture{data: overviewData{Currency: "EUR", Observations: []Row{{"date": "2026-09-18", "EUR": "-1"}, {"date": "2026-10-18", "EUR": "9223372036854775807"}}}}
+	s := Service{Repository: repo, CurrentUser: overviewOwner("owned"), Now: func() time.Time { return referenceDay }}
+	out, err := s.Overview(context.Background(), "2026-10")
+	if err != nil || out.Change30 != "" || out.ChangeError == "" || len(out.Wealth) != 2 || out.Wealth[1]["amount"] != "9223372036854775807" || out.RateError != "" {
+		t.Fatalf("silent difference overflow: %+v %v", out, err)
+	}
+}

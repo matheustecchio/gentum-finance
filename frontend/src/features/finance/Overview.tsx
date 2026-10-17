@@ -5,6 +5,7 @@ import "./overview.css";
 
 export interface OverviewData {
   change30?: string;
+  changeError?: string;
   currency: string;
   today: string;
   wealth: Row[];
@@ -133,7 +134,12 @@ export function WealthCard({ data }: { data: OverviewData }) {
               ? `Estimated in ${data.currency} · ECB reference rates via Frankfurter · ${data.rateDate}.`
               : `All balances in ${data.currency}.`}
           </p>
-          {!previous && (
+          {data.changeError && (
+            <p className="chart-note" role="status">
+              {data.changeError}
+            </p>
+          )}
+          {!previous && !data.changeError && (
             <p className="chart-note">
               30-day change unavailable until an observation exists for {first}.
             </p>

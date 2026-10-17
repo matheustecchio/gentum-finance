@@ -482,7 +482,6 @@ function Wallet({
         )}
         {tab === "Settings" && (
           <>
-            <PrimaryCurrency />
             {creating === "category" && (
               <CreationDialog
                 title="Create category"

@@ -158,3 +158,55 @@ it("keeps chart geometry bounded above Number precision and month navigation cro
   ).toBe(75);
   expect(shiftMonth("2026-01", -3)).toBe("2025-10");
 });
+it("explains a 30-day difference overflow while keeping supported current wealth visible", () => {
+  render(
+    <WealthCard
+      data={{
+        ...data,
+        change30: "",
+        changeError:
+          "30-day change unavailable: the difference exceeds the supported amount.",
+        wealth: [
+          { date: "2026-09-18", amount: "-1" },
+          { date: "2026-10-18", amount: "9223372036854775807" },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "difference exceeds the supported amount",
+  );
+  expect(screen.getAllByText(/92,233,720,368,547,758.07/)[0]).toBeVisible();
+});
+it("saves the selected currency and reads it back after remount", async () => {
+  let saved = "EUR";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.query.startsWith("mutation")) {
+        saved = body.variables.input.currency;
+        return new Response(
+          JSON.stringify({ data: { executeFinance: "Saved" } }),
+        );
+      }
+      return new Response(
+        JSON.stringify({ data: { overview: { ...data, currency: saved } } }),
+      );
+    }),
+  );
+  const first = render(<PrimaryCurrency />);
+  await waitFor(() =>
+    expect(screen.getByLabelText("Primary currency")).toHaveValue("EUR"),
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Primary currency"),
+    "USD",
+  );
+  expect(await screen.findByText("Primary currency saved")).toBeVisible();
+  first.unmount();
+  render(<PrimaryCurrency />);
+  await waitFor(() =>
+    expect(screen.getByLabelText("Primary currency")).toHaveValue("USD"),
+  );
+});

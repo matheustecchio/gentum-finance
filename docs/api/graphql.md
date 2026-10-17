@@ -4,7 +4,8 @@
 `overview(month: String!): FinanceData` accepts a month from 1900-01 through
 9998-12. It returns `currency`, `today` (UTC), `wealth` (date/amount integer-cent
 observations), `flows` (six months ending in the requested month, with native
-currency income/expense/signed net), `converted`, `rateDate`, `rateError` and `change30` (empty when unavailable).
+currency income/expense/signed net), `converted`, `rateDate`, `rateError`, `change30` (empty when unavailable), and `changeError`
+(an explanation when the signed difference exceeds the supported range).
 Missing flow months have zero activity. Missing wealth days are unknown.
 
 `executeFinance(action: "primaryCurrency", input: {currency: "EUR"})` saves the

@@ -15,14 +15,15 @@ import (
 )
 
 type Overview struct {
-	Change30  string `json:"change30"`
-	Currency  string `json:"currency"`
-	Today     string `json:"today"`
-	Wealth    []Row  `json:"wealth"`
-	Flows     []Row  `json:"flows"`
-	RateDate  string `json:"rateDate"`
-	RateError string `json:"rateError"`
-	Converted bool   `json:"converted"`
+	ChangeError string `json:"changeError"`
+	Change30    string `json:"change30"`
+	Currency    string `json:"currency"`
+	Today       string `json:"today"`
+	Wealth      []Row  `json:"wealth"`
+	Flows       []Row  `json:"flows"`
+	RateDate    string `json:"rateDate"`
+	RateError   string `json:"rateError"`
+	Converted   bool   `json:"converted"`
 }
 type overviewData struct {
 	Currency     string
@@ -224,7 +225,11 @@ func (s Service) Overview(ctx context.Context, month string) (Overview, error) {
 	if baseline != "" && current != "" {
 		a, _ := new(big.Int).SetString(current, 10)
 		b, _ := new(big.Int).SetString(baseline, 10)
-		out.Change30, _ = checked(new(big.Int).Sub(a, b).String())
+		var changeErr error
+		out.Change30, changeErr = checked(new(big.Int).Sub(a, b).String())
+		if changeErr != nil {
+			out.ChangeError = "30-day change unavailable: the difference exceeds the supported amount."
+		}
 	}
 	return out, nil
 }

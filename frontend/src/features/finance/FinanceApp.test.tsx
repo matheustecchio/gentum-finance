@@ -185,6 +185,9 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
   render(<FinanceApp />);
   await screen.findByRole("heading", { name: "Total Wealth" });
   await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+  expect(
+    screen.getAllByRole("combobox", { name: "Primary currency" }),
+  ).toHaveLength(1);
   await userEvent.click(
     screen.getByRole("button", { name: "Create category" }),
   );
