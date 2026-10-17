@@ -27,7 +27,7 @@ Do not edit dependencies, build output, coverage output, generated bundles, or t
 - Preserve the browser-based, local-first delivery model. Keep application services and data on the user's machine by default, and bind development services to the loopback interface.
 - Do not introduce Electron, Tauri, cloud hosting, or an embedded-database replacement without an accepted ADR that changes the product direction.
 
-The runtime uses verified cookie sessions through the `CurrentUserProvider` seam. Keep all financial routes authenticated, enforce mutation Origin/JSON checks and retain ownership scoping. The legacy development provider is used only by compatibility tests; never wire it into the server. Keep local HTTP services on trusted loopback.
+The runtime uses one configured local ledger with optional PIN protection and verified cookie sessions through the `CurrentUserProvider` seam. Keep same-origin session creation even when PIN protection is disabled; never expose financial routes through a fixed development identity. PIN changes/recovery must preserve ledger data, revoke older sessions, rotate the recovery code, and retain persistent installation-wide throttling. The PIN is an app lock, not database encryption. Keep all financial routes authenticated, enforce mutation Origin/JSON checks and retain ownership scoping. The legacy development provider is used only by compatibility tests; never wire it into the server. Keep local HTTP services on trusted loopback.
 
 ## Commands and validation
 

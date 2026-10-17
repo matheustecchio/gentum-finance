@@ -39,3 +39,7 @@ Desktop packaging with Electron or Tauri, replacing PostgreSQL with an embedded 
 ## Functional MVP delivery
 
 The accepted MVP now uses `./gentum start` to build and start nginx/React, Go and PostgreSQL in Docker, waiting for health checks. Only `127.0.0.1:5173` (configurable through `GENTUM_PORT`) is published. Backend and database ports remain internal. `./gentum stop` preserves the configured named database volume, and `./gentum status` reports health. Startup never launches a visible browser or resets data. The printed browser origin is the allowed mutation Origin. See [ADR 0004](0004-authenticated-local-finance-mvp.md).
+
+## Optional local access protection
+
+[ADR 0005](0005-local-profile-and-optional-pin.md) replaces email registration with one local profile and optional PIN protection. The free local application needs no online account. A possible future paid hosted synchronization service is outside the current implementation. Local persistence and loopback delivery remain unchanged.

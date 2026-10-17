@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  LocalAccess,
+  useLocalAccess,
+  AccessSettings,
+} from "../security/LocalAccess";
 import { formatMoney, toCents } from "../accounts/money";
-import { execute, graphql, request, type Row, type Snapshot } from "./client";
+import { execute, graphql, type Row, type Snapshot } from "./client";
 
 type Field = {
   name: string;
@@ -101,48 +106,6 @@ function Form({
     </form>
   );
 }
-function Auth({ onLogin }: { onLogin: () => void }) {
-  const [register, setRegister] = useState(false);
-  return (
-    <main className="auth-shell">
-      <div className="auth-intro">
-        <span className="eyebrow">GENTUM FINANCE</span>
-        <h1>
-          Your money.
-          <br />A clearer picture.
-        </h1>
-        <p>
-          A private ledger on your own machine. Track accounts, spending and the
-          plans that matter.
-        </p>
-      </div>
-      <div>
-        <Form
-          key={String(register)}
-          title={register ? "Create your local profile" : "Welcome back"}
-          fields={[
-            { name: "email", label: "Email", type: "email" },
-            {
-              name: "password",
-              label: "Password (12 characters minimum)",
-              type: "password",
-            },
-          ]}
-          submit={register ? "Create profile" : "Sign in"}
-          onSubmit={async (values) => {
-            await request(register ? "/auth/register" : "/auth/login", values);
-            onLogin();
-          }}
-        />
-        <button className="text-button" onClick={() => setRegister(!register)}>
-          {register
-            ? "Already have a profile? Sign in"
-            : "New here? Create a local profile"}
-        </button>
-      </div>
-    </main>
-  );
-}
 const empty: Snapshot = {
   accounts: [],
   categories: [],
@@ -160,9 +123,17 @@ const tabs = [
   "Budgets",
   "Recurring",
   "Import & export",
+  "Settings",
 ];
 export function FinanceApp() {
-  const [user, setUser] = useState<string | null | undefined>(undefined);
+  return (
+    <LocalAccess>
+      <Ledger />
+    </LocalAccess>
+  );
+}
+function Ledger() {
+  const { status, lock } = useLocalAccess();
   const [tab, setTab] = useState("Overview");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [data, setData] = useState<Snapshot>(empty);
@@ -170,22 +141,7 @@ export function FinanceApp() {
   const [error, setError] = useState("");
   const [csv, setCsv] = useState("");
   const [loading, setLoading] = useState(false);
-  const checkUser = useCallback(() => {
-    request<{ email: string }>("/auth/me")
-      .then((result) => setUser(result.email))
-      .catch(() => setUser(null));
-  }, []);
-  useEffect(() => {
-    checkUser();
-    const logout = () => {
-      setUser(null);
-      setData(empty);
-    };
-    window.addEventListener("gentum:unauthorized", logout);
-    return () => window.removeEventListener("gentum:unauthorized", logout);
-  }, [checkUser]);
   const load = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
     try {
       const result = await graphql<{ finance: Snapshot }>(
@@ -199,7 +155,7 @@ export function FinanceApp() {
     } finally {
       setLoading(false);
     }
-  }, [user, month]);
+  }, [month]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -242,13 +198,6 @@ export function FinanceApp() {
     { name: "date", label: "Date", type: "date", value: today() },
     { name: "description", label: "Description", optional: true },
   ];
-  if (user === undefined)
-    return (
-      <p className="loading" role="status">
-        Opening your ledger…
-      </p>
-    );
-  if (user === null) return <Auth onLogin={checkUser} />;
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -271,18 +220,25 @@ export function FinanceApp() {
           ))}
         </nav>
         <div className="profile">
-          <small>{user}</small>
-          <button
-            className="text-button"
-            onClick={async () => {
-              await request("/auth/logout", {});
-              setUser(null);
-              setData(empty);
-              setTab("Overview");
-            }}
-          >
-            Sign out
-          </button>
+          <small>
+            Local ledger · {status.pinEnabled ? "PIN enabled" : "No PIN"}
+          </small>
+          {status.pinEnabled && (
+            <button
+              className="text-button"
+              onClick={async () => {
+                try {
+                  await lock();
+                } catch (e) {
+                  setError(
+                    e instanceof Error ? e.message : "Unable to lock ledger",
+                  );
+                }
+              }}
+            >
+              Lock now
+            </button>
+          )}
         </div>
       </aside>
       <main>
@@ -313,6 +269,7 @@ export function FinanceApp() {
           </p>
         )}
         {loading && <p role="status">Refreshing…</p>}
+        {tab === "Settings" && <AccessSettings />}
         {tab === "Overview" && (
           <>
             <div className="stats-grid">

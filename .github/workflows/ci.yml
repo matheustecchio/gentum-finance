@@ -81,6 +81,9 @@ jobs:
       - run: npm ci
       - run: npm run test:coverage
   end-to-end:
+    env:
+      GENTUM_VERIFICATION_FIXTURE: "1"
+      GENTUM_DATABASE_VOLUME: gentum-ci-test-data
     timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:

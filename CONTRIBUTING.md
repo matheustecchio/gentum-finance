@@ -9,7 +9,7 @@ Gentum Finance is an early-stage personal finance application. Contributions sho
 3. Use an issue to discuss substantial features, architecture changes, or behavior changes before investing in implementation.
 4. Never use real credentials, bank data, or personal financial data in development, tests, screenshots, logs, or examples.
 
-The runtime uses cookie-authenticated local profiles. Preserve session, Origin and ownership checks, and keep the application on trusted loopback.
+The runtime uses one local profile with optional PIN protection and verified cookie sessions, including direct-access mode. Preserve session, Origin and ownership checks, and keep the application on trusted loopback.
 
 ## Set up the project
 
