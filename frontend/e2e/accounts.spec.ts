@@ -14,7 +14,9 @@ async function createAccount(page: Page, name: string, balance = "0.00") {
   await page
     .getByRole("button", { name: "Create account", exact: true })
     .click();
-  await expect(page.getByRole("status")).toHaveText("Account created");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Account created" }),
+  ).toBeVisible();
 }
 async function createCategory(page: Page, name: string, kind: string) {
   await nav(page, "Categories");
@@ -32,19 +34,32 @@ async function choose(page: Page, label: string, prefix: string) {
   await select.selectOption(option!);
   return option!;
 }
-test("complete local ledger journey: exact money, transfers, budgets, recurrence, CSV and logout isolation", async ({
+test("complete local ledger journey: exact money, transfers, budgets, recurrence, CSV and PIN isolation", async ({
   page,
   browser,
 }) => {
+  test.skip(
+    process.env.GENTUM_VERIFICATION_FIXTURE !== "1",
+    "Requires a disposable verification stack",
+  );
   await page.goto("/");
-  await page.getByText("New here? Create a local profile").click();
-  const email = `e2e-${Date.now()}@example.test`;
-  const password = "fictional-local-password";
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password (12 characters minimum)").fill(password);
+  await page.getByLabel("Protect with a PIN").check();
+  await page.getByLabel("PIN (4 digits)", { exact: true }).fill("0123");
+  await page.getByLabel("Confirm PIN").fill("0123");
   await page
-    .getByRole("button", { name: "Create profile", exact: true })
+    .getByRole("button", { name: "Open local ledger", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "Save your recovery code" }),
+  ).toBeVisible();
+  let recovery = await page.locator(".recovery-code").innerText();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByRole("button", { name: "Continue to ledger" }),
+  ).toBeDisabled();
+  await expect(page.locator(".recovery-code")).toHaveText(recovery);
+  await page.getByLabel("I have saved my recovery code").check();
+  await page.getByRole("button", { name: "Continue to ledger" }).click();
   await expect(
     page.getByRole("heading", { name: "Overview", exact: true }),
   ).toBeVisible();
@@ -67,7 +82,9 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
   await choose(page, "To account (same currency)", "Rainy day");
   await page.getByLabel("Amount", { exact: true }).fill("10.00");
   await page.getByRole("button", { name: "Save transfer" }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Saved" }),
+  ).toBeVisible();
   await nav(page, "Accounts");
   await expect(page.getByText("€89.71", { exact: true })).toBeVisible();
   await expect(page.getByText("€10.00", { exact: true })).toBeVisible();
@@ -86,13 +103,13 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
   await page.getByRole("button", { name: "Create recurring schedule" }).click();
   await expect(page.getByText("Monthly coffee", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Run due transactions" }).click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Created 1 due transactions",
-  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "Created 1 due transactions" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Run due transactions" }).click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Created 0 due transactions",
-  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "Created 0 due transactions" }),
+  ).toBeVisible();
   await nav(page, "Import & export");
   const date = new Date().toISOString().slice(0, 10);
   const header = "date,account_id,category_id,kind,amount_cents,description\n";
@@ -108,7 +125,9 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
     .getByLabel("CSV content")
     .fill(header + `${date},${accountId},${categoryId},EXPENSE,1,=formula\n`);
   await page.getByRole("button", { name: "Import CSV", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Imported 1 transactions");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Imported 1 transactions" }),
+  ).toBeVisible();
   const downloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export CSV" }).click();
   const download = await downloadEvent;
@@ -123,16 +142,60 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
   const isolated = await other.newPage();
   await isolated.goto(new URL("/", page.url()).toString());
   await expect(
-    isolated.getByRole("button", { name: "Sign in", exact: true }),
+    isolated.getByRole("button", { name: "Unlock", exact: true }),
   ).toBeVisible();
   await other.close();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Lock now" }).click();
   await expect(
-    page.getByRole("button", { name: "Sign in", exact: true }),
+    page.getByRole("button", { name: "Unlock", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password (12 characters minimum)").fill(password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("PIN (4 digits)").fill("9999");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Invalid PIN");
+  await page.getByLabel("PIN (4 digits)").fill("0123");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
   await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
   await expect(page.getByText("€89.69", { exact: true })).toBeVisible();
+  await nav(page, "Settings");
+  await page.getByLabel("Current PIN").fill("0123");
+  await page.getByLabel("New PIN").fill("2345");
+  await page.getByLabel("Confirm PIN").fill("2345");
+  await page.getByRole("button", { name: "Change PIN", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Save your recovery code" }),
+  ).toBeVisible();
+  recovery = await page.locator(".recovery-code").innerText();
+  await page.getByLabel("I have saved my recovery code").check();
+  await page.getByRole("button", { name: "Continue to ledger" }).click();
+  await page.getByRole("button", { name: "Lock now" }).click();
+  await page.getByRole("button", { name: "Forgot your PIN?" }).click();
+  await page.getByLabel("Recovery code", { exact: true }).fill(recovery);
+  await page.getByLabel("New PIN").fill("5678");
+  await page.getByLabel("Confirm PIN").fill("5678");
+  await page.getByRole("button", { name: "Reset PIN", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Save your recovery code" }),
+  ).toBeVisible();
+  expect(await page.locator(".recovery-code").innerText()).not.toEqual(
+    recovery,
+  );
+  await page.getByLabel("I have saved my recovery code").check();
+  await page.getByRole("button", { name: "Continue to ledger" }).click();
+  await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
+  await nav(page, "Settings");
+  await page.getByRole("button", { name: "Use without a PIN" }).click();
+  await page.getByLabel("Current PIN").fill("5678");
+  await page.getByRole("button", { name: "Disable PIN", exact: true }).click();
+  await expect(
+    page.getByText("This computer opens your ledger without a PIN."),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
+  const direct = await browser.newContext();
+  const directPage = await direct.newPage();
+  await directPage.goto(new URL("/", page.url()).toString());
+  await expect(
+    directPage.getByText("Daily wallet", { exact: true }),
+  ).toBeVisible();
+  await direct.close();
 });

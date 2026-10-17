@@ -402,3 +402,22 @@ code {
     flex-wrap: wrap;
   }
 }
+
+.check-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+}
+.check-label input {
+  width: auto;
+  min-height: auto;
+}
+.recovery-code {
+  font-size: 1rem;
+  user-select: all;
+}
+.auth-shell label {
+  margin-bottom: 16px;
+}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { FinanceApp } from "./FinanceApp";
@@ -10,8 +10,13 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
       async (url: string) =>
         new Response(
           JSON.stringify(
-            url === "/auth/me"
-              ? { email: "fiction@example.test" }
+            url === "/auth/status"
+              ? {
+                  setupRequired: false,
+                  legacyRequired: false,
+                  pinEnabled: false,
+                  unlocked: true,
+                }
               : {
                   data: {
                     finance: {
@@ -58,17 +63,28 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
   await userEvent.click(screen.getByRole("button", { name: "Budgets" }));
   expect(screen.getByText("125% used · Over budget")).toBeInTheDocument();
 });
-it("offers registration when there is no valid session", async () => {
+it("offers optional PIN setup without email registration", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => new Response("Authentication required", { status: 401 })),
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            setupRequired: true,
+            legacyRequired: false,
+            pinEnabled: false,
+            unlocked: false,
+          }),
+        ),
+    ),
   );
   render(<FinanceApp />);
-  await screen.findByRole("button", { name: "Sign in" });
-  await userEvent.click(screen.getByText("New here? Create a local profile"));
-  await waitFor(() =>
-    expect(
-      screen.getByRole("button", { name: "Create profile" }),
-    ).toBeInTheDocument(),
+  await screen.findByRole("heading", { name: "Set up your local ledger" });
+  expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Use without a PIN")).toBeChecked();
+  await userEvent.click(screen.getByLabelText("Protect with a PIN"));
+  expect(screen.getByLabelText("PIN (4 digits)")).toHaveAttribute(
+    "type",
+    "password",
   );
 });

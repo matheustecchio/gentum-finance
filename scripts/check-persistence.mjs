@@ -3,12 +3,17 @@ import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { createClient } from "./persistence-client.mjs";
 const base = process.env.GENTUM_E2E_URL ?? "http://localhost:5173";
-const credentials = {
-  email: `persistence-${Date.now()}@example.test`,
-  password: "fictional-persistence-password",
-};
+if (process.env.GENTUM_VERIFICATION_FIXTURE !== "1") {
+  throw new Error(
+    "Use a disposable stack with GENTUM_VERIFICATION_FIXTURE=1; this check creates fictional ledger data.",
+  );
+}
 const call = createClient(base);
-await call("/auth/register", credentials);
+const status = await fetch(base + "/auth/status").then((response) =>
+  response.json(),
+);
+if (status.setupRequired) await call("/auth/setup", { mode: "open" });
+else await call("/auth/open", {});
 const account = await call("/graphql", {
   query:
     'mutation{createAccount(input:{name:"Persistence fixture",type:CASH,currency:EUR,initialBalance:"29"}){id initialBalance}}'.replace(
@@ -20,12 +25,14 @@ const id = account.data.createAccount.id;
 execFileSync("./gentum", ["status"], { stdio: "inherit" });
 execFileSync("./gentum", ["stop"], { stdio: "inherit" });
 execFileSync("./gentum", ["start"], { stdio: "inherit" });
-await call("/auth/login", credentials);
+await call("/auth/open", {});
 const result = await call("/graphql", {
   query: "{accounts{id initialBalance}}",
 });
-assert.deepEqual(result.data.accounts, [{ id, initialBalance: "29" }]);
-await call("/auth/logout", {});
+assert.deepEqual(
+  result.data.accounts.find((account) => account.id === id),
+  { id, initialBalance: "29" },
+);
 console.log(
-  "Persistence PASS: launcher status/stop/start preserves profile and exact account cents.",
+  "Persistence PASS: launcher status/stop/start preserves local access and exact account cents.",
 );
