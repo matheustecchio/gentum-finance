@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { FinanceApp } from "./FinanceApp";
 Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
-  configurable: true, value: function (this: HTMLDialogElement) { this.open = true; },
+  configurable: true,
+  value: function (this: HTMLDialogElement) {
+    this.open = true;
+  },
 });
 afterEach(() => vi.unstubAllGlobals());
 it("shows authenticated balances and monthly budgets with exact cents", async () => {
@@ -22,6 +25,17 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
                 }
               : {
                   data: {
+                    overview: {
+                      currency: "EUR",
+                      today: "2026-10-18",
+                      wealth: [
+                        { date: "2026-10-18", amount: "9007199254740993" },
+                      ],
+                      flows: [],
+                      rateDate: "",
+                      rateError: "",
+                      converted: false,
+                    },
                     financeSummary: {
                       accounts: [
                         {
@@ -61,8 +75,8 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
     ),
   );
   render(<FinanceApp />);
-  await screen.findByText("Wallet");
-  expect(screen.getByText(/90,071,992,547,409.93/)).toBeInTheDocument();
+  await screen.findByRole("heading", { name: "Total Wealth" });
+  expect(screen.getAllByText(/90,071,992,547,409.93/)[0]).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Budgets" }));
   expect(screen.getByText("125% used · Over budget")).toBeInTheDocument();
 });
@@ -124,6 +138,17 @@ function mockLedger(
               data: body.variables?.action
                 ? { executeFinance: "Saved" }
                 : {
+                    overview: {
+                      currency: "EUR",
+                      today: "2026-10-18",
+                      wealth: [
+                        { date: "2026-10-18", amount: "9007199254740993" },
+                      ],
+                      flows: [],
+                      rateDate: "",
+                      rateError: "",
+                      converted: false,
+                    },
                     financeSummary: {
                       accounts,
                       categories,
@@ -158,9 +183,11 @@ function mockLedger(
 it("creates a child with same-kind roots and adds starter categories explicitly", async () => {
   const fetcher = mockLedger();
   render(<FinanceApp />);
-  await screen.findByText("Wallet");
+  await screen.findByRole("heading", { name: "Total Wealth" });
   await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-  await userEvent.click(screen.getByRole("button", { name: "Create category" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create category" }),
+  );
   await userEvent.selectOptions(screen.getByLabelText("Kind"), "EXPENSE");
   const parent = screen.getByLabelText("Parent category (optional)");
   expect(parent).toHaveTextContent("Home");
@@ -169,9 +196,11 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
   await userEvent.type(screen.getByLabelText("Category name"), "Utilities");
   await userEvent.selectOptions(parent, "root");
   await userEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", { name: "Create category" }),
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Create category",
+    }),
   );
-  await screen.findByRole("status");
+  await screen.findByText("Saved");
   expect(
     fetcher.mock.calls.some(([, init]) =>
       String(init?.body).includes('"parentId":"root"'),
@@ -190,10 +219,12 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
 it("filters transaction and recurring category paths by kind and expands direct root spending", async () => {
   mockLedger();
   render(<FinanceApp />);
-  await screen.findByText("Wallet");
-  await userEvent.click(screen.getByText(/Home · expense/));
-  expect(screen.getByText(/Direct entries · €0.29/)).toBeVisible();
-  expect(screen.getByText(/Home \/ Repairs · €1.00/)).toBeVisible();
+  await screen.findByRole("heading", { name: "Total Wealth" });
+  await userEvent.click(screen.getByRole("button", { name: "Home: €0.29" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Home: €0.29");
+  expect(
+    screen.getByRole("button", { name: "Home / Repairs: €1.00" }),
+  ).toBeVisible();
   for (const tab of ["Add transaction", "Recurring"]) {
     await userEvent.click(screen.getByRole("button", { name: tab }));
     await userEvent.selectOptions(
@@ -222,7 +253,7 @@ it("filters transaction and recurring category paths by kind and expands direct 
 it("uses the single eligible destination and keeps only category ID references", async () => {
   const fetcher = mockLedger();
   render(<FinanceApp />);
-  await screen.findByText("Wallet");
+  await screen.findByRole("heading", { name: "Total Wealth" });
   await userEvent.click(
     screen.getByRole("button", { name: "Import & export" }),
   );
@@ -255,7 +286,7 @@ it("requires a destination choice for multiple accounts and explains missing acc
     { id: "b", name: "Two", currency: "USD", type: "CASH", balance: "0" },
   ]);
   const view = render(<FinanceApp />);
-  await screen.findByText("One");
+  await screen.findByRole("heading", { name: "Total Wealth" });
   await userEvent.click(
     screen.getByRole("button", { name: "Import & export" }),
   );
@@ -297,14 +328,16 @@ it("separates recording from history, preserves exact cents, resets and refreshe
   });
   vi.stubGlobal("fetch", fetcher);
   render(<FinanceApp />);
-  await screen.findByText("Wallet");
+  await screen.findByRole("heading", { name: "Total Wealth" });
   await userEvent.click(screen.getByRole("button", { name: "Transactions" }));
   await screen.findByText(/No transactions yet/);
   expect(
     screen.queryByRole("button", { name: "Save transaction" }),
   ).not.toBeInTheDocument();
   const add = screen.getByRole("button", { name: "Add transaction" });
-  expect(screen.getAllByRole("button", { name: "Add transaction" })).toHaveLength(1);
+  expect(
+    screen.getAllByRole("button", { name: "Add transaction" }),
+  ).toHaveLength(1);
   expect(
     within(screen.getByRole("navigation"))
       .getAllByRole("button")
@@ -410,7 +443,7 @@ it("confirms or cancels category deletion and displays server rejection", async 
   });
   vi.stubGlobal("fetch", fetcher);
   render(<FinanceApp />);
-  await screen.findByText("Wallet");
+  await screen.findByRole("heading", { name: "Total Wealth" });
   await userEvent.click(screen.getByRole("button", { name: "Settings" }));
   await userEvent.click(
     screen.getByRole("button", { name: "Delete Home / Repairs" }),
@@ -490,6 +523,15 @@ it("removes deleted categories from history filters and clears the active child"
       return new Response(
         JSON.stringify({
           data: {
+            overview: {
+              currency: "EUR",
+              today: "2026-10-18",
+              wealth: [{ date: "2026-10-18", amount: "9007199254740993" }],
+              flows: [],
+              rateDate: "",
+              rateError: "",
+              converted: false,
+            },
             financeSummary: {
               accounts: [],
               categories: deleted ? categories.slice(0, 1) : categories,
@@ -535,15 +577,47 @@ it("removes deleted categories from history filters and clears the active child"
 
 for (const pinEnabled of [false, true]) {
   it(`shows the development version and preserves the lock control with PIN ${pinEnabled}`, async () => {
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(
-      url === "/auth/status"
-        ? { setupRequired: false, pinEnabled, unlocked: true }
-        : { data: { financeSummary: { accounts: [], categories: [], entries: [], budgets: [], recurring: [], totals: [] } } }
-    ))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify(
+              url === "/auth/status"
+                ? { setupRequired: false, pinEnabled, unlocked: true }
+                : {
+                    data: {
+                      overview: {
+                        currency: "EUR",
+                        today: "2026-10-18",
+                        wealth: [
+                          { date: "2026-10-18", amount: "9007199254740993" },
+                        ],
+                        flows: [],
+                        rateDate: "",
+                        rateError: "",
+                        converted: false,
+                      },
+                      financeSummary: {
+                        accounts: [],
+                        categories: [],
+                        entries: [],
+                        budgets: [],
+                        recurring: [],
+                        totals: [],
+                      },
+                    },
+                  },
+            ),
+          ),
+      ),
+    );
     render(<FinanceApp />);
     await screen.findByText("Local wallet");
     expect(screen.getByText(`v${__APP_VERSION__} (dev)`)).toBeInTheDocument();
     expect(screen.queryByText(/No PIN|PIN enabled/)).not.toBeInTheDocument();
-    expect(screen.queryAllByRole("button", { name: "Lock now" })).toHaveLength(pinEnabled ? 1 : 0);
+    expect(screen.queryAllByRole("button", { name: "Lock now" })).toHaveLength(
+      pinEnabled ? 1 : 0,
+    );
   });
 }

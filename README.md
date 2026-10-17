@@ -28,7 +28,7 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 ## Features
 
 - A local profile without registration, optional four-digit PIN, Lock now, and recovery-code reset.
-- Settings lists Your accounts followed by Your categories, with creation forms in accessible, dismissible modals. It also keeps PIN and recovery controls.
+- Settings contains a primary-currency preference, Your accounts and Your categories, with creation forms in accessible, dismissible modals. It also keeps PIN and recovery controls.
 - Incomplete wallets receive a setup invitation after loading. Open Settings or choose Configure later to dismiss it for the current app visit.
 - Settings can enable, change, or disable the PIN; copy/download replacement recovery codes.
 - Current, savings, cash and credit-card accounts in EUR, GBP, USD or BRL.
@@ -36,14 +36,16 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 - **Transactions** shows the latest 10 entries across all dates, with older/newer pages, inclusive date filters, and root/subcategory filters. Reporting month affects dashboard totals, not history.
 - Delete unused categories from **Settings**, after confirmation. Categories with children or references from transactions, budgets or schedules cannot be deleted.
 - Atomic linked transfers between accounts in the same currency.
-- Account balances and monthly income/expense totals, separated by currency.
+- Total Wealth in your primary currency, with dated ECB reference rates, a 30-day observation chart and signed change when history is available. Daily observations start when you open Overview; earlier balances and missing days are not invented.
+- Monthly grouped cash-flow bars (income, expenses and signed net), with drag/swipe, keyboard and button navigation through history. Monthly spending bars show category names and amounts on hover, tap and focus.
+- A saved primary currency in Settings. Original account balances and cash-flow reporting stay in their native currencies.
 - Monthly category budgets with actual spending and percentage used.
 - Monthly recurring income/expense schedules, explicit **Run due transactions**, idempotent occurrences, month-end handling and stopping schedules.
 - Validated, all-or-nothing CSV import and spreadsheet-safe CSV export.
 
-Money uses signed `int64`/PostgreSQL `BIGINT` integer cents: **100 = 1.00**. The browser converts decimal text with `BigInt`; GraphQL transports money as exact integer strings. Overflowing balances and monthly totals are rejected atomically. Transfers require the same currency; no exchange rates or mixed-currency sum is implied. Opening balances and transfers do not count as income or spending.
+Money uses signed `int64`/PostgreSQL `BIGINT` integer cents: **100 = 1.00**. The browser converts decimal text with `BigInt`; GraphQL transports money as exact integer strings. Overflowing balances and monthly totals are rejected atomically. Transfers require the same currency; Total Wealth uses exact reference-rate conversion and rounds the combined amount once to cents, ties away from zero. Both comparison dates use the same latest rates; the change excludes market movements. Missing or more than seven-day-old rates make the total unavailable. Opening balances and transfers do not count as income or spending.
 
-This MVP supports creating records and stopping recurring schedules. Editing/deleting transactions, automatic bank connections, exchange rates and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
+This MVP supports creating records and stopping recurring schedules. Editing/deleting transactions, automatic bank connections and scheduled background execution are not included. Recurring entries are created only when you press **Run due transactions**, through today's UTC date. Imports are not deduplicated: importing twice creates two sets of entries.
 
 ## Security and operation
 

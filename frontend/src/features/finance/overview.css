@@ -1,0 +1,177 @@
+.panel.wealth-card {
+  background: #25292e;
+  color: #f6faf8;
+  border: 0;
+  border-radius: 28px;
+  padding: 28px 32px;
+}
+.wealth-card h2 {
+  color: #c1c8c6;
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.wealth-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+}
+.wealth-value > strong {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -1px;
+  overflow-wrap: anywhere;
+}
+.wealth-value small {
+  font-size: 0.8rem;
+}
+.gain {
+  color: #2bdfb4;
+}
+.loss {
+  color: #ff8794;
+}
+.wealth-card svg {
+  display: block;
+  width: 100%;
+  max-height: 210px;
+  margin: 20px 0 12px;
+  overflow: visible;
+}
+.wealth-card svg text {
+  fill: #adb7b4;
+  font-size: 14px;
+}
+.chart-note {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+.chart-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.chart-legend {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+.chart-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 2px;
+}
+.income-key::before,
+.flow-income {
+  background: #15996c;
+  fill: #15996c;
+}
+.expense-key::before,
+.flow-expense {
+  background: #d74356;
+  fill: #d74356;
+}
+.net-key::before,
+.flow-net {
+  background: #3477d9;
+  fill: #3477d9;
+}
+.flow-viewport {
+  touch-action: pan-y;
+  cursor: grab;
+}
+.currency-flow svg {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+.currency-flow text {
+  fill: #426057;
+  font-size: 13px;
+}
+.zero-line {
+  stroke: #879d96;
+  stroke-width: 1;
+}
+.currency-flow rect {
+  cursor: pointer;
+}
+.currency-flow rect:focus {
+  outline: 2px solid #1a352d;
+}
+.bar-inspection {
+  min-height: 1.5em;
+  font-size: 0.9rem;
+}
+.category-bars {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  padding: 8px 5px 16px;
+}
+.category-column,
+.category-column:hover {
+  background: transparent;
+  color: #183831;
+  border: 0;
+  padding: 4px;
+  min-width: 88px;
+  flex: 1;
+  max-width: 150px;
+  font-size: 0.85rem;
+}
+.category-track {
+  display: flex;
+  align-items: flex-end;
+  height: 150px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #91a69d;
+}
+.category-track > span {
+  display: block;
+  width: 100%;
+  background: #21866d;
+  border-radius: 6px 6px 0 0;
+  min-height: 2px;
+}
+.wealth-card table {
+  color: #f6faf8;
+}
+.wealth-card details {
+  font-size: 0.85rem;
+}
+@media (max-width: 600px) {
+  .panel.wealth-card {
+    padding: 22px 20px;
+  }
+  .cash-chart .actions button {
+    padding: 8px 10px;
+  }
+  .currency-flow text {
+    font-size: 15px;
+  }
+}
+.flow-viewport {
+  user-select: none;
+}
+.cash-chart details,
+.wealth-card details {
+  overflow-x: auto;
+}
+@media (max-width: 600px) {
+  .wealth-card svg text {
+    font-size: 22px;
+  }
+  .currency-flow text {
+    font-size: 22px;
+  }
+  .wealth-value small {
+    color: inherit;
+  }
+}

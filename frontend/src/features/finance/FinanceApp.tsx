@@ -1,3 +1,4 @@
+import { OverviewCharts, PrimaryCurrency } from "./Overview";
 import { History, clearFilters, type Filters } from "./History";
 import trashIcon from "../../assets/icons/trash.svg";
 import {
@@ -337,7 +338,7 @@ function Wallet({
           <div>
             <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
             <h1>{tab}</h1>
-            <p>Every amount accounted for. Each currency kept separate.</p>
+            <p>Every amount accounted for. Your wealth in perspective.</p>
           </div>
           <label>
             Reporting month
@@ -345,7 +346,16 @@ function Wallet({
               aria-label="Reporting month"
               type="month"
               value={month}
-              onChange={(e) => setMonth(e.target.value)}
+              min="1900-01"
+              max="9998-12"
+              onChange={(e) => {
+                if (
+                  /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(e.target.value) &&
+                  e.target.value >= "1900-01" &&
+                  e.target.value <= "9998-12"
+                )
+                  setMonth(e.target.value);
+              }}
             />
           </label>
         </header>
@@ -391,65 +401,9 @@ function Wallet({
           )}
         {tab === "Overview" && (
           <>
-            <div className="stats-grid">
-              {data.totals.map((t) => (
-                <article className="panel stat" key={t.currency}>
-                  <span className="eyebrow">
-                    {t.currency} · {month}
-                  </span>
-                  <h2>Monthly cash flow</h2>
-                  <p>
-                    Income <strong>{formatMoney(t.income, t.currency)}</strong>
-                  </p>
-                  <p>
-                    Expenses{" "}
-                    <strong>{formatMoney(t.expense, t.currency)}</strong>
-                  </p>
-                  <p>
-                    Net <strong>{formatMoney(t.net, t.currency)}</strong>
-                  </p>
-                </article>
-              ))}
-            </div>
-            <section className="panel">
-              <h2>Monthly categories · {month}</h2>
-              {data.categories
-                .filter((c) => !c.parentId)
-                .map((root) =>
-                  (data.breakdown ?? [])
-                    .filter((b) => b.categoryId === root.id)
-                    .map((b) => (
-                      <details key={`${root.id}-${b.currency}`}>
-                        <summary>
-                          {root.path || root.name} · {root.kind.toLowerCase()} ·{" "}
-                          {formatMoney(b.total, b.currency)}
-                        </summary>
-                        <p>
-                          Direct entries · {formatMoney(b.direct, b.currency)}
-                        </p>
-                        {data.categories
-                          .filter((c) => c.parentId === root.id)
-                          .map((child) => {
-                            const amount = data.breakdown?.find(
-                              (v) =>
-                                v.categoryId === child.id &&
-                                v.currency === b.currency,
-                            );
-                            return amount ? (
-                              <p key={child.id}>
-                                {child.path || child.name} ·{" "}
-                                {formatMoney(amount.direct, b.currency)}
-                              </p>
-                            ) : null;
-                          })}
-                      </details>
-                    )),
-                )}
-              {!data.breakdown?.length && (
-                <p>No income or expenses this month.</p>
-              )}
-            </section>
-            <AccountList rows={data.accounts} />
+            {loaded && !error && (
+              <OverviewCharts snapshot={data} month={month} />
+            )}
             {!data.accounts.length && (
               <section className="panel empty">
                 <h2>A fresh start</h2>
@@ -466,6 +420,7 @@ function Wallet({
         )}
         {tab === "Settings" && (
           <>
+            <PrimaryCurrency />
             <AccountList
               rows={data.accounts}
               onCreate={(e) => openCreation("account", e.currentTarget)}
@@ -527,6 +482,7 @@ function Wallet({
         )}
         {tab === "Settings" && (
           <>
+            <PrimaryCurrency />
             {creating === "category" && (
               <CreationDialog
                 title="Create category"
