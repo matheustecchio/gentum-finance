@@ -6,6 +6,7 @@ export interface Snapshot {
   budgets: Row[];
   recurring: Row[];
   totals: Row[];
+  breakdown?: Row[];
 }
 export async function request<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {

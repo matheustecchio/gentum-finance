@@ -2,8 +2,11 @@
 package finance
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -16,6 +19,7 @@ import (
 
 type Row map[string]string
 type Snapshot struct {
+	Breakdown  []Row `json:"breakdown"`
 	Accounts   []Row `json:"accounts"`
 	Categories []Row `json:"categories"`
 	Entries    []Row `json:"entries"`
@@ -95,15 +99,17 @@ func nextMonth(t time.Time, day int) time.Time {
 	return first.AddDate(0, 0, day-1)
 }
 
-var csvHeader = []string{"date", "account_id", "category_id", "kind", "amount_cents", "description"}
+var csvHeader = []string{"date", "kind", "category_id", "amount_cents", "description"}
+var legacyCSVHeader = []string{"date", "account_id", "category_id", "kind", "amount_cents", "description"}
 
 func parseCSV(raw string) ([]Row, error) {
 	r := csv.NewReader(strings.NewReader(raw))
-	r.FieldsPerRecord = 6
+	r.FieldsPerRecord = -1
 	header, err := r.Read()
-	if err != nil || strings.Join(header, ",") != strings.Join(csvHeader, ",") {
+	if err != nil || (strings.Join(header, ",") != strings.Join(csvHeader, ",") && strings.Join(header, ",") != strings.Join(legacyCSVHeader, ",")) {
 		return nil, invalid("Use the documented CSV header")
 	}
+	r.FieldsPerRecord = len(header)
 	var rows []Row
 	for {
 		values, err := r.Read()
@@ -117,7 +123,7 @@ func parseCSV(raw string) ([]Row, error) {
 			return nil, invalid("Import supports up to 1000 rows")
 		}
 		row := Row{}
-		for i, key := range csvHeader {
+		for i, key := range header {
 			row[key] = values[i]
 		}
 		rows = append(rows, row)
@@ -142,7 +148,7 @@ func exportCSV(entries []Row) string {
 		if e["kind"] != "INCOME" && e["kind"] != "EXPENSE" {
 			continue
 		}
-		values := []string{e["date"], e["accountId"], e["categoryId"], e["kind"], e["amount"], safeCell(e["description"])}
+		values := []string{e["date"], e["kind"], e["categoryId"], e["amount"], safeCell(e["description"])}
 		w.Write(values)
 	}
 	w.Flush()
@@ -160,3 +166,35 @@ type ValidationError string
 
 func (e ValidationError) Error() string { return string(e) }
 func invalid(s string) error            { return ValidationError(s) }
+
+// exportAccounts returns one CSV per account in a ZIP; all dates are retained.
+// An ordinal keeps even duplicate account names distinct without exposing IDs.
+func exportAccounts(accounts, entries []Row) (string, error) {
+	var b bytes.Buffer
+	z := zip.NewWriter(&b)
+	for i, a := range accounts {
+		name := strings.Map(func(r rune) rune {
+			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+				return r
+			}
+			return '_'
+		}, a["name"])
+		f, err := z.Create(fmt.Sprintf("%02d-%s-%s.csv", i+1, name, a["currency"]))
+		if err != nil {
+			return "", err
+		}
+		subset := []Row{}
+		for _, e := range entries {
+			if e["accountId"] == a["id"] {
+				subset = append(subset, e)
+			}
+		}
+		if _, err = io.WriteString(f, exportCSV(subset)); err != nil {
+			return "", err
+		}
+	}
+	if err := z.Close(); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b.Bytes()), nil
+}
