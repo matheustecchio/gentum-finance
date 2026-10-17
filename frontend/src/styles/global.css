@@ -146,6 +146,9 @@ nav button:hover {
 .profile {
   overflow-wrap: anywhere;
 }
+.app-version {
+  display: block;
+}
 .profile small {
   color: #b7ccbf;
 }

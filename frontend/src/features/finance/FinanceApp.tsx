@@ -279,7 +279,10 @@ function Wallet() {
         </nav>
         <div className="profile">
           <small>
-            Local wallet · {status.pinEnabled ? "PIN enabled" : "No PIN"}
+            Local wallet
+            <span className="app-version">
+              v{__APP_VERSION__}{import.meta.env.DEV ? " (dev)" : ""}
+            </span>
           </small>
           {status.pinEnabled && (
             <button
