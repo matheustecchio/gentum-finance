@@ -126,6 +126,13 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 	}
 	result := "Saved"
 	switch action {
+	case "primaryCurrency":
+		switch in["currency"] {
+		case "EUR", "GBP", "USD", "BRL":
+		default:
+			return "", invalid("Unsupported primary currency")
+		}
+		_, err = tx.Exec(ctx, `UPDATE gentum_user SET base_currency=$2,updated_at=now() WHERE id=$1`, user, in["currency"])
 	case "deleteCategory":
 		err = deleteCategory(ctx, tx, user, in["id"])
 	case "category":

@@ -53,7 +53,7 @@ func run() error {
 	if err = database.Migrate(startup, pool); err != nil {
 		return err
 	}
-	handler, err := api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, env("GENTUM_FRONTEND_ORIGIN", "http://localhost:5173"), finance.Service{Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
+	handler, err := api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, env("GENTUM_FRONTEND_ORIGIN", "http://localhost:5173"), finance.Service{Rates: &finance.ECBRates{}, Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
 	if err != nil {
 		return err
 	}
