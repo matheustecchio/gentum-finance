@@ -99,6 +99,11 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: ./gentum start
+      - name: Seed an unrelated legacy profile for first-run regression
+        run: >-
+          docker compose exec -T postgres psql -U gentum -d gentum_finance -v ON_ERROR_STOP=1 -c
+          "INSERT INTO gentum_user(id,email,display_name,base_currency,created_at,updated_at,password_salt,password_hash)
+          VALUES('00000000-0000-0000-0000-000000009999','legacy-fixture@example.test','Legacy fixture','EUR',now(),now(),'fixture-salt','fixture-hash');"
       - run: npm run test:e2e
         working-directory: frontend
       - run: node scripts/check-persistence.mjs

@@ -83,12 +83,12 @@ func TestLocalPINRecoveryAndRevocation(t *testing.T) {
 		t.Fatal("expected setup")
 	}
 	c.expect("/graphql", `{"query":"{accounts{id}}"}`, 401)
-	c.expect("/auth/setup", `{"mode":"pin","pin":"123"}`, 400)
-	code := codeFrom(t, c.expect("/auth/setup", `{"mode":"pin","pin":"0123"}`, 200))
+	c.expect("/auth/setup", `{"source":"new","mode":"pin","pin":"123"}`, 400)
+	code := codeFrom(t, c.expect("/auth/setup", `{"source":"new","mode":"pin","pin":"0123"}`, 200))
 	if !c.cookie.HttpOnly || c.cookie.SameSite != http.SameSiteStrictMode || c.cookie.MaxAge != 0 {
 		t.Fatal("unsafe cookie")
 	}
-	c.expect("/auth/setup", `{"mode":"open"}`, 409)
+	c.expect("/auth/setup", `{"source":"new","mode":"open"}`, 409)
 	c.expect("/auth/register", `{}`, 404)
 	c.expect("/auth/login", `{}`, 404)
 	c.expect("/graphql", `{"query":"mutation{createAccount(input:{name:\"Private\",type:CASH,currency:\"EUR\",initialBalance:\"29\"}){id}}"}`, 200)
@@ -135,7 +135,7 @@ func TestLocalPINRecoveryAndRevocation(t *testing.T) {
 }
 func TestOpenAccessStillRequiresSameOriginSession(t *testing.T) {
 	c := newAccessClient(t)
-	r := httptest.NewRequest("POST", "/auth/setup", strings.NewReader(`{"mode":"open"}`))
+	r := httptest.NewRequest("POST", "/auth/setup", strings.NewReader(`{"source":"new","mode":"open"}`))
 	r.Header.Set("Origin", "http://evil.test")
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -143,7 +143,7 @@ func TestOpenAccessStillRequiresSameOriginSession(t *testing.T) {
 	if w.Code != 403 {
 		t.Fatal("accepted foreign origin")
 	}
-	c.expect("/auth/setup", `{"mode":"open"}`, 200)
+	c.expect("/auth/setup", `{"source":"new","mode":"open"}`, 200)
 	c.cookie = nil
 	c.expect("/graphql", `{"query":"{accounts{id}}"}`, 401)
 	c.expect("/auth/open", `{}`, 200)
@@ -155,7 +155,7 @@ func TestOpenAccessStillRequiresSameOriginSession(t *testing.T) {
 }
 func TestPINAttemptsArePersistentAndInstallationWide(t *testing.T) {
 	c := newAccessClient(t)
-	c.expect("/auth/setup", `{"mode":"pin","pin":"1234"}`, 200)
+	c.expect("/auth/setup", `{"source":"new","mode":"pin","pin":"1234"}`, 200)
 	c.expect("/auth/lock", `{}`, 200)
 	for i := 0; i < 5; i++ {
 		c.expect("/auth/unlock", `{"pin":"9999"}`, 401)
@@ -196,12 +196,12 @@ func TestExistingProfileAdoptionRequiresPasswordAndPreservesOwners(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(c.expect("/auth/status", "", 200).Body.String(), `"legacyRequired":true`) {
+	if !strings.Contains(c.expect("/auth/status", "", 200).Body.String(), `"existingProfilesAvailable":true`) {
 		t.Fatal("legacy credentials not required")
 	}
-	c.expect("/auth/setup", `{"mode":"open"}`, 401)
-	c.expect("/auth/setup", `{"mode":"open","email":"old@example.test","password":"wrong"}`, 401)
-	c.expect("/auth/setup", `{"mode":"open","email":"old@example.test","password":"fictional-password"}`, 200)
+	c.expect("/auth/setup", `{"source":"existing","mode":"open"}`, 401)
+	c.expect("/auth/setup", `{"source":"existing","mode":"open","email":"old@example.test","password":"wrong"}`, 401)
+	c.expect("/auth/setup", `{"source":"existing","mode":"open","email":"old@example.test","password":"fictional-password"}`, 200)
 	w := c.expect("/graphql", `{"query":"{accounts{id initialBalance}}"}`, 200)
 	if !strings.Contains(w.Body.String(), `"initialBalance":"29"`) {
 		t.Fatal("existing owner data lost")
@@ -223,7 +223,7 @@ func TestConcurrentSetupChoosesOnlyOneLocalProfile(t *testing.T) {
 	codes := make(chan int, 2)
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
-		go func() { defer wg.Done(); codes <- c.call("/auth/setup", `{"mode":"open"}`, nil).Code }()
+		go func() { defer wg.Done(); codes <- c.call("/auth/setup", `{"source":"new","mode":"open"}`, nil).Code }()
 	}
 	wg.Wait()
 	close(codes)
@@ -238,5 +238,52 @@ func TestConcurrentSetupChoosesOnlyOneLocalProfile(t *testing.T) {
 	}
 	if successes != 1 || conflicts != 1 {
 		t.Fatal("setup race", successes, conflicts)
+	}
+}
+
+func TestNewWalletDoesNotRequireOrExposeExistingProfiles(t *testing.T) {
+	for _, mode := range []string{"open", "pin"} {
+		t.Run(mode, func(t *testing.T) {
+			c := newAccessClient(t)
+			ctx := context.Background()
+			oldOwner := security.ID()
+			_, err := c.pool.Exec(ctx, `INSERT INTO gentum_user(id,email,display_name,base_currency,created_at,updated_at,password_salt,password_hash) VALUES($1,'old@example.test','Old profile','EUR',now(),now(),'fixture-salt','fixture-hash')`, oldOwner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, owner := range []string{oldOwner, "00000000-0000-0000-0000-000000000001"} {
+				if _, err := c.pool.Exec(ctx, `INSERT INTO account(id,user_id,name,type,currency,initial_balance,created_at,updated_at) VALUES($1,$2,'Existing private account','CASH','EUR',29,now(),now())`, security.ID(), owner); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !strings.Contains(c.expect("/auth/status", "", 200).Body.String(), `"existingProfilesAvailable":true`) {
+				t.Fatal("missing optional adoption hint")
+			}
+			c.expect("/auth/setup", `{"source":"unknown","mode":"open"}`, 400)
+			c.expect("/auth/setup", `{"mode":"open"}`, 400)
+			c.expect("/auth/setup", `{"source":"new","mode":"`+mode+`","pin":"0123"}`, 200)
+			w := c.expect("/graphql", `{"query":"{accounts{id initialBalance}}"}`, 200)
+			if !strings.Contains(w.Body.String(), `"accounts":[]`) {
+				t.Fatal("new wallet exposed an existing owner", w.Body.String())
+			}
+			var configured string
+			if err := c.pool.QueryRow(ctx, `SELECT user_id::text FROM local_access`).Scan(&configured); err != nil {
+				t.Fatal(err)
+			}
+			if configured == oldOwner || configured == "00000000-0000-0000-0000-000000000001" {
+				t.Fatal("new wallet claimed an old identity")
+			}
+			var owners, accounts int
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM gentum_user`).Scan(&owners); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM account WHERE initial_balance=29`).Scan(&accounts); err != nil {
+				t.Fatal(err)
+			}
+			if owners != 3 || accounts != 2 {
+				t.Fatal("old records changed", owners, accounts)
+			}
+			c.expect("/auth/setup", `{"source":"new","mode":"open"}`, 409)
+		})
 	}
 }

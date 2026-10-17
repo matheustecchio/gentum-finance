@@ -11,7 +11,7 @@ import { request } from "../finance/client";
 
 interface AccessStatus {
   setupRequired: boolean;
-  legacyRequired: boolean;
+  existingProfilesAvailable: boolean;
   pinEnabled: boolean;
   unlocked: boolean;
 }
@@ -68,7 +68,7 @@ export function RecoveryNotice({
     <section className="panel">
       <h2>Save your recovery code</h2>
       <p>
-        This code lets you replace a forgotten PIN without deleting your ledger.
+        This code lets you replace a forgotten PIN without deleting your wallet.
         Store it somewhere safe, separate from this computer. If you lose both
         your PIN and this code, this version has no supported recovery flow.
       </p>
@@ -123,7 +123,7 @@ export function RecoveryNotice({
         I have saved my recovery code
       </label>
       <button type="button" disabled={!saved} onClick={onDone}>
-        Continue to ledger
+        Continue to wallet
       </button>
     </section>
   );
@@ -138,6 +138,7 @@ function AccessScreen({
   showRecovery: (code: string) => void;
 }) {
   const [usePIN, setUsePIN] = useState(false);
+  const [existingProfile, setExistingProfile] = useState(false);
   const [recover, setRecover] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -161,6 +162,7 @@ function AccessScreen({
           ...(status.setupRequired
             ? {
                 mode: usePIN ? "pin" : "open",
+                source: existingProfile ? "existing" : "new",
                 email: values.email,
                 password: values.password,
               }
@@ -173,7 +175,7 @@ function AccessScreen({
       if (result.recoveryCode) showRecovery(result.recoveryCode);
       else await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to open ledger");
+      setError(e instanceof Error ? e.message : "Unable to open wallet");
     } finally {
       setBusy(false);
     }
@@ -193,12 +195,40 @@ function AccessScreen({
         <form className="panel" onSubmit={submit}>
           <h2>
             {status.setupRequired
-              ? "Set up your local ledger"
+              ? "Set up your local wallet"
               : recover
                 ? "Reset your PIN"
-                : "Unlock your ledger"}
+                : "Unlock your wallet"}
           </h2>
-          {status.legacyRequired && (
+          {status.setupRequired && status.existingProfilesAvailable && (
+            <fieldset className="wallet-source">
+              <legend>Choose your wallet</legend>
+              <p>
+                Profiles from an earlier version exist on this computer. You can
+                start fresh without their credentials. Their data will remain
+                stored separately.
+              </p>
+              <label className="check-label">
+                <input
+                  type="radio"
+                  name="walletSource"
+                  checked={!existingProfile}
+                  onChange={() => setExistingProfile(false)}
+                />
+                Create a new wallet
+              </label>
+              <label className="check-label">
+                <input
+                  type="radio"
+                  name="walletSource"
+                  checked={existingProfile}
+                  onChange={() => setExistingProfile(true)}
+                />
+                Use an existing profile
+              </label>
+            </fieldset>
+          )}
+          {status.setupRequired && existingProfile && (
             <>
               <p>
                 Enter your existing local profile credentials once to keep its
@@ -292,7 +322,7 @@ function AccessScreen({
             {busy
               ? "Opening…"
               : status.setupRequired
-                ? "Open local ledger"
+                ? "Open local wallet"
                 : recover
                   ? "Reset PIN"
                   : "Unlock"}
@@ -329,7 +359,7 @@ export function LocalAccess({ children }: { children: ReactNode }) {
       setError("");
     } catch (e) {
       setStatus(undefined);
-      setError(e instanceof Error ? e.message : "Unable to open local ledger");
+      setError(e instanceof Error ? e.message : "Unable to open local wallet");
     }
   }, []);
   useEffect(() => {
@@ -372,7 +402,7 @@ export function LocalAccess({ children }: { children: ReactNode }) {
   if (!status)
     return (
       <p className="loading" role="status">
-        Opening your ledger…
+        Opening your wallet…
       </p>
     );
   if (!status.unlocked)
@@ -425,7 +455,7 @@ export function AccessSettings() {
       if (result.recoveryCode) showRecovery(result.recoveryCode);
       else {
         await refresh();
-        setNotice("PIN disabled. This computer opens your ledger directly.");
+        setNotice("PIN disabled. This computer opens your wallet directly.");
         setDisable(false);
       }
     } catch (e) {
@@ -439,8 +469,8 @@ export function AccessSettings() {
       <h2>Local access</h2>
       <p>
         {status.pinEnabled
-          ? "Your ledger is protected by a PIN."
-          : "This computer opens your ledger without a PIN."}
+          ? "Your wallet is protected by a PIN."
+          : "This computer opens your wallet without a PIN."}
       </p>
       <p>
         The PIN is an app lock, not database encryption. Anyone with control of

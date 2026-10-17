@@ -5,14 +5,15 @@ import { createClient } from "./persistence-client.mjs";
 const base = process.env.GENTUM_E2E_URL ?? "http://localhost:5173";
 if (process.env.GENTUM_VERIFICATION_FIXTURE !== "1") {
   throw new Error(
-    "Use a disposable stack with GENTUM_VERIFICATION_FIXTURE=1; this check creates fictional ledger data.",
+    "Use a disposable stack with GENTUM_VERIFICATION_FIXTURE=1; this check creates fictional wallet data.",
   );
 }
 const call = createClient(base);
 const status = await fetch(base + "/auth/status").then((response) =>
   response.json(),
 );
-if (status.setupRequired) await call("/auth/setup", { mode: "open" });
+if (status.setupRequired)
+  await call("/auth/setup", { mode: "open", source: "new" });
 else await call("/auth/open", {});
 const account = await call("/graphql", {
   query:

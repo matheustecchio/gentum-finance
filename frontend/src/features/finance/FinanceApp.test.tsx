@@ -13,7 +13,7 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
             url === "/auth/status"
               ? {
                   setupRequired: false,
-                  legacyRequired: false,
+                  existingProfilesAvailable: false,
                   pinEnabled: false,
                   unlocked: true,
                 }
@@ -71,7 +71,7 @@ it("offers optional PIN setup without email registration", async () => {
         new Response(
           JSON.stringify({
             setupRequired: true,
-            legacyRequired: false,
+            existingProfilesAvailable: false,
             pinEnabled: false,
             unlocked: false,
           }),
@@ -79,7 +79,7 @@ it("offers optional PIN setup without email registration", async () => {
     ),
   );
   render(<FinanceApp />);
-  await screen.findByRole("heading", { name: "Set up your local ledger" });
+  await screen.findByRole("heading", { name: "Set up your local wallet" });
   expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Use without a PIN")).toBeChecked();
   await userEvent.click(screen.getByLabelText("Protect with a PIN"));

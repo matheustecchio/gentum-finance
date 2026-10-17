@@ -4,14 +4,14 @@ Financial routes require a verified session in both direct-access and PIN modes.
 
 | Route | Request and behavior |
 | --- | --- |
-| `GET /auth/status` | Returns `setupRequired`, `legacyRequired`, `pinEnabled`, and `unlocked`; never returns PINs or recovery hashes. |
-| `POST /auth/setup` | `{ "mode": "open" }` or `{ "mode": "pin", "pin": "0123" }`. Creates the installation's local access configuration exactly once and opens a session. If `legacyRequired`, include the existing `email` and `password` to select its owner. |
+| `GET /auth/status` | Returns `setupRequired`, `existingProfilesAvailable`, `pinEnabled`, and `unlocked`; never returns PINs or recovery hashes. |
+| `POST /auth/setup` | `{ "source": "new", "mode": "open" }` or `{ "source": "new", "mode": "pin", "pin": "0123" }` creates a new empty wallet without credentials, regardless of existing profiles. To adopt old data, explicitly send `"source": "existing"` with the old `email` and `password`. Source is required. Creates the installation's local access configuration exactly once and opens a session. |
 | `POST /auth/open` | `{}` obtains a session only when PIN protection is disabled. |
 | `POST /auth/unlock` | `{ "pin": "0123" }` verifies the PIN and opens a session. |
 | `POST /auth/lock` | `{}` requires an unlocked PIN-protected session and revokes all sessions. |
 | `POST /auth/pin` | `{ "pin": "2345", "currentPin": "0123" }` requires a session. Current PIN is required only when protection is already enabled. Rotates recovery code and all sessions. |
 | `POST /auth/disable-pin` | `{ "currentPin": "0123" }` requires a session and current PIN; removes PIN/recovery hashes and rotates sessions. |
-| `POST /auth/recover` | `{ "recoveryCode": "YOUR-SAVED-CODE", "pin": "5678" }` replaces a forgotten PIN, rotates recovery code and all sessions, and preserves ledger data. |
+| `POST /auth/recover` | `{ "recoveryCode": "YOUR-SAVED-CODE", "pin": "5678" }` replaces a forgotten PIN, rotates recovery code and all sessions, and preserves wallet data. |
 
 PIN creation/change/recovery returns `{ "recoveryCode": "..." }` exactly once. Other successful access POSTs return `{}`. Codes are random 160-bit Base32 strings grouped with hyphens; recovery accepts lowercase and omitted hyphens. PINs must be strings of exactly four ASCII digits, including leading zeros. Session cookies are browser-session cookies; server expiry is 24 hours. `Lock now` revokes them even in other browsers. Old registration, password-login, logout, and `/auth/me` routes are no longer supported.
 
@@ -19,7 +19,7 @@ Errors use HTTP 400 for invalid input, 401 for failed verification or missing se
 
 GraphQL retains `accounts` and `createAccount(input: CreateAccountInput!)`. Opening balance is a `Cents` integer string. No API accepts a client-supplied user ID.
 
-## Ledger snapshot
+## Wallet snapshot
 
 ```graphql
 query Finance($month: String!) { finance(month: $month) }

@@ -34,7 +34,7 @@ async function choose(page: Page, label: string, prefix: string) {
   await select.selectOption(option!);
   return option!;
 }
-test("complete local ledger journey: exact money, transfers, budgets, recurrence, CSV and PIN isolation", async ({
+test("complete local wallet journey: exact money, transfers, budgets, recurrence, CSV and PIN isolation", async ({
   page,
   browser,
 }) => {
@@ -43,11 +43,19 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
     "Requires a disposable verification stack",
   );
   await page.goto("/");
+  const accessStatus = await page.request
+    .get("/auth/status")
+    .then((response) => response.json());
+  if (accessStatus.existingProfilesAvailable) {
+    await expect(page.getByLabel("Create a new wallet")).toBeChecked();
+    await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Existing password")).toHaveCount(0);
+  }
   await page.getByLabel("Protect with a PIN").check();
   await page.getByLabel("PIN (4 digits)", { exact: true }).fill("0123");
   await page.getByLabel("Confirm PIN").fill("0123");
   await page
-    .getByRole("button", { name: "Open local ledger", exact: true })
+    .getByRole("button", { name: "Open local wallet", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Save your recovery code" }),
@@ -55,11 +63,11 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
   let recovery = await page.locator(".recovery-code").innerText();
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(
-    page.getByRole("button", { name: "Continue to ledger" }),
+    page.getByRole("button", { name: "Continue to wallet" }),
   ).toBeDisabled();
   await expect(page.locator(".recovery-code")).toHaveText(recovery);
   await page.getByLabel("I have saved my recovery code").check();
-  await page.getByRole("button", { name: "Continue to ledger" }).click();
+  await page.getByRole("button", { name: "Continue to wallet" }).click();
   await expect(
     page.getByRole("heading", { name: "Overview", exact: true }),
   ).toBeVisible();
@@ -166,7 +174,7 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
   ).toBeVisible();
   recovery = await page.locator(".recovery-code").innerText();
   await page.getByLabel("I have saved my recovery code").check();
-  await page.getByRole("button", { name: "Continue to ledger" }).click();
+  await page.getByRole("button", { name: "Continue to wallet" }).click();
   await page.getByRole("button", { name: "Lock now" }).click();
   await page.getByRole("button", { name: "Forgot your PIN?" }).click();
   await page.getByLabel("Recovery code", { exact: true }).fill(recovery);
@@ -180,14 +188,14 @@ test("complete local ledger journey: exact money, transfers, budgets, recurrence
     recovery,
   );
   await page.getByLabel("I have saved my recovery code").check();
-  await page.getByRole("button", { name: "Continue to ledger" }).click();
+  await page.getByRole("button", { name: "Continue to wallet" }).click();
   await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
   await nav(page, "Settings");
   await page.getByRole("button", { name: "Use without a PIN" }).click();
   await page.getByLabel("Current PIN").fill("5678");
   await page.getByRole("button", { name: "Disable PIN", exact: true }).click();
   await expect(
-    page.getByText("This computer opens your ledger without a PIN."),
+    page.getByText("This computer opens your wallet without a PIN."),
   ).toBeVisible();
   await page.reload();
   await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();

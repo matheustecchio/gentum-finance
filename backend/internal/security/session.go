@@ -85,6 +85,7 @@ type Auth struct {
 type access struct{ UserID, Salt, PINHash, RecoveryHash string }
 type accessInput struct {
 	Mode         string `json:"mode"`
+	Source       string `json:"source"`
 	PIN          string `json:"pin"`
 	CurrentPIN   string `json:"currentPin"`
 	RecoveryCode string `json:"recoveryCode"`
@@ -116,7 +117,7 @@ func (a Auth) Middleware(next http.Handler) http.Handler {
 		}
 		id, err := a.identity(r)
 		if err != nil {
-			http.Error(w, "Unlock your local ledger", 401)
+			http.Error(w, "Unlock your local wallet", 401)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey{}, id)))
@@ -150,7 +151,7 @@ func (a Auth) status(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unable to read local access", 503)
 			return
 		}
-		respond(w, map[string]any{"setupRequired": true, "legacyRequired": legacy, "pinEnabled": false, "unlocked": false})
+		respond(w, map[string]any{"setupRequired": true, "existingProfilesAvailable": legacy, "pinEnabled": false, "unlocked": false})
 		return
 	}
 	if err != nil {
@@ -158,7 +159,7 @@ func (a Auth) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err = a.identity(r)
-	respond(w, map[string]any{"setupRequired": false, "legacyRequired": false, "pinEnabled": p.PINHash != "", "unlocked": err == nil})
+	respond(w, map[string]any{"setupRequired": false, "existingProfilesAvailable": false, "pinEnabled": p.PINHash != "", "unlocked": err == nil})
 }
 func decodeInput(w http.ResponseWriter, r *http.Request) (accessInput, bool) {
 	var in accessInput
@@ -261,7 +262,7 @@ func (a Auth) handle(w http.ResponseWriter, r *http.Request) {
 	p, err := readAccess(ctx, tx)
 	if path == "setup" {
 		if err == nil {
-			http.Error(w, "Local ledger already configured", 409)
+			http.Error(w, "Local wallet already configured", 409)
 			return
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -272,7 +273,7 @@ func (a Auth) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		http.Error(w, "Set up your local ledger first", 409)
+		http.Error(w, "Set up your local wallet first", 409)
 		return
 	}
 	if err != nil {
@@ -287,7 +288,7 @@ func (a Auth) handle(w http.ResponseWriter, r *http.Request) {
 	authorized := sessionID == p.UserID
 	if path == "lock" || path == "pin" || path == "disable-pin" {
 		if !authorized {
-			http.Error(w, "Unlock your local ledger", 401)
+			http.Error(w, "Unlock your local wallet", 401)
 			return
 		}
 	}
@@ -322,7 +323,7 @@ func (a Auth) handle(w http.ResponseWriter, r *http.Request) {
 			err = tx.Commit(ctx)
 		}
 		if err != nil {
-			http.Error(w, "Unable to lock ledger", 503)
+			http.Error(w, "Unable to lock wallet", 503)
 			return
 		}
 		http.SetCookie(w, sessionCookie("", -1))
@@ -401,13 +402,12 @@ func (a Auth) setup(w http.ResponseWriter, r *http.Request, tx pgx.Tx, in access
 		return
 	}
 	ctx := r.Context()
-	var legacy bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM gentum_user WHERE password_hash IS NOT NULL)`).Scan(&legacy); err != nil {
-		http.Error(w, "Unable to read existing profiles", 503)
+	if in.Source != "new" && in.Source != "existing" {
+		http.Error(w, "Choose a new wallet or an existing profile", 400)
 		return
 	}
-	id := "00000000-0000-0000-0000-000000000001"
-	if legacy {
+	id := ID()
+	if in.Source == "existing" {
 		if !attemptAllowed(ctx, tx, "legacy", w) {
 			return
 		}
@@ -423,6 +423,13 @@ func (a Auth) setup(w http.ResponseWriter, r *http.Request, tx pgx.Tx, in access
 		}
 		if !matches(passwordHash(in.Password, salt), stored) || err != nil {
 			rejectAttempt(ctx, tx, "legacy", w)
+			return
+		}
+	} else {
+		// A new wallet owns a new identity; never claim or merge another profile.
+		_, err := tx.Exec(ctx, `INSERT INTO gentum_user(id,email,display_name,base_currency,created_at,updated_at) VALUES($1,$2,'Local wallet','EUR',now(),now())`, id, id+"@local.invalid")
+		if err != nil {
+			http.Error(w, "Unable to create local wallet", 503)
 			return
 		}
 	}
@@ -460,7 +467,7 @@ func (a Auth) finish(w http.ResponseWriter, r *http.Request, tx pgx.Tx, id strin
 		err = tx.Commit(ctx)
 	}
 	if err != nil {
-		http.Error(w, "Unable to open local ledger", 503)
+		http.Error(w, "Unable to open local wallet", 503)
 		return
 	}
 	// Browser-session cookie: no persistent login; server-side expiry is 24 hours.

@@ -128,11 +128,11 @@ const tabs = [
 export function FinanceApp() {
   return (
     <LocalAccess>
-      <Ledger />
+      <Wallet />
     </LocalAccess>
   );
 }
-function Ledger() {
+function Wallet() {
   const { status, lock } = useLocalAccess();
   const [tab, setTab] = useState("Overview");
   const [month, setMonth] = useState(today().slice(0, 7));
@@ -204,7 +204,7 @@ function Ledger() {
         <a href="/" className="brand">
           <span className="brand-mark">G</span>Gentum Finance
         </a>
-        <p className="eyebrow">YOUR LOCAL LEDGER</p>
+        <p className="eyebrow">YOUR LOCAL WALLET</p>
         <nav aria-label="Main navigation">
           {tabs.map((t) => (
             <button
@@ -221,7 +221,7 @@ function Ledger() {
         </nav>
         <div className="profile">
           <small>
-            Local ledger · {status.pinEnabled ? "PIN enabled" : "No PIN"}
+            Local wallet · {status.pinEnabled ? "PIN enabled" : "No PIN"}
           </small>
           {status.pinEnabled && (
             <button
@@ -231,7 +231,7 @@ function Ledger() {
                   await lock();
                 } catch (e) {
                   setError(
-                    e instanceof Error ? e.message : "Unable to lock ledger",
+                    e instanceof Error ? e.message : "Unable to lock wallet",
                   );
                 }
               }}
