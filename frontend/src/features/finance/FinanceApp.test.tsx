@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { FinanceApp } from "./FinanceApp";
@@ -300,8 +300,31 @@ it("separates recording from history, preserves exact cents, resets and refreshe
     screen.queryByRole("button", { name: "Save transaction" }),
   ).not.toBeInTheDocument();
   const add = screen.getByRole("button", { name: "Add transaction" });
+  expect(screen.getAllByRole("button", { name: "Add transaction" })).toHaveLength(1);
+  expect(
+    within(screen.getByRole("navigation"))
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual([
+    "Overview",
+    "Accounts",
+    "Categories",
+    "Transactions",
+    "Transfers",
+    "Budgets",
+    "Recurring",
+    "Import & export",
+    "Settings",
+    "+ Add transaction",
+  ]);
+  expect(
+    add.compareDocumentPosition(screen.getByText(/Local wallet ·/)) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   expect(add).toHaveClass("add-transaction");
-  add.focus();
+  screen.getByRole("button", { name: "Settings" }).focus();
+  await userEvent.tab();
+  expect(add).toHaveFocus();
   await userEvent.keyboard("{Enter}");
   expect(add).toHaveAttribute("aria-current", "page");
   await userEvent.selectOptions(

@@ -145,7 +145,6 @@ const tabs = [
   "Overview",
   "Accounts",
   "Categories",
-  "Add transaction",
   "Transactions",
   "Transfers",
   "Budgets",
@@ -252,20 +251,31 @@ function Wallet() {
         </a>
         <p className="eyebrow">YOUR LOCAL WALLET</p>
         <nav aria-label="Main navigation">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              className={`${tab === t ? "active" : ""} ${t === "Add transaction" ? "add-transaction" : ""}`}
-              aria-current={tab === t ? "page" : undefined}
-              onClick={() => {
-                setTab(t);
-                setNotice("");
-              }}
-            >
-              {t === "Add transaction" && <span aria-hidden="true">+ </span>}
-              {t}
-            </button>
-          ))}
+          <div className="navigation-links">
+            {tabs.map((t) => (
+              <button
+                key={t}
+                className={tab === t ? "active" : ""}
+                aria-current={tab === t ? "page" : undefined}
+                onClick={() => {
+                  setTab(t);
+                  setNotice("");
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <button
+            className={`add-transaction ${tab === "Add transaction" ? "active" : ""}`}
+            aria-current={tab === "Add transaction" ? "page" : undefined}
+            onClick={() => {
+              setTab("Add transaction");
+              setNotice("");
+            }}
+          >
+            <span aria-hidden="true">+ </span>Add transaction
+          </button>
         </nav>
         <div className="profile">
           <small>

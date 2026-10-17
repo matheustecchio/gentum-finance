@@ -328,7 +328,11 @@ test("bounded history, separate recording and category deletion work with keyboa
         .getByRole("button", { name: "Transactions", exact: true })
         .evaluate((el) => getComputedStyle(el).backgroundColor),
     );
+    await page.getByRole("button", { name: "Categories", exact: true }).focus();
     await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("button", { name: "Transactions", exact: true }),
+    ).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("heading", { name: "Transaction history" }),
