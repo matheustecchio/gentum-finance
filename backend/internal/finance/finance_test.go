@@ -45,7 +45,7 @@ func TestCSVValidationAndFormulaEscaping(t *testing.T) {
 			t.Fatal("accepted invalid CSV")
 		}
 	}
-	rows, e := parseCSV(header + "2026-10-16,account,category,EXPENSE,29,\"quoted, value\"\n")
+	rows, e := parseCSV(header + "2026-10-16,EXPENSE,category,29,\"quoted, value\"\n")
 	if e != nil || rows[0]["description"] != "quoted, value" {
 		t.Fatal(rows, e)
 	}

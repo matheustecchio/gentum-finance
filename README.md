@@ -54,3 +54,9 @@ Local HTTP cookies intentionally lack `Secure` for loopback HTTP. The applicatio
 See [development](docs/development.md), [architecture](docs/architecture/overview.md), [API and CSV contract](docs/api/finance.md), [contributing](CONTRIBUTING.md) and [repository guidance](AGENT.md).
 
 CI runs Go race/integration tests against PostgreSQL, Go vet/build, frontend type checking/unit coverage/build, a real Docker browser journey and a launcher stop/start persistence check on every pull request. A workflow file defines checks; repository branch rules are a separate remote configuration.
+
+### Categories and portable CSV
+
+Income and expense categories support one optional subcategory level and readable paths. New wallets receive a small starter catalog; existing wallets can use **Add starter categories** without changing existing classifications. The overview shows monthly root and child totals by currency, including direct root entries. Root budgets include child spending; child budgets remain independent limits.
+
+CSV imports use `date,kind,category_id,amount_cents,description` and the selected account shown in **Import & export**. Legacy six-column files retain their per-row accounts. Export downloads all transaction history in a ZIP with a separate CSV per account, named by account and currency. See the [finance API contract](docs/api/finance.md) for validation and compatibility details.

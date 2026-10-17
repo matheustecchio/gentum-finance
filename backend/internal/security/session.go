@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"gentum.finance/backend/internal/finance"
 	"io"
 	"net/http"
 	"strconv"
@@ -430,6 +431,10 @@ func (a Auth) setup(w http.ResponseWriter, r *http.Request, tx pgx.Tx, in access
 		_, err := tx.Exec(ctx, `INSERT INTO gentum_user(id,email,display_name,base_currency,created_at,updated_at) VALUES($1,$2,'Local wallet','EUR',now(),now())`, id, id+"@local.invalid")
 		if err != nil {
 			http.Error(w, "Unable to create local wallet", 503)
+			return
+		}
+		if err := finance.AddStarterCategories(ctx, tx, id); err != nil {
+			http.Error(w, "Unable to create starter categories", 503)
 			return
 		}
 	}

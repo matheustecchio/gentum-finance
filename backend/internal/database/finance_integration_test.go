@@ -3,11 +3,15 @@
 package database
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"gentum.finance/backend/internal/account"
 	"gentum.finance/backend/internal/finance"
 	"gentum.finance/backend/internal/security"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +103,24 @@ func TestFinanceAtomicityIsolationAndExactness(t *testing.T) {
 	csv = fmt.Sprintf("date,account_id,category_id,kind,amount_cents,description\n%s,%s,%s,INCOME,9007199254740993,Exact\n", day, a.ID, income)
 	must("import", finance.Row{"csv": csv})
 	out := must("export", finance.Row{})
+	decoded, err := base64.StdEncoding.DecodeString(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(decoded), int64(len(decoded)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out = ""
+	for _, file := range archive.File {
+		f, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(f)
+		f.Close()
+		out += string(data)
+	}
 	if !strings.Contains(out, "9007199254740993") || !strings.Contains(out, "'=SUM(1,2)") {
 		t.Fatal(out)
 	}

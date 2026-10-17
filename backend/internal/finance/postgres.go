@@ -52,7 +52,7 @@ func (r PostgresRepository) Snapshot(ctx context.Context, user, month string) (S
 	return s, tx.Commit(ctx)
 }
 func snapshot(ctx context.Context, q queryer, user, month string) (s Snapshot, err error) {
-	s.Accounts, err = rows(ctx, q, `SELECT a.id::text,a.name,a.type,a.currency,a.initial_balance::text,(a.initial_balance::numeric+COALESCE(sum(CASE WHEN e.kind IN ('INCOME','TRANSFER_IN') THEN e.amount::numeric ELSE -e.amount::numeric END),0))::text FROM account a LEFT JOIN entry e ON e.user_id=a.user_id AND e.account_id=a.id WHERE a.user_id=$1 GROUP BY a.id ORDER BY a.created_at,a.id`, []string{"id", "name", "type", "currency", "initialBalance", "balance"}, user)
+	s.Accounts, err = rows(ctx, q, `SELECT a.id::text,a.name,a.type,a.currency,a.archived::text,a.initial_balance::text,(a.initial_balance::numeric+COALESCE(sum(CASE WHEN e.kind IN ('INCOME','TRANSFER_IN') THEN e.amount::numeric ELSE -e.amount::numeric END),0))::text FROM account a LEFT JOIN entry e ON e.user_id=a.user_id AND e.account_id=a.id WHERE a.user_id=$1 GROUP BY a.id ORDER BY a.created_at,a.id`, []string{"id", "name", "type", "currency", "archived", "initialBalance", "balance"}, user)
 	if err != nil {
 		return
 	}
@@ -61,7 +61,7 @@ func snapshot(ctx context.Context, q queryer, user, month string) (s Snapshot, e
 			return
 		}
 	}
-	s.Categories, err = rows(ctx, q, `SELECT id::text,name,kind FROM category WHERE user_id=$1 ORDER BY kind,name,id`, []string{"id", "name", "kind"}, user)
+	s.Categories, err = rows(ctx, q, `SELECT c.id::text,c.name,c.kind,c.parent_id::text,CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' / ' || c.name END FROM category c LEFT JOIN category p ON p.id=c.parent_id AND p.user_id=c.user_id WHERE c.user_id=$1 ORDER BY c.kind,COALESCE(p.name,c.name),c.parent_id NULLS FIRST,c.name,c.id`, []string{"id", "name", "kind", "parentId", "path"}, user)
 	if err != nil {
 		return
 	}
@@ -69,7 +69,7 @@ func snapshot(ctx context.Context, q queryer, user, month string) (s Snapshot, e
 	if err != nil {
 		return
 	}
-	s.Budgets, err = rows(ctx, q, `SELECT b.id::text,b.category_id::text,b.currency,to_char(b.month,'YYYY-MM'),b.amount::text,COALESCE((SELECT sum(e.amount::numeric) FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=b.user_id AND e.category_id=b.category_id AND e.kind='EXPENSE' AND a.currency=b.currency AND date_trunc('month',e.entry_date)=b.month),0)::text FROM budget b WHERE b.user_id=$1 AND b.month=$2::date ORDER BY b.currency,b.category_id`, []string{"id", "categoryId", "currency", "month", "amount", "spent"}, user, month+"-01")
+	s.Budgets, err = rows(ctx, q, `SELECT b.id::text,b.category_id::text,b.currency,to_char(b.month,'YYYY-MM'),b.amount::text,COALESCE((SELECT sum(e.amount::numeric) FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=b.user_id AND (e.category_id=b.category_id OR e.category_id IN (SELECT id FROM category WHERE user_id=b.user_id AND parent_id=b.category_id)) AND e.kind='EXPENSE' AND a.currency=b.currency AND date_trunc('month',e.entry_date)=b.month),0)::text FROM budget b WHERE b.user_id=$1 AND b.month=$2::date ORDER BY b.currency,b.category_id`, []string{"id", "categoryId", "currency", "month", "amount", "spent"}, user, month+"-01")
 	if err != nil {
 		return
 	}
@@ -77,6 +77,14 @@ func snapshot(ctx context.Context, q queryer, user, month string) (s Snapshot, e
 		if _, err = checked(b["spent"]); err != nil {
 			return
 		}
+	}
+	s.Breakdown, err = rows(ctx, q, `SELECT c.id::text,a.currency,sum(e.amount::numeric)::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id JOIN category c ON c.id=e.category_id AND c.user_id=e.user_id WHERE e.user_id=$1 AND e.kind IN ('INCOME','EXPENSE') AND date_trunc('month',e.entry_date)=$2::date GROUP BY c.id,a.currency ORDER BY c.id,a.currency`, []string{"categoryId", "currency", "direct"}, user, month+"-01")
+	if err != nil {
+		return
+	}
+	s.Breakdown, err = categoryBreakdown(s.Categories, s.Breakdown)
+	if err != nil {
+		return
 	}
 	s.Recurring, err = rows(ctx, q, `SELECT id::text,account_id::text,category_id::text,kind,amount::text,description,to_char(next_date,'YYYY-MM-DD'),active::text FROM recurring WHERE user_id=$1 ORDER BY next_date,id`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "nextDate", "active"}, user)
 	if err != nil {
@@ -111,14 +119,9 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 	result := "Saved"
 	switch action {
 	case "category":
-		name := strings.TrimSpace(in["name"])
-		if len([]rune(name)) < 1 || len([]rune(name)) > 100 {
-			return "", invalid("Category name must contain 1–100 characters")
-		}
-		if in["kind"] != "INCOME" && in["kind"] != "EXPENSE" {
-			return "", invalid("Choose income or expense")
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO category(id,user_id,name,kind) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,name,kind) DO NOTHING`, newID(), user, name, in["kind"])
+		err = createCategory(ctx, tx, user, in)
+	case "starterCategories":
+		err = AddStarterCategories(ctx, tx, user)
 	case "transaction":
 		err = insertEntry(ctx, tx, user, in, "", "")
 	case "transfer":
@@ -190,7 +193,11 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 			return "", err
 		}
 		for _, row := range data {
-			row["accountId"] = row["account_id"]
+			if legacy, ok := row["account_id"]; ok {
+				row["accountId"] = legacy
+			} else {
+				row["accountId"] = in["accountId"]
+			}
 			row["categoryId"] = row["category_id"]
 			row["amount"] = row["amount_cents"]
 			if err = insertEntry(ctx, tx, user, row, "", ""); err != nil {
@@ -201,7 +208,9 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 	case "export":
 		var s Snapshot
 		s, err = snapshot(ctx, tx, user, time.Now().UTC().Format("2006-01"))
-		result = exportCSV(s.Entries)
+		if err == nil {
+			result, err = exportAccounts(s.Accounts, s.Entries)
+		}
 	default:
 		return "", invalid("Unknown finance action")
 	}

@@ -12,7 +12,7 @@ type Field = {
   label: string;
   type?: string;
   value?: string;
-  options?: { value: string; label: string }[];
+  options?: { value: string; label: string; kind?: string }[];
   optional?: boolean;
 };
 const currencies = ["EUR", "GBP", "USD", "BRL"].map((value) => ({
@@ -37,6 +37,7 @@ function Form({
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [selectedKind, setSelectedKind] = useState("");
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -45,6 +46,7 @@ function Form({
     try {
       await onSubmit(Object.fromEntries(new FormData(form).entries()) as Row);
       form.reset();
+      setSelectedKind("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save");
     } finally {
@@ -62,17 +64,34 @@ function Form({
               <select
                 aria-label={field.label}
                 name={field.name}
+                key={
+                  field.name === "categoryId" || field.name === "parentId"
+                    ? selectedKind
+                    : field.name
+                }
+                onChange={
+                  field.name === "kind"
+                    ? (e) => setSelectedKind(e.target.value)
+                    : undefined
+                }
                 defaultValue={field.value ?? ""}
                 required={!field.optional}
               >
-                <option value="" disabled>
+                <option value="" disabled={!field.optional}>
                   Choose…
                 </option>
-                {field.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
+                {field.options
+                  .filter(
+                    (option) =>
+                      !fields.some((f) => f.name === "kind") ||
+                      !("kind" in option) ||
+                      option.kind === selectedKind,
+                  )
+                  .map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
               </select>
             ) : (
               <input
@@ -140,6 +159,7 @@ function Wallet() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [csv, setCsv] = useState("");
+  const [importAccount, setImportAccount] = useState("");
   const [loading, setLoading] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,14 +198,21 @@ function Wallet() {
   const options = (rows: Row[]) =>
     rows.map((row) => ({
       value: row.id,
+      ...(row.kind ? { kind: row.kind } : {}),
       label:
-        row.name +
+        (row.path || row.name) +
         (row.currency ? ` · ${row.currency}` : ` · ${row.kind.toLowerCase()}`),
     }));
   const account = (id: string) =>
     data.accounts.find((a) => a.id === id)?.name ?? id;
   const category = (id: string) =>
-    data.categories.find((a) => a.id === id)?.name ?? "Transfer";
+    (data.categories.find((a) => a.id === id)?.path ||
+      data.categories.find((a) => a.id === id)?.name) ??
+    "Transfer";
+  const eligibleAccounts = data.accounts.filter((a) => a.archived !== "true");
+  const destination =
+    eligibleAccounts.find((a) => a.id === importAccount) ??
+    (eligibleAccounts.length === 1 ? eligibleAccounts[0] : undefined);
   const entryFields: Field[] = [
     { name: "kind", label: "Kind", options: kinds },
     { name: "accountId", label: "Account", options: options(data.accounts) },
@@ -292,6 +319,44 @@ function Wallet() {
                 </article>
               ))}
             </div>
+            <section className="panel">
+              <h2>Monthly categories · {month}</h2>
+              {data.categories
+                .filter((c) => !c.parentId)
+                .map((root) =>
+                  (data.breakdown ?? [])
+                    .filter((b) => b.categoryId === root.id)
+                    .map((b) => (
+                      <details key={`${root.id}-${b.currency}`}>
+                        <summary>
+                          {root.path || root.name} · {root.kind.toLowerCase()} ·{" "}
+                          {formatMoney(b.total, b.currency)}
+                        </summary>
+                        <p>
+                          Direct entries · {formatMoney(b.direct, b.currency)}
+                        </p>
+                        {data.categories
+                          .filter((c) => c.parentId === root.id)
+                          .map((child) => {
+                            const amount = data.breakdown?.find(
+                              (v) =>
+                                v.categoryId === child.id &&
+                                v.currency === b.currency,
+                            );
+                            return amount ? (
+                              <p key={child.id}>
+                                {child.path || child.name} ·{" "}
+                                {formatMoney(amount.direct, b.currency)}
+                              </p>
+                            ) : null;
+                          })}
+                      </details>
+                    )),
+                )}
+              {!data.breakdown?.length && (
+                <p>No income or expenses this month.</p>
+              )}
+            </section>
             <AccountList rows={data.accounts} />
             {!data.accounts.length && (
               <section className="panel empty">
@@ -353,15 +418,24 @@ function Wallet() {
               fields={[
                 { name: "name", label: "Category name" },
                 { name: "kind", label: "Kind", options: kinds },
+                {
+                  name: "parentId",
+                  label: "Parent category (optional)",
+                  optional: true,
+                  options: options(data.categories.filter((c) => !c.parentId)),
+                },
               ]}
               onSubmit={(values) => save("category", values)}
             />
             <section className="panel">
               <h2>Your categories</h2>
+              <button onClick={() => void act("starterCategories")}>
+                Add starter categories
+              </button>
               <ul className="item-list">
                 {data.categories.map((c) => (
                   <li key={c.id}>
-                    <strong>{c.name}</strong>
+                    <strong>{c.path || c.name}</strong>
                     <span className="badge">{c.kind}</span>
                   </li>
                 ))}
@@ -520,7 +594,8 @@ function Wallet() {
                     <div>
                       <strong>{r.description || category(r.categoryId)}</strong>
                       <small>
-                        {account(r.accountId)} · {r.kind} · next {r.nextDate} ·{" "}
+                        {account(r.accountId)} · {category(r.categoryId)} ·{" "}
+                        {r.kind} · next {r.nextDate} ·{" "}
                         {r.active === "true" ? "Active" : "Stopped"}
                       </small>
                     </div>
@@ -555,9 +630,37 @@ function Wallet() {
             </p>
             <p>
               Header:{" "}
-              <code>
-                date,account_id,category_id,kind,amount_cents,description
-              </code>
+              <code>date,kind,category_id,amount_cents,description</code>
+            </p>
+            <label>
+              Import into account
+              <select
+                aria-label="Import into account"
+                value={destination?.id ?? ""}
+                onChange={(e) => setImportAccount(e.target.value)}
+              >
+                <option value="">Choose an account…</option>
+                {eligibleAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} · {a.currency}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {destination ? (
+              <p>
+                Destination: {destination.name} · {destination.currency}
+              </p>
+            ) : (
+              <p>
+                {eligibleAccounts.length
+                  ? "Choose the destination account before importing."
+                  : "Create an account before importing."}
+              </p>
+            )}
+            <p>
+              Legacy compatibility: six-column files with account_id keep each
+              row’s original account, regardless of this selection.
             </p>
             <label>
               Choose CSV file
@@ -586,8 +689,16 @@ function Wallet() {
             </label>
             <div className="actions">
               <button
-                disabled={!csv}
-                onClick={() => void act("import", { csv })}
+                disabled={
+                  !csv ||
+                  (!destination &&
+                    !csv.startsWith(
+                      "date,account_id,category_id,kind,amount_cents,description",
+                    ))
+                }
+                onClick={() =>
+                  void act("import", { csv, accountId: destination?.id ?? "" })
+                }
               >
                 Import CSV
               </button>
@@ -597,11 +708,14 @@ function Wallet() {
                   try {
                     const result = await execute("export", {});
                     const url = URL.createObjectURL(
-                      new Blob([result], { type: "text/csv;charset=utf-8" }),
+                      new Blob(
+                        [Uint8Array.from(atob(result), (c) => c.charCodeAt(0))],
+                        { type: "application/zip" },
+                      ),
                     );
                     const a = document.createElement("a");
                     a.href = url;
-                    a.download = "gentum-transactions.csv";
+                    a.download = "gentum-transactions.zip";
                     a.click();
                     URL.revokeObjectURL(url);
                   } catch (e) {
@@ -614,30 +728,23 @@ function Wallet() {
               <button
                 className="secondary"
                 onClick={() =>
-                  setCsv(
-                    "date,account_id,category_id,kind,amount_cents,description\n",
-                  )
+                  setCsv("date,kind,category_id,amount_cents,description\n")
                 }
               >
                 Use CSV template
               </button>
             </div>
-            <h3>Account IDs</h3>
-            {data.accounts.map((a) => (
-              <p key={a.id}>
-                {a.name} · <code>{a.id}</code>
-              </p>
-            ))}
             <h3>Category IDs</h3>
             {data.categories.map((c) => (
               <p key={c.id}>
-                {c.name} ({c.kind}) · <code>{c.id}</code>
+                {c.path || c.name} ({c.kind}) · <code>{c.id}</code>
               </p>
             ))}
             <p className="muted">
-              Exports contain all income and expenses, across all dates. Linked
-              transfers and schedules are excluded. Spreadsheet formula prefixes
-              are escaped with an apostrophe.
+              Exports include a separate CSV for every account in a ZIP, named
+              by account and currency, with all income and expenses across all
+              dates. Linked transfers and schedules are excluded. Spreadsheet
+              formula prefixes are escaped with an apostrophe.
             </p>
           </section>
         )}
