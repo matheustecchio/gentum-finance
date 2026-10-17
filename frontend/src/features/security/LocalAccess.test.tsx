@@ -4,11 +4,11 @@ import { afterEach, expect, it, vi } from "vitest";
 import { LocalAccess, AccessSettings, useLocalAccess } from "./LocalAccess";
 const recovery = "ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567";
 afterEach(() => vi.unstubAllGlobals());
-function Ledger() {
+function Wallet() {
   const { lock } = useLocalAccess();
   return (
     <>
-      <h1>Ledger ready</h1>
+      <h1>Wallet ready</h1>
       <button onClick={() => void lock()}>Lock now</button>
       <AccessSettings />
     </>
@@ -17,13 +17,14 @@ function Ledger() {
 function fixture(
   initial: {
     setupRequired?: boolean;
+    existingProfilesAvailable?: boolean;
     pinEnabled?: boolean;
     unlocked?: boolean;
   } = {},
 ) {
   const status = {
     setupRequired: false,
-    legacyRequired: false,
+    existingProfilesAvailable: false,
     pinEnabled: true,
     unlocked: false,
     ...initial,
@@ -57,14 +58,14 @@ function fixture(
   vi.stubGlobal("fetch", calls);
   return calls;
 }
-it("opens a configured unprotected ledger automatically", async () => {
+it("opens a configured unprotected wallet automatically", async () => {
   const calls = fixture({ pinEnabled: false });
   render(
     <LocalAccess>
-      <h1>Ledger ready</h1>
+      <h1>Wallet ready</h1>
     </LocalAccess>,
   );
-  await screen.findByRole("heading", { name: "Ledger ready" });
+  await screen.findByRole("heading", { name: "Wallet ready" });
   expect(calls).toHaveBeenCalledWith(
     "/auth/open",
     expect.objectContaining({ method: "POST" }),
@@ -74,14 +75,14 @@ it("requires PIN confirmation and recovery acknowledgement before entering", asy
   const calls = fixture({ setupRequired: true, pinEnabled: false });
   render(
     <LocalAccess>
-      <h1>Ledger ready</h1>
+      <h1>Wallet ready</h1>
     </LocalAccess>,
   );
   await userEvent.click(await screen.findByLabelText("Protect with a PIN"));
   await userEvent.type(screen.getByLabelText("PIN (4 digits)"), "0123");
   await userEvent.type(screen.getByLabelText("Confirm PIN"), "9999");
   await userEvent.click(
-    screen.getByRole("button", { name: "Open local ledger" }),
+    screen.getByRole("button", { name: "Open local wallet" }),
   );
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "PINs do not match",
@@ -92,28 +93,28 @@ it("requires PIN confirmation and recovery acknowledgement before entering", asy
   await userEvent.clear(screen.getByLabelText("Confirm PIN"));
   await userEvent.type(screen.getByLabelText("Confirm PIN"), "0123");
   await userEvent.click(
-    screen.getByRole("button", { name: "Open local ledger" }),
+    screen.getByRole("button", { name: "Open local wallet" }),
   );
   await screen.findByText(recovery);
   fireEvent.focus(window);
   await waitFor(() => expect(screen.getByText(recovery)).toBeInTheDocument());
   expect(
-    screen.getByRole("button", { name: "Continue to ledger" }),
+    screen.getByRole("button", { name: "Continue to wallet" }),
   ).toBeDisabled();
   expect(
-    screen.queryByRole("heading", { name: "Ledger ready" }),
+    screen.queryByRole("heading", { name: "Wallet ready" }),
   ).not.toBeInTheDocument();
   await userEvent.click(screen.getByLabelText("I have saved my recovery code"));
   await userEvent.click(
-    screen.getByRole("button", { name: "Continue to ledger" }),
+    screen.getByRole("button", { name: "Continue to wallet" }),
   );
-  await screen.findByRole("heading", { name: "Ledger ready" });
+  await screen.findByRole("heading", { name: "Wallet ready" });
 });
-it("rejects a wrong PIN, unlocks a leading-zero PIN and clears ledger on lock", async () => {
+it("rejects a wrong PIN, unlocks a leading-zero PIN and clears wallet on lock", async () => {
   fixture();
   render(
     <LocalAccess>
-      <Ledger />
+      <Wallet />
     </LocalAccess>,
   );
   const field = await screen.findByLabelText("PIN (4 digits)");
@@ -123,18 +124,18 @@ it("rejects a wrong PIN, unlocks a leading-zero PIN and clears ledger on lock", 
   await userEvent.clear(screen.getByLabelText("PIN (4 digits)"));
   await userEvent.type(screen.getByLabelText("PIN (4 digits)"), "0123");
   await userEvent.click(screen.getByRole("button", { name: "Unlock" }));
-  await screen.findByRole("heading", { name: "Ledger ready" });
+  await screen.findByRole("heading", { name: "Wallet ready" });
   await userEvent.click(screen.getByRole("button", { name: "Lock now" }));
-  await screen.findByRole("heading", { name: "Unlock your ledger" });
+  await screen.findByRole("heading", { name: "Unlock your wallet" });
   expect(
-    screen.queryByRole("heading", { name: "Ledger ready" }),
+    screen.queryByRole("heading", { name: "Wallet ready" }),
   ).not.toBeInTheDocument();
 });
 it("resets a forgotten PIN with recovery and displays the replacement code", async () => {
   const calls = fixture();
   render(
     <LocalAccess>
-      <h1>Ledger ready</h1>
+      <h1>Wallet ready</h1>
     </LocalAccess>,
   );
   await userEvent.click(
@@ -170,23 +171,86 @@ it("requires the current PIN when disabling protection", async () => {
       expect.objectContaining({ body: JSON.stringify({ currentPin: "0123" }) }),
     ),
   );
-  await screen.findByText("This computer opens your ledger without a PIN.");
+  await screen.findByText("This computer opens your wallet without a PIN.");
 });
 
 it("sets up direct access without credentials or a recovery code", async () => {
   const calls = fixture({ setupRequired: true, pinEnabled: false });
   render(
     <LocalAccess>
-      <h1>Ledger ready</h1>
+      <h1>Wallet ready</h1>
     </LocalAccess>,
   );
   await userEvent.click(
-    await screen.findByRole("button", { name: "Open local ledger" }),
+    await screen.findByRole("button", { name: "Open local wallet" }),
   );
-  await screen.findByRole("heading", { name: "Ledger ready" });
+  await screen.findByRole("heading", { name: "Wallet ready" });
   expect(calls).toHaveBeenCalledWith(
     "/auth/setup",
-    expect.objectContaining({ body: JSON.stringify({ mode: "open" }) }),
+    expect.objectContaining({
+      body: JSON.stringify({ mode: "open", source: "new" }),
+    }),
   );
   expect(screen.queryByText("Save your recovery code")).not.toBeInTheDocument();
+});
+
+it("starts a new wallet without credentials even when old profiles exist", async () => {
+  const calls = fixture({
+    setupRequired: true,
+    pinEnabled: false,
+    existingProfilesAvailable: true,
+  });
+  render(
+    <LocalAccess>
+      <h1>Wallet ready</h1>
+    </LocalAccess>,
+  );
+  expect(await screen.findByLabelText("Create a new wallet")).toBeChecked();
+  expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Existing password")).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Open local wallet" }),
+  );
+  await screen.findByRole("heading", { name: "Wallet ready" });
+  expect(calls).toHaveBeenCalledWith(
+    "/auth/setup",
+    expect.objectContaining({
+      body: JSON.stringify({ mode: "open", source: "new" }),
+    }),
+  );
+});
+it("requests old credentials only when the user chooses an existing profile", async () => {
+  const calls = fixture({
+    setupRequired: true,
+    pinEnabled: false,
+    existingProfilesAvailable: true,
+  });
+  render(
+    <LocalAccess>
+      <h1>Wallet ready</h1>
+    </LocalAccess>,
+  );
+  await userEvent.click(
+    await screen.findByLabelText("Use an existing profile"),
+  );
+  await userEvent.type(screen.getByLabelText("Email"), "old@example.test");
+  await userEvent.type(
+    screen.getByLabelText("Existing password"),
+    "fictional-password",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Open local wallet" }),
+  );
+  await screen.findByRole("heading", { name: "Wallet ready" });
+  expect(calls).toHaveBeenCalledWith(
+    "/auth/setup",
+    expect.objectContaining({
+      body: JSON.stringify({
+        mode: "open",
+        source: "existing",
+        email: "old@example.test",
+        password: "fictional-password",
+      }),
+    }),
+  );
 });

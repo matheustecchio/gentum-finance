@@ -421,3 +421,14 @@ code {
 .auth-shell label {
   margin-bottom: 16px;
 }
+
+.wallet-source {
+  border: 1px solid #cbd7c7;
+  border-radius: 8px;
+  margin: 0 0 24px;
+  padding: 16px;
+}
+.wallet-source legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
