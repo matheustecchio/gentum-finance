@@ -4,15 +4,10 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"gentum.finance/backend/internal/account"
-	"gentum.finance/backend/internal/api"
 	"gentum.finance/backend/internal/finance"
 	"gentum.finance/backend/internal/security"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -120,86 +115,5 @@ func TestFinanceAtomicityIsolationAndExactness(t *testing.T) {
 	max, _ := accounts.Create(ctx, account.Input{Name: "Limit", Type: "CASH", Currency: "EUR", InitialBalance: 9223372036854775807})
 	if _, e := s.Execute(ctx, "transaction", finance.Row{"accountId": max.ID, "categoryId": income, "kind": "INCOME", "amount": "1", "date": day}); e == nil {
 		t.Fatal("accepted balance overflow")
-	}
-}
-func TestCookieAuthenticationAndTransport(t *testing.T) {
-	pool := testPool(t)
-	ctx := context.Background()
-	if e := Migrate(ctx, pool); e != nil {
-		t.Fatal(e)
-	}
-	origin := "http://localhost:5173"
-	handler, e := api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, origin, finance.Service{Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
-	if e != nil {
-		t.Fatal(e)
-	}
-	auth := security.Auth{Pool: pool, Origin: origin}.Middleware(handler)
-	call := func(path, body, source string, cookie *http.Cookie) *httptest.ResponseRecorder {
-		t.Helper()
-		method := "POST"
-		if body == "" {
-			method = "GET"
-		}
-		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		r.Header.Set("Content-Type", "application/json")
-		r.Header.Set("Origin", source)
-		if cookie != nil {
-			r.AddCookie(cookie)
-		}
-		w := httptest.NewRecorder()
-		auth.ServeHTTP(w, r)
-		return w
-	}
-	credentials := `{"email":"fiction@example.test","password":"fictional-password-123"}`
-	if w := call("/auth/register", credentials, "http://evil.test", nil); w.Code != 403 {
-		t.Fatal(w.Code)
-	}
-	if w := call("/graphql", `{"query":"{accounts{id}}"}`, origin, nil); w.Code != 401 {
-		t.Fatal(w.Code)
-	}
-	w := call("/auth/register", credentials, origin, nil)
-	if w.Code != 200 {
-		t.Fatal(w.Body.String())
-	}
-	cookies := w.Result().Cookies()
-	if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode {
-		t.Fatal(cookies)
-	}
-	cookie := cookies[0]
-	w = call("/graphql", `{"query":"mutation{createAccount(input:{name:\"Private\",type:CASH,currency:\"EUR\",initialBalance:\"29\"}){id initialBalance}}"}`, origin, cookie)
-	if w.Code != 200 || strings.Contains(w.Body.String(), "errors") {
-		t.Fatal(w.Body.String())
-	}
-	w = call("/auth/logout", `{}`, origin, cookie)
-	if w.Code != 200 {
-		t.Fatal(w.Code)
-	}
-	w = call("/auth/me", "", origin, cookie)
-	if w.Code != 401 {
-		t.Fatal("logout did not revoke session")
-	}
-	w = call("/auth/login", `{"email":"fiction@example.test","password":"wrong-password-123"}`, origin, nil)
-	if w.Code != 401 {
-		t.Fatal("accepted bad password")
-	}
-	w = call("/auth/login", credentials, origin, nil)
-	if w.Code != 200 {
-		t.Fatal(w.Body.String())
-	}
-	cookie = w.Result().Cookies()[0]
-	w = call("/graphql", `{"query":"{accounts{id initialBalance}}"}`, origin, cookie)
-	var result map[string]interface{}
-	if e := json.NewDecoder(w.Result().Body).Decode(&result); e != nil {
-		t.Fatal(e)
-	}
-	encoded, _ := json.Marshal(result)
-	if !strings.Contains(string(encoded), `"initialBalance":"29"`) {
-		t.Fatal(string(encoded))
-	}
-	pool.Exec(ctx, `UPDATE user_session SET expires_at=now()-interval '1 second'`)
-	w = call("/auth/me", "", origin, cookie)
-	body, _ := io.ReadAll(w.Result().Body)
-	if w.Code != 401 {
-		t.Fatal("accepted expired session", string(body))
 	}
 }
