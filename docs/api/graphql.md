@@ -41,3 +41,9 @@ timeline. Prepending earlier months preserves the viewport anchor; loading failu
 keep existing months visible and offer retry. The wealth card uses a compact
 empty/single-observation state, with a low fixed-height chart only when multiple
 supported daily balances exist. No curve is generated from a lone balance.
+
+Wealth inspection is client-side and uses the exact supplied daily values.
+Horizontal position selects the nearest calendar day across the full plot height;
+missing days remain unavailable. Pointer, touch and keyboard share the same
+selection. The old History details disclosure is replaced by this interaction;
+ledger methodology remains documented here and in the chart accessibility text.

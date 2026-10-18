@@ -36,7 +36,7 @@ To override the port or existing database settings, copy [.env.example](.env.exa
 - **Transactions** shows the latest 10 entries across all dates, with older/newer pages, inclusive date filters, and root/subcategory filters. Reporting month affects dashboard totals, not history.
 - Delete unused categories from **Settings**, after confirmation. Categories with children or references from transactions, budgets or schedules cannot be deleted.
 - Atomic linked transfers between accounts in the same currency.
-- Total Wealth in your primary currency, with dated ECB reference rates, a 30-day ledger chart and signed change when history is available. Daily history is reconstructed from opening balances and dated ledger entries. Unsupported earlier opening dates remain unavailable.
+- Total Wealth in your primary currency, with dated ECB reference rates, a 30-day ledger chart and signed change when history is available. Daily history is reconstructed from opening balances and dated ledger entries. Unsupported earlier opening dates remain unavailable. Inspect each day directly on the chart using the pointer, touch or keyboard, with an exact date/value tooltip and guide. The change and period label stay together on one line.
 - Monthly grouped cash-flow bars (income, expenses and signed net), with continuous drag/swipe scrolling and keyboard navigation. History loads at the edges without replacing the visible chart. Monthly spending bars show category names and amounts on hover, tap and focus.
 - A saved primary currency in Settings. Original account balances and cash-flow reporting stay in their native currencies.
 - Monthly category budgets with actual spending and percentage used.
