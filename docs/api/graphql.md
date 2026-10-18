@@ -38,7 +38,12 @@ ties away from zero. Values outside signed int64 cents are unavailable.
 
 The cash-flow UI retains loaded six-month ranges in a continuous horizontal
 timeline. Prepending earlier months preserves the viewport anchor; loading failures
-keep existing months visible and offer retry. The wealth card uses a compact
+keep existing months visible and offer retry. Cash Flow requests and visible month
+groups stop at the current calendar month in Europe/Dublin, including when a future
+reporting month is selected. The boundary refreshes while the app is open and on
+returning to the tab. Each bar has an amount-only tooltip above it, matching the
+Income, Expenses or Net flow legend color. Pointer, touch and keyboard focus can
+inspect positive, negative and zero values. The wealth card uses a compact
 empty/single-observation state, with a low fixed-height chart only when multiple
 supported daily balances exist. No curve is generated from a lone balance.
 

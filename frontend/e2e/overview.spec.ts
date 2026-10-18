@@ -4,6 +4,7 @@ for (const width of [1280, 390])
     test(`Continuous cash flow at ${width}px, empty=${empty}`, async ({
       page,
     }) => {
+      await page.clock.install({ time: new Date("2026-10-18T12:00:00Z") });
       await page.setViewportSize({ width, height: 900 });
       const wealth = Array.from({ length: 31 }, (_, i) => {
         const day = new Date("2026-09-18T00:00:00Z");
@@ -100,9 +101,7 @@ for (const width of [1280, 390])
         await page
           .getByRole("button", { name: "2026-10 Net: -€400.00" })
           .click();
-        await expect(page.locator(".currency-flow .bar-inspection")).toHaveText(
-          "2026-10 Net: -€400.00",
-        );
+        await expect(page.getByRole("tooltip")).toHaveText("-€400.00");
       }
       await nav.scrollIntoViewIfNeeded();
       const box = await nav.boundingBox();
@@ -170,7 +169,8 @@ for (const width of [1280, 390])
       await page.keyboard.press("ArrowRight");
       await expect
         .poll(() => nav.locator("svg text").count())
-        .toBeGreaterThan(loadedMonths);
+        .toBe(loadedMonths);
+      expect(requested.every((m) => m <= "2026-10")).toBe(true);
       expect(await nav.evaluate((e) => e.scrollLeft)).toBeGreaterThanOrEqual(
         last,
       );
