@@ -57,7 +57,7 @@ Local HTTP cookies intentionally lack `Secure` for loopback HTTP. The applicatio
 
 ## Development and validation
 
-See [development](docs/development.md), [architecture](docs/architecture/overview.md), [API and CSV contract](docs/api/finance.md), [contributing](CONTRIBUTING.md) and [repository guidance](AGENT.md).
+See [development](docs/development.md), [architecture](docs/architecture.md), [API and CSV contract](docs/api/finance.md), [contributing](CONTRIBUTING.md) and [repository guidance](AGENT.md).
 
 CI runs Go race/integration tests against PostgreSQL, Go vet/build, frontend type checking/unit coverage/build, a real Docker browser journey and a launcher stop/start persistence check on every pull request. A workflow file defines checks; repository branch rules are a separate remote configuration.
 

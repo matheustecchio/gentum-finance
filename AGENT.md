@@ -62,10 +62,10 @@ For documentation-only changes, verify links and commands against executable con
 ## Documentation synchronization
 
 - Update `docs/api/` and frontend GraphQL documents with schema contract changes.
-- Update `docs/architecture/overview.md` and add an ADR for significant boundary or technology decisions.
+- Update `docs/architecture.md` and add an ADR for significant boundary or technology decisions.
 - Keep `docs/decisions/0002-local-first-web-application.md` synchronized with changes to local delivery, service startup, persistence location, desktop packaging, or hosting direction.
 - Update `README.md` when prerequisites, commands, configuration, status, or user-visible scope changes.
-- Update `CONTRIBUTING.md`, `docs/workflows/git-and-github.md`, and GitHub templates together when contribution or review policy changes.
+- Update `CONTRIBUTING.md`, `docs/workflow.md`, and GitHub templates together when contribution or review policy changes.
 - Re-check remote GitHub settings before documenting branch protection, required checks, merge policy, or security reporting as enforced.
 
 ## Git and pull-request workflow
