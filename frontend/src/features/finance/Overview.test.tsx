@@ -67,7 +67,7 @@ it("does not invent wealth or a 30-day delta when data is unavailable", () => {
       data={{ ...data, wealth: data.wealth.slice(1), change30: "" }}
     />,
   );
-  expect(screen.getByText(/History starts with today/)).toBeVisible();
+  expect(screen.getByText(/One recorded balance/)).toBeVisible();
   expect(document.querySelector(".wealth-card svg")).toBeNull();
   rerender(
     <WealthCard

@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { WealthHistoryChart } from "./WealthHistoryChart";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatMoney } from "../accounts/money";
 import { execute, graphql, type Row, type Snapshot } from "./client";
 import "./overview.css";
@@ -33,36 +34,8 @@ export function position(
 }
 const amount = (value: string) => BigInt(value);
 export function WealthCard({ data }: { data: OverviewData }) {
-  const gradient = useId();
   const current = data.wealth.find((w) => w.date === data.today);
-  const start = new Date(`${data.today}T00:00:00Z`);
-  start.setUTCDate(start.getUTCDate() - 30);
   const delta = data.change30 ? amount(data.change30) : undefined;
-  const hasHistory = data.wealth.length > 1;
-  const values = data.wealth.map((w) => amount(w.amount));
-  const low = values.reduce((a, b) => (a < b ? a : b), values[0] ?? 0n);
-  const high = values.reduce((a, b) => (a > b ? a : b), values[0] ?? 0n);
-  const points = Array.from({ length: 31 }, (_, i) => {
-    const day = new Date(start);
-    day.setUTCDate(day.getUTCDate() + i);
-    const date = day.toISOString().slice(0, 10);
-    const row = data.wealth.find((w) => w.date === date);
-    return {
-      date,
-      day: day.getUTCDate(),
-      row,
-      x: 12 + i * 19.2,
-      y: row ? 125 - position(amount(row.amount), low, high, 95) : 0,
-    };
-  });
-  const segments: (typeof points)[] = [];
-  for (const p of points) {
-    if (!p.row) continue;
-    const last = segments[segments.length - 1];
-    if (last && points.indexOf(last[last.length - 1]) === points.indexOf(p) - 1)
-      last.push(p);
-    else segments.push([p]);
-  }
   return (
     <section className="panel wealth-card" aria-labelledby="wealth-title">
       <h2 id="wealth-title">Total Wealth</h2>
@@ -71,9 +44,11 @@ export function WealthCard({ data }: { data: OverviewData }) {
           {current ? formatMoney(current.amount, data.currency) : "Unavailable"}
         </strong>
         {delta !== undefined && (
-          <span className={delta < 0n ? "loss" : "gain"}>
-            {delta >= 0n ? "+" : ""}
-            {formatMoney(delta.toString(), data.currency)}{" "}
+          <span className={`wealth-change ${delta < 0n ? "loss" : "gain"}`}>
+            <span className="wealth-change-amount">
+              {delta >= 0n ? "+" : ""}
+              {formatMoney(delta.toString(), data.currency)}
+            </span>
             <small>over 30 days</small>
           </span>
         )}
@@ -82,73 +57,12 @@ export function WealthCard({ data }: { data: OverviewData }) {
         <p role="status">{data.rateError}</p>
       ) : (
         <>
-          {hasHistory ? (
-            <>
-              <svg
-                viewBox="0 0 600 140"
-                preserveAspectRatio="none"
-                role="img"
-                aria-label="Recorded wealth over the last 30 days. Unsupported days are gaps."
-              >
-                <defs>
-                  <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#19ba96" stopOpacity=".5" />
-                    <stop offset="100%" stopColor="#19ba96" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {segments.map((segment, i) => {
-                  const line = segment
-                    .map((p, j) => `${j ? "L" : "M"}${p.x},${p.y}`)
-                    .join(" ");
-                  return (
-                    <g key={i}>
-                      {segment.length > 1 && (
-                        <path
-                          d={`${line} L${segment[segment.length - 1].x},135 L${segment[0].x},135 Z`}
-                          fill={`url(#${gradient})`}
-                        />
-                      )}
-                      <path
-                        d={line}
-                        fill="none"
-                        stroke="#19ba96"
-                        strokeWidth="2.5"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      {segment.length === 1 &&
-                        segment.map((p) => (
-                          <circle
-                            key={p.date}
-                            cx={p.x}
-                            cy={p.y}
-                            r="3"
-                            fill="#19ba96"
-                          >
-                            <title>
-                              {p.date}:{" "}
-                              {formatMoney(p.row!.amount, data.currency)}
-                            </title>
-                          </circle>
-                        ))}
-                    </g>
-                  );
-                })}
-              </svg>
-              <div className="wealth-day-labels" aria-hidden="true">
-                {points
-                  .filter((_, i) => i % 5 === 0)
-                  .map((p) => (
-                    <span key={p.date}>{p.day}</span>
-                  ))}
-              </div>
-            </>
-          ) : (
-            <p className="wealth-history-state">
-              {current
-                ? "History starts with today's balance. More daily records will build your chart."
-                : "No recorded balances yet."}
-            </p>
-          )}
+          <WealthHistoryChart
+            wealth={data.wealth}
+            today={data.today}
+            currency={data.currency}
+            methodology={data.historyNote}
+          />
           {data.converted && (
             <p className="chart-note">Estimated · ECB rates {data.rateDate}</p>
           )}
@@ -157,35 +71,6 @@ export function WealthCard({ data }: { data: OverviewData }) {
               {data.changeError}
             </p>
           )}
-          <details>
-            <summary>History details</summary>
-            {data.converted && (
-              <p className="chart-note">
-                Both endpoints use these rates. The change excludes
-                exchange-rate movements.
-              </p>
-            )}
-            <p className="chart-note">
-              {data.historyNote ||
-                "Ledger history is reconstructed from opening balances and dated transactions. Missing provenance is not estimated."}
-            </p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date (UTC)</th>
-                  <th>Wealth</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.wealth.map((w) => (
-                  <tr key={w.date}>
-                    <td>{w.date}</td>
-                    <td>{formatMoney(w.amount, data.currency)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </details>
         </>
       )}
     </section>

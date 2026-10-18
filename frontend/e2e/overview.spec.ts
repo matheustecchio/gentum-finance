@@ -240,7 +240,7 @@ for (const width of [1280, 390])
         await expect(card.locator("svg")).toHaveCount(0);
         await expect(
           card.getByText(
-            count ? /History starts with today/ : "No recorded balances yet.",
+            count ? /One recorded balance/ : "No recorded balances yet.",
           ),
         ).toBeVisible();
       } else {
