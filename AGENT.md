@@ -57,7 +57,7 @@ For backend code or schema changes, run unit tests and PostgreSQL integration te
 
 No coverage threshold exists yet; use the generated reports as a baseline and add meaningful behavioral tests with new work.
 
-For documentation-only changes, verify links and commands against executable configuration, confirm `AGENT.md` and `CLAUDE.md` remain equivalent, and run `git diff --check`. Do not run expensive application tests unless a documentation claim needs runtime verification.
+For documentation-only changes, verify links and commands against executable configuration and run `git diff --check`. Do not run expensive application tests unless a documentation claim needs runtime verification.
 
 ## Documentation synchronization
 
@@ -67,7 +67,6 @@ For documentation-only changes, verify links and commands against executable con
 - Update `README.md` when prerequisites, commands, configuration, status, or user-visible scope changes.
 - Update `CONTRIBUTING.md`, `docs/workflows/git-and-github.md`, and GitHub templates together when contribution or review policy changes.
 - Re-check remote GitHub settings before documenting branch protection, required checks, merge policy, or security reporting as enforced.
-- Keep `AGENT.md` and `CLAUDE.md` substantively identical.
 
 ## Git and pull-request workflow
 
