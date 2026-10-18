@@ -1,5 +1,6 @@
+import { FlowTooltip, type FlowSelection } from "./FlowTooltip";
 import { WealthHistoryChart } from "./WealthHistoryChart";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useId } from "react";
 import { formatMoney } from "../accounts/money";
 import { execute, graphql, type Row, type Snapshot } from "./client";
 import "./overview.css";
@@ -20,6 +21,29 @@ export function shiftMonth(month: string, count: number): string {
   const [year, m] = month.split("-").map(Number);
   const date = new Date(Date.UTC(year, m - 1 + count, 1));
   return date.toISOString().slice(0, 7);
+}
+export function dublinMonth(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-IE", {
+    timeZone: "Europe/Dublin",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+  return `${parts.find((p) => p.type === "year")!.value}-${parts.find((p) => p.type === "month")!.value}`;
+}
+function useCurrentMonth() {
+  const [month, setMonth] = useState(dublinMonth);
+  useEffect(() => {
+    const update = () => setMonth(dublinMonth());
+    const timer = window.setInterval(update, 60_000);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+  return month;
 }
 // Numbers below are SVG coordinates only. Financial values stay integer cents.
 export function position(
@@ -108,7 +132,10 @@ export function FlowChart({
   const high = values.reduce((a, b) => (a > b ? a : b), 0n);
   const low = values.reduce((a, b) => (a < b ? a : b), 0n);
   const zero = 170 - position(0n, low, high, 145);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState<FlowSelection>();
+  const tooltipId = useId();
+  const clearSelection = (element: SVGRectElement) =>
+    setSelected((old) => (old?.element === element ? undefined : old));
   return (
     <div className="currency-flow">
       <h3>{currency}</h3>
@@ -130,30 +157,69 @@ export function FlowChart({
               const value = amount(r[key]);
               const y = 170 - position(value, low, high, 145);
               const label = `${r.month} ${key === "net" ? "Net" : key === "income" ? "Income" : "Expenses"}: ${formatMoney(r[key], currency)}`;
+              const top = Math.min(y, zero);
+              const height = value === 0n ? 2 : Math.max(Math.abs(zero - y), 2);
+              const select = (element: SVGRectElement) =>
+                setSelected({
+                  element,
+                  value: formatMoney(r[key], currency),
+                  series: key,
+                });
               return (
-                <rect
-                  key={key}
-                  x={29 + i * 140 + j * 27}
-                  y={Math.min(y, zero)}
-                  width="18"
-                  height={value === 0n ? 0 : Math.max(Math.abs(zero - y), 2)}
-                  rx="3"
-                  className={`flow-${key}`}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={label}
-                  onFocus={() => setSelected(label)}
-                  onMouseEnter={() => setSelected(label)}
-                  onClick={() => setSelected(label)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setSelected(label);
+                <g key={key}>
+                  <rect
+                    x={29 + i * 140 + j * 27}
+                    y={top}
+                    width="18"
+                    height={height}
+                    rx="3"
+                    className={`flow-${key}`}
+                    aria-hidden="true"
+                  />
+                  <rect
+                    x={25 + i * 140 + j * 27}
+                    y={top - 3}
+                    width="26"
+                    height={Math.max(height + 6, 12)}
+                    fill="transparent"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={label}
+                    aria-describedby={
+                      selected?.element?.getAttribute("aria-label") === label
+                        ? tooltipId
+                        : undefined
                     }
-                  }}
-                >
-                  <title>{label}</title>
-                </rect>
+                    onFocus={(e) => {
+                      e.currentTarget.scrollIntoView?.({
+                        block: "nearest",
+                        inline: "nearest",
+                      });
+                      select(e.currentTarget);
+                    }}
+                    onBlur={(e) => clearSelection(e.currentTarget)}
+                    onPointerEnter={(e) => {
+                      if (e.pointerType === "mouse") select(e.currentTarget);
+                    }}
+                    onPointerLeave={(e) => {
+                      if (
+                        e.pointerType === "mouse" &&
+                        document.activeElement !== e.currentTarget
+                      )
+                        clearSelection(e.currentTarget);
+                    }}
+                    onClick={(e) => select(e.currentTarget)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setSelected(undefined);
+                      } else if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        select(e.currentTarget);
+                      }
+                    }}
+                  />
+                </g>
               );
             })}
             <text x={65 + i * 140} y="202" textAnchor="middle">
@@ -162,9 +228,13 @@ export function FlowChart({
           </g>
         ))}
       </svg>
-      <p className="bar-inspection" aria-live="polite">
-        {selected || "Select a bar to inspect its amount."}
-      </p>
+      {selected && (
+        <FlowTooltip
+          selection={selected}
+          id={tooltipId}
+          layoutKey={`${low}:${high}:${months.length}`}
+        />
+      )}
       <details>
         <summary>View monthly amounts</summary>
         <table>
@@ -271,14 +341,16 @@ export function CashFlowTimeline({
   initial,
   month,
   currencies,
+  currentMonth,
 }: {
   initial: OverviewData;
   month: string;
   currencies: string[];
+  currentMonth: string;
 }) {
   const [range, setRange] = useState({
-    start: shiftMonth(month, -5),
-    end: month,
+    start: shiftMonth(month < currentMonth ? month : currentMonth, -5),
+    end: month < currentMonth ? month : currentMonth,
   });
   const [rows, setRows] = useState(initial.flows);
   const [loading, setLoading] = useState(false);
@@ -301,11 +373,17 @@ export function CashFlowTimeline({
   for (let m = range.start; m <= range.end; m = shiftMonth(m, 1))
     months.push(m);
   async function load(direction: "earlier" | "later") {
-    if (inFlight.current) return;
+    if (
+      inFlight.current ||
+      (direction === "later" && range.end >= currentMonth)
+    )
+      return;
     const end =
       direction === "earlier"
         ? shiftMonth(range.start, -1)
-        : shiftMonth(range.end, 6);
+        : shiftMonth(range.end, 6) < currentMonth
+          ? shiftMonth(range.end, 6)
+          : currentMonth;
     if (end < "1900-06" || end > "9998-12") return;
     inFlight.current = true;
     setLoading(true);
@@ -384,8 +462,9 @@ export function CashFlowTimeline({
         <span className="net-key">Net flow</span>
       </p>
       <p id="flow-help" className="chart-note">
-        Drag or swipe through months. More history loads as you reach either
-        edge. With the chart focused, use the left and right arrow keys.
+        Drag or swipe through months up to the current month. Older history
+        loads at the left edge. With the chart focused, use the left and right
+        arrow keys.
       </p>
       <div
         ref={viewport}
@@ -474,6 +553,8 @@ export function OverviewCharts({
   snapshot: Snapshot;
   month: string;
 }) {
+  const currentMonth = useCurrentMonth();
+  const flowMonth = month < currentMonth ? month : currentMonth;
   const [data, setData] = useState<OverviewData>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -485,7 +566,7 @@ export function OverviewCharts({
     setError("");
     void graphql<{ overview: OverviewData }>(
       "query Overview($month:String!){overview(month:$month)}",
-      { month },
+      { month: flowMonth },
     )
       .then((r) => {
         if (active && r.overview) setData(r.overview);
@@ -500,7 +581,7 @@ export function OverviewCharts({
     return () => {
       active = false;
     };
-  }, [month, snapshot, retry]);
+  }, [flowMonth, snapshot, retry]);
   return (
     <>
       {busy && <p role="status">Loading wealth and cash flow…</p>}
@@ -513,9 +594,10 @@ export function OverviewCharts({
       {data && <WealthCard data={data} />}
       {data && (
         <CashFlowTimeline
-          key={month}
+          key={`${flowMonth}:${currentMonth}`}
           initial={data}
-          month={month}
+          month={flowMonth}
+          currentMonth={currentMonth}
           currencies={[
             ...new Set([
               ...snapshot.accounts.map((a) => a.currency),

@@ -304,3 +304,25 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.flow-tooltip {
+  z-index: 100;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 10px #18383130;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.flow-tooltip-income {
+  color: #15996c;
+}
+.flow-tooltip-expense {
+  color: #d74356;
+}
+.flow-tooltip-net {
+  color: #3477d9;
+}

@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   CategoryChart,
+  FlowChart,
+  dublinMonth,
   OverviewCharts,
   PrimaryCurrency,
   WealthCard,
@@ -53,7 +55,14 @@ const data: OverviewData = {
   rateError: "",
   converted: true,
 };
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-18T12:00:00Z"));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 it("shows an exact signed 30-day delta and leaves missing observations disconnected", () => {
   render(<WealthCard data={data} />);
   expect(screen.getByText(/-€10.00/)).toBeVisible();
@@ -94,7 +103,7 @@ it("moves continuously before pointer release, loads at the edge, and preserves 
   const baseline = Number(
     document.querySelector(".zero-line")?.getAttribute("y1"),
   );
-  expect(Number(bar.getAttribute("y"))).toBe(baseline);
+  expect(Number(bar.previousElementSibling?.getAttribute("y"))).toBe(baseline);
   const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
   Object.defineProperty(nav, "clientWidth", { value: 300 });
   Object.defineProperty(nav, "scrollWidth", {
@@ -235,4 +244,60 @@ it("does not draw a plot or fictional curve with no recorded balances", () => {
   render(<WealthCard data={{ ...data, wealth: [], change30: "" }} />);
   expect(screen.getByText("No recorded balances yet.")).toBeVisible();
   expect(document.querySelector(".wealth-card svg")).toBeNull();
+});
+
+it("uses the Dublin calendar month at summer midnight and year rollover", () => {
+  expect(dublinMonth(new Date("2026-06-30T22:59:59Z"))).toBe("2026-06");
+  expect(dublinMonth(new Date("2026-06-30T23:00:00Z"))).toBe("2026-07");
+  expect(dublinMonth(new Date("2026-12-31T23:59:59Z"))).toBe("2026-12");
+  expect(dublinMonth(new Date("2027-01-01T00:00:00Z"))).toBe("2027-01");
+});
+it("shows only the exact selected amount and exposes zero bars to keyboard and touch", () => {
+  render(
+    <FlowChart
+      months={["2026-10"]}
+      currency="EUR"
+      rows={[
+        {
+          month: "2026-10",
+          currency: "EUR",
+          income: "9007199254740993",
+          expense: "0",
+          net: "-1",
+        },
+      ]}
+    />,
+  );
+  const income = screen.getByRole("button", { name: /Income/ });
+  fireEvent.focus(income);
+  expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent(
+    "€90,071,992,547,409.93",
+  );
+  expect(screen.getByRole("tooltip", { hidden: true })).not.toHaveTextContent(
+    "2026",
+  );
+  const zero = screen.getByRole("button", { name: "2026-10 Expenses: €0.00" });
+  expect(Number(zero.getAttribute("height"))).toBeGreaterThan(0);
+  fireEvent.click(zero);
+  expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent(
+    "€0.00",
+  );
+  fireEvent.keyDown(zero, { key: "Escape" });
+  expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
+});
+it("clamps a future reporting month before requesting or rendering cash flow", async () => {
+  const fetcher = vi.fn(
+    async (_url: string, _init?: RequestInit) =>
+      new Response(JSON.stringify({ data: { overview: data } })),
+  );
+  vi.stubGlobal("fetch", fetcher);
+  render(<OverviewCharts snapshot={snapshot} month="2027-12" />);
+  await screen.findByRole("button", { name: "2026-10 Net: -€1.00" });
+  expect(String(fetcher.mock.calls[0]?.[1]?.body)).toContain(
+    '"month":"2026-10"',
+  );
+  const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
+  fireEvent.keyDown(nav, { key: "ArrowRight" });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText("2027-12", { selector: "svg text" })).toBeNull();
 });
