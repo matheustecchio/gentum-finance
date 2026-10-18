@@ -4,7 +4,7 @@ Gentum Finance is an early-stage personal finance application. Contributions sho
 
 ## Before starting
 
-1. Read the [architecture overview](docs/architecture/overview.md) and relevant API or decision record.
+1. Read the [architecture overview](docs/architecture.md) and relevant API or decision record.
 2. Search existing GitHub Issues and pull requests before opening duplicates.
 3. Use an issue to discuss substantial features, architecture changes, or behavior changes before investing in implementation.
 4. Never use real credentials, bank data, or personal financial data in development, tests, screenshots, logs, or examples.
@@ -95,7 +95,7 @@ Complete the repository pull-request template with:
 
 Use a draft pull request when feedback is needed before the work is ready. Keep the branch focused and respond to review with additional commits. Do not merge while checks fail or required work remains.
 
-The repository owner decides when and how to merge. After merge, delete the feature branch when it is no longer needed. See the [Git and GitHub workflow](docs/workflows/git-and-github.md) for the full sequence and current enforcement status.
+The repository owner decides when and how to merge. After merge, delete the feature branch when it is no longer needed. See the [Git and GitHub workflow](docs/workflow.md) for the full sequence and current enforcement status.
 
 ## Report bugs and propose features
 

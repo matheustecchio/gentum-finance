@@ -57,17 +57,16 @@ For backend code or schema changes, run unit tests and PostgreSQL integration te
 
 No coverage threshold exists yet; use the generated reports as a baseline and add meaningful behavioral tests with new work.
 
-For documentation-only changes, verify links and commands against executable configuration, confirm `AGENT.md` and `CLAUDE.md` remain equivalent, and run `git diff --check`. Do not run expensive application tests unless a documentation claim needs runtime verification.
+For documentation-only changes, verify links and commands against executable configuration and run `git diff --check`. Do not run expensive application tests unless a documentation claim needs runtime verification.
 
 ## Documentation synchronization
 
 - Update `docs/api/` and frontend GraphQL documents with schema contract changes.
-- Update `docs/architecture/overview.md` and add an ADR for significant boundary or technology decisions.
+- Update `docs/architecture.md` and add an ADR for significant boundary or technology decisions.
 - Keep `docs/decisions/0002-local-first-web-application.md` synchronized with changes to local delivery, service startup, persistence location, desktop packaging, or hosting direction.
 - Update `README.md` when prerequisites, commands, configuration, status, or user-visible scope changes.
-- Update `CONTRIBUTING.md`, `docs/workflows/git-and-github.md`, and GitHub templates together when contribution or review policy changes.
+- Update `CONTRIBUTING.md`, `docs/workflow.md`, and GitHub templates together when contribution or review policy changes.
 - Re-check remote GitHub settings before documenting branch protection, required checks, merge policy, or security reporting as enforced.
-- Keep `AGENT.md` and `CLAUDE.md` substantively identical.
 
 ## Git and pull-request workflow
 

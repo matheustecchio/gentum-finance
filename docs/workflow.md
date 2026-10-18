@@ -45,7 +45,7 @@ Before switching or pulling, inspect `git status --short`. Preserve existing wor
 
 Keep the branch limited to one coherent outcome. Stage explicit paths and split substantial work into focused commits. Use concise imperative commit messages.
 
-Run the checks listed in [CONTRIBUTING.md](../../CONTRIBUTING.md). Record exact results and clearly identify checks that were skipped, blocked, or unavailable.
+Run the checks listed in [CONTRIBUTING.md](../CONTRIBUTING.md). Record exact results and clearly identify checks that were skipped, blocked, or unavailable.
 
 ## 4. Push safely
 
