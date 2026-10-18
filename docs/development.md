@@ -8,9 +8,36 @@ Docker Engine and Compose v2 with `up --wait` are sufficient:
 ./gentum start
 ./gentum status
 ./gentum stop
+./gentum logs
 ```
 
-Open http://localhost:5173 and choose direct access or a PIN for your local wallet. `.env` overrides the optional port, database name/user/password and persistent volume. Keep credentials consistent with initialized volumes. Backend/PostgreSQL are internal; the frontend is the only published loopback port. The launcher waits for all service health checks and never deletes data.
+Open http://localhost:5173 and choose **Use without a PIN** or **Protect with a PIN**. No email or online account is needed. Save the recovery code before continuing with a PIN. If old profiles exist, **Create a new wallet** leaves their data stored separately; **Use an existing profile** requires its old email/password once.
+
+`status` shows container health and the published address. `stop` preserves data; `start` rebuilds, starts services and waits for health checks. `logs` shows recent service logs. The launcher does not open a browser automatically. Only the frontend publishes a loopback port; Go and PostgreSQL stay on the internal Compose network. Use the printed `localhost` address: a different origin, including `127.0.0.1`, is rejected by the default configuration.
+
+### Configuration and data
+
+Copy [`.env.example`](../.env.example) to `.env` to override the port, database settings or volume name. For example, `GENTUM_PORT=5180 ./gentum start` uses http://localhost:5180. The database defaults remain `gentum`, `gentum_dev_only` and `gentum_finance`. Credentials must match an initialized volume; changing `.env` does not change an existing PostgreSQL role password.
+
+Data lives in the persistent `gentum-finance_gentum-postgres-data` volume unless configured otherwise. Stopping, restarting, rebuilding and ordinary container recreation preserve it. Removing the volume or running `docker compose down -v` deletes data. Back up important data before upgrades. CSV export covers transaction interchange, not a complete database backup.
+
+### Wallet workflow and limits
+
+- **Settings** holds the primary currency, accounts, categories, PIN and recovery controls. Account and category creation use dismissible modals. An incomplete wallet offers setup guidance that can be dismissed with **Configure later** for the current visit.
+- Accounts support current, savings, cash and credit-card types in EUR, GBP, USD and BRL. Record dated income and expenses through **Add transaction**. **Transactions** shows 10 entries per page with inclusive date and category/subcategory filters. Reporting month changes dashboard totals, not transaction history.
+- Categories have one optional subcategory level. New wallets receive starter categories; existing wallets can add missing defaults without reclassifying records. Deletion requires confirmation and is limited to unused categories with no children or references. Root budgets include child spending; child budgets remain separate limits.
+- Overview shows Total Wealth in the saved primary currency, plus native-currency cash flow and category spending. Chart inspection supports pointer, touch and keyboard. Cash Flow loads older history continuously and stops at the current Europe/Dublin month. See [reporting rules](api/graphql.md) for coverage, exchange rates and unavailable values.
+- Recurring income and expenses are created only by **Run due transactions**, through today's UTC date. Runs are idempotent, handle month ends and can be stopped. There is no scheduled background execution.
+- CSV imports are all-or-nothing and additive: importing twice creates duplicate entries. Export downloads a ZIP with one CSV per account across all history. See the [CSV contract](api/finance.md#csv-interchange) for headers, account selection, legacy files and spreadsheet-safe descriptions.
+- This MVP does not offer transaction editing/deletion or automatic bank connections.
+
+### Local access
+
+Settings can enable, change or disable PIN protection and copy/download replacement recovery codes. Creating, changing or recovering a PIN replaces the code and revokes previous sessions while preserving wallet data. If both PIN and recovery code are lost, this version has no supported recovery flow. Use **Lock now** before leaving a protected wallet unattended; browser session restoration may retain access.
+
+The app is intended for trusted loopback use. Do not expose Compose services publicly. Database credentials are local defaults, and the application does not encrypt data at rest. The PIN is an app lock, not protection against someone who controls the computer. See [architecture](architecture.md) and [the local-access decision](decisions/0005-local-profile-and-optional-pin.md) for the security design.
+
+### Build version
 
 The sidebar displays the installed build version from `frontend/package.json`. Vite embeds it at build time, so it works offline and stays unchanged until the app is rebuilt. The development server adds `(dev)`; production builds show only `v<version>`. Missing or invalid version metadata stops the build.
 
@@ -71,6 +98,8 @@ node scripts/check-persistence.mjs
 ```
 
 Use a fresh, disposable verification volume for a fresh E2E run. Do not remove an existing data volume to rerun tests. CI uses disposable runners and a dedicated verification volume. Persistence requests close their HTTP connections explicitly so launcher restarts do not reuse stale sockets; financial writes are never automatically retried.
+
+CI runs five parallel jobs on pull requests and pushes to main: backend vet/build, backend race/integration coverage, frontend build/typecheck, frontend unit coverage and real browser/persistence checks. A workflow file does not configure branch protection; see [the Git workflow](workflow.md) for that distinction.
 
 Backend integration tests isolate schemas in the configured test database and cover migration adoption/checksum/rollback, session revocation/expiry, cross-user references, exact amounts above JavaScript's safe integer range, account overflow, monthly budget actuals, recurring idempotence and CSV atomicity. Never point tests at production data. Coverage is reported as a baseline; no percentage gate is enforced.
 
