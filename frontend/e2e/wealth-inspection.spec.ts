@@ -52,7 +52,14 @@ async function setup(page: Page, change = "-7410", gap = false) {
   return overview;
 }
 for (const width of [1280, 390])
-  for (const change of ["-7410", "0", "12345"]) {
+  for (const change of [
+    "-7410",
+    "0",
+    "12345",
+    "123456789",
+    "9223372036854775807",
+    "-9223372036854775808",
+  ]) {
     test(`Inline wealth change at ${width}px: ${change}, normal and enlarged text`, async ({
       page,
     }) => {

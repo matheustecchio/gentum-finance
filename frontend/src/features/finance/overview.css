@@ -12,6 +12,8 @@
   margin: 0 0 8px;
 }
 .wealth-value {
+  container-type: inline-size;
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -237,6 +239,7 @@
   white-space: nowrap;
 }
 .wealth-change small {
+  font-size: 0.8em;
   display: inline;
   color: inherit;
 }

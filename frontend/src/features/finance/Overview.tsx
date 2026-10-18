@@ -36,6 +36,10 @@ const amount = (value: string) => BigInt(value);
 export function WealthCard({ data }: { data: OverviewData }) {
   const current = data.wealth.find((w) => w.date === data.today);
   const delta = data.change30 ? amount(data.change30) : undefined;
+  const deltaText =
+    delta === undefined
+      ? ""
+      : `${delta >= 0n ? "+" : ""}${formatMoney(delta.toString(), data.currency)}`;
   return (
     <section className="panel wealth-card" aria-labelledby="wealth-title">
       <h2 id="wealth-title">Total Wealth</h2>
@@ -44,11 +48,13 @@ export function WealthCard({ data }: { data: OverviewData }) {
           {current ? formatMoney(current.amount, data.currency) : "Unavailable"}
         </strong>
         {delta !== undefined && (
-          <span className={`wealth-change ${delta < 0n ? "loss" : "gain"}`}>
-            <span className="wealth-change-amount">
-              {delta >= 0n ? "+" : ""}
-              {formatMoney(delta.toString(), data.currency)}
-            </span>
+          <span
+            className={`wealth-change ${delta < 0n ? "loss" : "gain"}`}
+            style={{
+              fontSize: `min(1rem, calc(100cqi / ${deltaText.length * 0.75 + 8}))`,
+            }}
+          >
+            <span className="wealth-change-amount">{deltaText}</span>
             <small>over 30 days</small>
           </span>
         )}
