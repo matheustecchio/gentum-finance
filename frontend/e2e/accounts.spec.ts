@@ -209,6 +209,7 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(page.getByRole("alert")).toContainText("Invalid PIN");
   await page.getByLabel("PIN (4 digits)").fill("0123");
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await nav(page, "Settings");
   await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
   await expect(page.getByText("€89.69", { exact: true })).toBeVisible();
   await nav(page, "Settings");
@@ -236,6 +237,7 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   );
   await page.getByLabel("I have saved my recovery code").check();
   await page.getByRole("button", { name: "Continue to wallet" }).click();
+  await nav(page, "Settings");
   await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
   await nav(page, "Settings");
   await page.getByRole("button", { name: "Use without a PIN" }).click();
@@ -245,10 +247,12 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
     page.getByText("This computer opens your wallet without a PIN."),
   ).toBeVisible();
   await page.reload();
+  await nav(page, "Settings");
   await expect(page.getByText("Daily wallet", { exact: true })).toBeVisible();
   const direct = await browser.newContext();
   const directPage = await direct.newPage();
   await directPage.goto(new URL("/", page.url()).toString());
+  await nav(directPage, "Settings");
   await expect(
     directPage.getByText("Daily wallet", { exact: true }),
   ).toBeVisible();

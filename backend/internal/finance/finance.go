@@ -32,6 +32,8 @@ type Repository interface {
 	Execute(context.Context, string, string, Row) (string, error)
 }
 type Service struct {
+	Rates       RateSource
+	Now         func() time.Time
 	Repository  Repository
 	CurrentUser interface {
 		UserID(context.Context) (string, error)

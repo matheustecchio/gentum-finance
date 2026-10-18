@@ -64,7 +64,7 @@ All input fields are strings. Successful commands return a status string; export
 
 Dates are strict `YYYY-MM-DD`, years 1900–9998. Transfers require distinct owned accounts with matching currencies; both linked entries commit together. Categories must match the transaction kind. Recurrence keeps the original day of month, clamps short months and restores the day in longer months. Each schedule/date is unique; repeated and concurrent runs cannot duplicate occurrences. Stopping a schedule preserves its existing entries.
 
-Writes are serialized per user. PostgreSQL numeric aggregates are checked against signed int64 bounds before commits. Overflow rejects the entire action, including import or a recurring batch. Negative account balances are allowed. No currency conversion is performed.
+Writes are serialized per user. PostgreSQL numeric aggregates are checked against signed int64 bounds before commits. Overflow rejects the entire action, including import or a recurring batch. Negative account balances are allowed. Ledger writes never convert currencies. The separate [Overview endpoint](graphql.md) estimates Total Wealth in the primary currency using dated reference rates.
 
 ## Category hierarchy and starter catalog
 
@@ -83,7 +83,7 @@ New local wallets receive the starter catalog during creation in the same transa
 | Expense | Transportation | Public transportation; Gas & Fuel; Insurance; Repairs; Car Wash & Services; Parking & Tolls |
 | Expense | Vacations | Transport; Accommodations; Food; Shopping; Pet boarding; Rental car |
 
-Monthly `breakdown` separates currencies and reports `direct` entries and `total` including immediate children exactly once. The overview expands roots to show direct entries and children. Income, expense and net exclude opening balances and transfers. A root expense budget includes its direct spending and children; a child budget includes only that child. Overlapping budgets are independent limits and are never summed into a combined budget total. All sums retain exact integer cents.
+Monthly `breakdown` separates currencies and reports `direct` entries and `total` including immediate children exactly once. Overview spending bars show direct expense amounts for each root and child path, without double-counting child amounts. Income, expense and net exclude opening balances and transfers. A root expense budget includes its direct spending and children; a child budget includes only that child. Overlapping budgets are independent limits and are never summed into a combined budget total. All sums retain exact integer cents.
 
 ## CSV interchange
 
