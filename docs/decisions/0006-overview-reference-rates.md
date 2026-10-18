@@ -1,6 +1,6 @@
 # 0006: Estimate wealth with dated reference rates
 
-Status: Accepted
+Status: Accepted; observation strategy superseded by [0007](0007-ledger-derived-wealth-history.md)
 
 Overview needs one wealth total in the profile's primary currency. Account
 balances and cash-flow reports retain their native currency. Supported currencies

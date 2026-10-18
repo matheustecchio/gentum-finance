@@ -3,7 +3,7 @@
   color: #f6faf8;
   border: 0;
   border-radius: 28px;
-  padding: 28px 32px;
+  padding: 24px 28px;
 }
 .wealth-card h2 {
   color: #c1c8c6;
@@ -18,7 +18,8 @@
   gap: 16px;
 }
 .wealth-value > strong {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(2rem, 3.4vw, 2.5rem);
+  line-height: 1.1;
   letter-spacing: -1px;
   overflow-wrap: anywhere;
 }
@@ -34,8 +35,8 @@
 .wealth-card svg {
   display: block;
   width: 100%;
-  max-height: 210px;
-  margin: 20px 0 12px;
+  height: 96px;
+  margin: 18px 0 4px;
   overflow: visible;
 }
 .wealth-card svg text {
@@ -174,4 +175,56 @@
   .wealth-value small {
     color: inherit;
   }
+}
+.flow-viewport.flow-timeline {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+.flow-timeline .currency-flow svg {
+  width: 100%;
+  height: 210px;
+}
+.flow-timeline .currency-flow text {
+  font-size: 13px;
+}
+.flow-timeline .bar-inspection,
+.flow-timeline h3 {
+  position: sticky;
+  left: 0;
+  width: fit-content;
+  max-width: min(80vw, 650px);
+  overflow-wrap: anywhere;
+}
+.timeline-track {
+  min-width: 100%;
+}
+
+.wealth-day-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #adb7b4;
+  font-size: 0.75rem;
+  margin-bottom: 12px;
+}
+.wealth-history-state {
+  color: #b6c7c0;
+  font-size: 0.9rem;
+  margin: 16px 0 12px;
+  max-width: 50ch;
+}
+.wealth-value small {
+  color: inherit;
+}
+
+.wealth-card .chart-note {
+  margin: 8px 0;
+  line-height: 1.4;
+}
+.wealth-card details {
+  line-height: 1.4;
+  font-size: 0.75rem;
 }

@@ -67,7 +67,8 @@ it("does not invent wealth or a 30-day delta when data is unavailable", () => {
       data={{ ...data, wealth: data.wealth.slice(1), change30: "" }}
     />,
   );
-  expect(screen.getByText(/30-day change unavailable/)).toBeVisible();
+  expect(screen.getByText(/History starts with today/)).toBeVisible();
+  expect(document.querySelector(".wealth-card svg")).toBeNull();
   rerender(
     <WealthCard
       data={{ ...data, wealth: [], rateError: "Rates unavailable" }}
@@ -76,12 +77,16 @@ it("does not invent wealth or a 30-day delta when data is unavailable", () => {
   expect(screen.getByText("Unavailable")).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Rates unavailable");
 });
-it("loads earlier and later six-month windows by button, keyboard and swipe and displays negative net below zero", async () => {
+it("moves continuously before pointer release, loads at the edge, and preserves the visible month when prepending", async () => {
   const fetcher = vi.fn(
     async (_url: string, _init?: RequestInit) =>
       new Response(JSON.stringify({ data: { overview: data } })),
   );
   vi.stubGlobal("fetch", fetcher);
+  class MousePointer extends MouseEvent {
+    pointerType = "mouse";
+  }
+  vi.stubGlobal("PointerEvent", MousePointer);
   render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
   const bar = await screen.findByRole("button", {
     name: "2026-10 Net: -€1.00",
@@ -90,33 +95,49 @@ it("loads earlier and later six-month windows by button, keyboard and swipe and 
     document.querySelector(".zero-line")?.getAttribute("y1"),
   );
   expect(Number(bar.getAttribute("y"))).toBe(baseline);
-  await userEvent.click(bar);
-  expect(
-    screen.getByText("2026-10 Net: -€1.00", { selector: "p" }),
-  ).toBeVisible();
-  await userEvent.click(screen.getByRole("button", { name: "Earlier months" }));
-  await waitFor(() =>
-    expect(String(fetcher.mock.calls.at(-1)?.[1]?.body)).toContain(
-      '"month":"2026-07"',
-    ),
-  );
-  const navigation = screen.getByRole("group", {
-    name: "Cash flow month navigation",
+  const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
+  Object.defineProperty(nav, "clientWidth", { value: 300 });
+  Object.defineProperty(nav, "scrollWidth", {
+    get: () => parseInt((nav.firstElementChild as HTMLElement).style.width),
   });
-  fireEvent.keyDown(navigation, { key: "ArrowRight" });
+  nav.scrollLeft = 400;
+  fireEvent.pointerDown(nav, { clientX: 100 });
+  fireEvent.pointerMove(nav, { clientX: 180 });
+  expect(nav.scrollLeft).toBe(320); // Before pointerup, not pagination on release.
+  fireEvent.pointerUp(nav);
+  expect(
+    screen.queryByRole("button", { name: "Earlier months" }),
+  ).not.toBeInTheDocument();
+  fireEvent.keyDown(nav, { key: "ArrowLeft" });
+  expect(nav.scrollLeft).toBe(180);
+  nav.scrollLeft = 40;
+  fireEvent.scroll(nav);
   await waitFor(() =>
     expect(String(fetcher.mock.calls.at(-1)?.[1]?.body)).toContain(
-      '"month":"2026-10"',
+      '"month":"2026-04"',
     ),
   );
-  vi.stubGlobal("PointerEvent", MouseEvent);
-  fireEvent.pointerDown(navigation, { clientX: 100 });
-  fireEvent.pointerUp(navigation, { clientX: 240 });
-  await waitFor(() =>
-    expect(String(fetcher.mock.calls.at(-1)?.[1]?.body)).toContain(
-      '"month":"2026-07"',
-    ),
+  await waitFor(() => expect(nav.scrollLeft).toBe(880));
+  expect(
+    screen.getByRole("button", { name: "2026-10 Net: -€1.00" }),
+  ).toBeInTheDocument();
+});
+it("keeps existing chart data and offers retry when history fails", async () => {
+  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+    if (String(init?.body).includes('"month":"2026-04"'))
+      throw new Error("Offline");
+    return new Response(JSON.stringify({ data: { overview: data } }));
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
+  await screen.findByRole("heading", { name: "Total Wealth" });
+  const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
+  fireEvent.keyDown(nav, { key: "ArrowLeft" });
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Unable to load more months",
   );
+  expect(screen.getByRole("button", { name: "Retry history" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Total Wealth" })).toBeVisible();
 });
 it("shows category names and exact direct spending on focus and touch/click without counting child spending twice", async () => {
   render(<CategoryChart snapshot={snapshot} month="2026-10" />);
@@ -209,4 +230,9 @@ it("saves the selected currency and reads it back after remount", async () => {
   await waitFor(() =>
     expect(screen.getByLabelText("Primary currency")).toHaveValue("USD"),
   );
+});
+it("does not draw a plot or fictional curve with no recorded balances", () => {
+  render(<WealthCard data={{ ...data, wealth: [], change30: "" }} />);
+  expect(screen.getByText("No recorded balances yet.")).toBeVisible();
+  expect(document.querySelector(".wealth-card svg")).toBeNull();
 });

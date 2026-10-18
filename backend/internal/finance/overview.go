@@ -15,6 +15,7 @@ import (
 )
 
 type Overview struct {
+	HistoryNote string `json:"historyNote"`
 	ChangeError string `json:"changeError"`
 	Change30    string `json:"change30"`
 	Currency    string `json:"currency"`
@@ -26,6 +27,7 @@ type Overview struct {
 	Converted   bool   `json:"converted"`
 }
 type overviewData struct {
+	HistoryNote  string
 	Currency     string
 	Observations []Row
 	Flows        []Row
@@ -172,7 +174,7 @@ func (s Service) Overview(ctx context.Context, month string) (Overview, error) {
 	if err != nil {
 		return Overview{}, err
 	}
-	out := Overview{Currency: d.Currency, Today: now.Format("2006-01-02"), Wealth: []Row{}, Flows: d.Flows}
+	out := Overview{HistoryNote: d.HistoryNote, Currency: d.Currency, Today: now.Format("2006-01-02"), Wealth: []Row{}, Flows: d.Flows}
 	needsRates := false
 	for _, o := range d.Observations {
 		for currency, amount := range o {
@@ -234,44 +236,58 @@ func (s Service) Overview(ctx context.Context, month string) (Overview, error) {
 	return out, nil
 }
 func (r PostgresRepository) Overview(ctx context.Context, user, month string, now time.Time) (overviewData, error) {
-	tx, err := r.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	tx, err := r.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return overviewData{}, err
 	}
 	defer tx.Rollback(ctx)
 	d := overviewData{Observations: []Row{}, Flows: []Row{}}
-	// Serialize observations and preference changes against normal ledger writes.
-	if err = tx.QueryRow(ctx, `SELECT base_currency FROM gentum_user WHERE id=$1 FOR UPDATE`, user).Scan(&d.Currency); err != nil {
-		return d, err
-	}
-	balances, err := rows(ctx, tx, `SELECT a.currency,(sum(a.initial_balance::numeric)+COALESCE(sum(e.delta),0))::text FROM account a LEFT JOIN (SELECT account_id,sum(CASE WHEN kind IN ('INCOME','TRANSFER_IN') THEN amount::numeric ELSE -amount::numeric END) delta FROM entry WHERE user_id=$1 GROUP BY account_id) e ON e.account_id=a.id WHERE a.user_id=$1 GROUP BY a.currency`, []string{"currency", "amount"}, user)
-	if err != nil {
-		return d, err
-	}
-	native := Row{}
-	for _, b := range balances {
-		native[b["currency"]] = b["amount"]
-	}
-	raw, err := json.Marshal(native)
-	if err != nil {
+	// This query is read-only: reconstruct the ledger as of each UTC date.
+	if err = tx.QueryRow(ctx, `SELECT base_currency FROM gentum_user WHERE id=$1`, user).Scan(&d.Currency); err != nil {
 		return d, err
 	}
 	today := now.Format("2006-01-02")
-	if _, err = tx.Exec(ctx, `INSERT INTO wealth_observation(user_id,observed_on,balances) VALUES($1,$2,$3) ON CONFLICT(user_id,observed_on) DO UPDATE SET balances=excluded.balances,observed_at=now()`, user, today, raw); err != nil {
-		return d, err
-	}
-	observations, err := rows(ctx, tx, `SELECT to_char(observed_on,'YYYY-MM-DD'),balances::text FROM wealth_observation WHERE user_id=$1 AND observed_on BETWEEN $2::date-30 AND $2::date ORDER BY observed_on`, []string{"date", "balances"}, user, today)
+	history, err := rows(ctx, tx, `
+ WITH account_history AS (
+   SELECT a.id,a.currency,a.initial_balance,(a.created_at AT TIME ZONE 'UTC')::date created_on,
+     min(e.entry_date) FILTER(WHERE e.entry_date <= $2::date) first_entry,
+     count(e.id) FILTER(WHERE e.entry_date <= $2::date) posted_count
+   FROM account a LEFT JOIN entry e ON e.account_id=a.id AND e.user_id=a.user_id
+   WHERE a.user_id=$1 GROUP BY a.id
+ ), coverage AS (
+   SELECT GREATEST($2::date-30, COALESCE(max(LEAST(created_on,COALESCE(first_entry,created_on))) FILTER(WHERE initial_balance<>0),$2::date-30)) starts,
+     COALESCE(sum(posted_count),0)>0 has_entries FROM account_history
+ ), days AS (
+   SELECT d::date AS as_on FROM coverage CROSS JOIN LATERAL generate_series(coverage.starts,$2::date,interval '1 day') d
+   WHERE coverage.has_entries OR d::date=$2::date
+ ), opening AS (
+   SELECT currency,sum(initial_balance::numeric) amount FROM account_history GROUP BY currency
+ ), movements AS (
+   SELECT a.currency,e.entry_date,sum(CASE WHEN e.kind IN ('INCOME','TRANSFER_IN') THEN e.amount::numeric ELSE -e.amount::numeric END) delta
+   FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id
+   WHERE e.user_id=$1 AND e.entry_date <= $2::date GROUP BY a.currency,e.entry_date
+ )
+ SELECT to_char(days.as_on,'YYYY-MM-DD'),opening.currency,(opening.amount+COALESCE(sum(m.delta),0))::text
+ FROM days CROSS JOIN opening LEFT JOIN movements m ON m.currency=opening.currency AND m.entry_date<=days.as_on
+ GROUP BY days.as_on,opening.currency,opening.amount ORDER BY days.as_on,opening.currency
+ `, []string{"date", "currency", "amount"}, user, today)
 	if err != nil {
 		return d, err
 	}
-	for _, o := range observations {
-		var b Row
-		if err = json.Unmarshal([]byte(o["balances"]), &b); err != nil {
-			return d, err
+	for _, h := range history {
+		if len(d.Observations) == 0 || d.Observations[len(d.Observations)-1]["date"] != h["date"] {
+			d.Observations = append(d.Observations, Row{"date": h["date"]})
 		}
-		b["date"] = o["date"]
-		d.Observations = append(d.Observations, b)
+		d.Observations[len(d.Observations)-1][h["currency"]] = h["amount"]
 	}
+	if len(d.Observations) == 0 {
+		d.Observations = append(d.Observations, Row{"date": today})
+	}
+	d.HistoryNote = "Reconstructed from opening balances and dated ledger entries. Future-dated entries and unposted schedules are excluded."
+	if len(d.Observations) < 31 {
+		d.HistoryNote += " Earlier balances are unavailable where opening dates or dated activity are missing."
+	}
+
 	d.Flows, err = rows(ctx, tx, `SELECT to_char(date_trunc('month',e.entry_date),'YYYY-MM'),a.currency,COALESCE(sum(e.amount::numeric) FILTER(WHERE e.kind='INCOME'),0)::text,COALESCE(sum(e.amount::numeric) FILTER(WHERE e.kind='EXPENSE'),0)::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=$1 AND e.kind IN ('INCOME','EXPENSE') AND e.entry_date>=($2::date-interval '5 months') AND e.entry_date<($2::date+interval '1 month') GROUP BY 1,a.currency ORDER BY 1,a.currency`, []string{"month", "currency", "income", "expense"}, user, month+"-01")
 	if err != nil {
 		return d, err
