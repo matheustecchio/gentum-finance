@@ -30,7 +30,7 @@ query Finance($month: String!) { finance(month: $month) }
 | Array | Fields |
 | --- | --- |
 | accounts | id, name, type, currency, archived, initialBalance, balance |
-| categories | id, name, kind, parentId, path |
+| categories | id, name, kind, color, parentId, path |
 | entries | id, accountId, categoryId, kind, amount, description, date, currency, transferId |
 | budgets | id, categoryId, currency, month, amount, spent |
 | breakdown | categoryId, currency, direct, total (monthly cents) |
@@ -157,3 +157,5 @@ The dedicated **Add transaction** screen preserves income/expense entry behavior
 **Transactions** contains only history, filters and pages; visiting it after saving
 requests fresh history while retaining filters. The distinct plus action keeps its
 text, selected state and keyboard focus on desktop and narrow navigation.
+
+Category colors are persisted as `#RRGGBB` strings. Each existing or new category receives an initial color. Use `executeFinance(action: "categoryColor", input: {id: "...", color: "#336699"})` to update an owned category. Invalid colors and missing or foreign category IDs are rejected.

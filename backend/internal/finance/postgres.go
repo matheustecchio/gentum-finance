@@ -64,7 +64,7 @@ func snapshotData(ctx context.Context, q queryer, user, month string, includeEnt
 			return
 		}
 	}
-	s.Categories, err = rows(ctx, q, `SELECT c.id::text,c.name,c.kind,c.parent_id::text,CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' / ' || c.name END FROM category c LEFT JOIN category p ON p.id=c.parent_id AND p.user_id=c.user_id WHERE c.user_id=$1 ORDER BY c.kind,COALESCE(p.name,c.name),c.parent_id NULLS FIRST,c.name,c.id`, []string{"id", "name", "kind", "parentId", "path"}, user)
+	s.Categories, err = rows(ctx, q, `SELECT c.id::text,c.name,c.kind,c.color,c.parent_id::text,CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' / ' || c.name END FROM category c LEFT JOIN category p ON p.id=c.parent_id AND p.user_id=c.user_id WHERE c.user_id=$1 ORDER BY c.kind,COALESCE(p.name,c.name),c.parent_id NULLS FIRST,c.name,c.id`, []string{"id", "name", "kind", "color", "parentId", "path"}, user)
 	if err != nil {
 		return
 	}
@@ -133,6 +133,8 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 			return "", invalid("Unsupported primary currency")
 		}
 		_, err = tx.Exec(ctx, `UPDATE gentum_user SET base_currency=$2,updated_at=now() WHERE id=$1`, user, in["currency"])
+	case "categoryColor":
+		err = updateCategoryColor(ctx, tx, user, in)
 	case "deleteCategory":
 		err = deleteCategory(ctx, tx, user, in["id"])
 	case "category":
