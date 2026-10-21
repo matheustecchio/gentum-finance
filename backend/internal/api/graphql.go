@@ -84,6 +84,31 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			fields[key] = &graphql.InputObjectFieldConfig{Type: graphql.String}
 		}
 		input := graphql.NewInputObject(graphql.InputObjectConfig{Name: "FinanceInput", Fields: fields})
+		financeFields["flowHistory"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"grouping": {Type: graphql.NewNonNull(graphql.String)}, "weekEnd": {Type: graphql.Int, DefaultValue: 0}, "before": {Type: graphql.String}, "start": {Type: graphql.String}, "end": {Type: graphql.String}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			value := func(key string) string { v, _ := p.Args[key].(string); return v }
+			weekEnd, _ := p.Args["weekEnd"].(int)
+			result, err := fs.FlowHistory(p.Context, finance.FlowFilter{Grouping: value("grouping"), WeekEnd: weekEnd, Before: value("before"), Start: value("start"), End: value("end")})
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load cash flow")
+			}
+			return result, nil
+		}}
+		financeFields["categorySpending"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"start": {Type: graphql.NewNonNull(graphql.String)}, "end": {Type: graphql.NewNonNull(graphql.String)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			result, err := fs.Spending(p.Context, p.Args["start"].(string), p.Args["end"].(string))
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load category spending")
+			}
+			return result, nil
+		}}
+
 		financeFields["analytics"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"start": {Type: graphql.NewNonNull(graphql.String)}, "end": {Type: graphql.NewNonNull(graphql.String)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			result, err := fs.Analytics(p.Context, p.Args["start"].(string), p.Args["end"].(string))
 			if err != nil {
