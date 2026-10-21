@@ -66,8 +66,7 @@ for (const width of [1280, 390])
       await page.setViewportSize({ width, height: 900 });
       await setup(page, change);
       const group = page.locator(".wealth-change"),
-        amount = group.locator(".wealth-change-amount"),
-        label = group.locator("small");
+        amount = group.locator(".wealth-change-amount");
       await expect(amount).toHaveText(
         `${BigInt(change) >= 0n ? "+" : ""}${formatMoney(change, "EUR")}`,
       );
@@ -78,11 +77,13 @@ for (const width of [1280, 390])
         await page.locator("html").evaluate((e, size) => {
           e.style.fontSize = size;
         }, fontSize);
+        await group.scrollIntoViewIfNeeded();
         const a = (await amount.boundingBox())!,
-          l = (await label.boundingBox())!;
-        expect(l.x).toBeGreaterThanOrEqual(a.x + a.width);
-        expect(l.y).toBeLessThan(a.y + a.height);
-        expect(a.y).toBeLessThan(l.y + l.height);
+          container = (await group.boundingBox())!;
+        expect(a.width).toBeGreaterThan(0);
+        expect(a.x).toBeGreaterThanOrEqual(container.x);
+        expect(a.x + a.width).toBeLessThanOrEqual(container.x + container.width + 1);
+        await expect(group.locator("small")).toHaveCount(0);
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
@@ -204,7 +205,7 @@ test("Native touch tap/drag selects days and a vertical swipe still scrolls the 
   for (let i = 10; i <= 90; i += 10) {
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
-      touchPoints: [{ x: tx, y: ty - i }],
+      touchPoints: [{ x: tx, y: ty + i }],
     });
     await page.waitForTimeout(20);
   }
@@ -214,7 +215,7 @@ test("Native touch tap/drag selects days and a vertical swipe still scrolls the 
   });
   await expect
     .poll(() => page.evaluate(() => scrollY))
-    .toBeGreaterThan(scrollBefore + 20);
+    .toBeLessThan(scrollBefore - 20);
   await cdp.detach();
   await page.screenshot({ path: "/tmp/issue21-touch.png", fullPage: true });
 });
