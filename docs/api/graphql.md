@@ -49,6 +49,7 @@ The original `overview(month:)` contract remains available for wealth and older 
 
 The UI starts with the current month and offers Week (Monday to Sunday), Month,
 6 months (ending in the selected month), Year (calendar year), and Custom.
+The backend bundles IANA timezone rules so the date boundary also works in the minimal container image.
 Current periods stop today. Previous/next controls move by the selected period;
 future periods are disabled. Custom dates update both charts together and retain
 an inline validation or retry state on failure. Changing periods clears old chart
