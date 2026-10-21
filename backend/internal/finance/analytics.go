@@ -5,6 +5,9 @@ import (
 	"math/big"
 	"time"
 
+	// Bundle IANA rules because the minimal runtime image has no zoneinfo files.
+	_ "time/tzdata"
+
 	"github.com/jackc/pgx/v5"
 )
 

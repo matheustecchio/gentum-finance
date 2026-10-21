@@ -86,6 +86,9 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(
     page.getByRole("heading", { name: "Overview", exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cash flow", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
+  await expect(page.getByText("Unable to load analytics", { exact: true })).toHaveCount(0);
   await createAccount(page, "Daily wallet", "100.00");
   await createAccount(page, "Rainy day");
   await createCategory(page, "Food", "EXPENSE");
