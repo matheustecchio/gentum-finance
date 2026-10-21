@@ -15,6 +15,7 @@ import (
 )
 
 type Overview struct {
+	Accounts    []Row  `json:"accounts"`
 	HistoryNote string `json:"historyNote"`
 	ChangeError string `json:"changeError"`
 	Change30    string `json:"change30"`
@@ -27,6 +28,7 @@ type Overview struct {
 	Converted   bool   `json:"converted"`
 }
 type overviewData struct {
+	Accounts     []Row
 	HistoryNote  string
 	Currency     string
 	Observations []Row
@@ -174,7 +176,7 @@ func (s Service) Overview(ctx context.Context, month string) (Overview, error) {
 	if err != nil {
 		return Overview{}, err
 	}
-	out := Overview{HistoryNote: d.HistoryNote, Currency: d.Currency, Today: now.Format("2006-01-02"), Wealth: []Row{}, Flows: d.Flows}
+	out := Overview{HistoryNote: d.HistoryNote, Currency: d.Currency, Today: now.Format("2006-01-02"), Wealth: []Row{}, Flows: d.Flows, Accounts: d.Accounts}
 	needsRates := false
 	for _, o := range d.Observations {
 		for currency, amount := range o {
@@ -288,6 +290,29 @@ func (r PostgresRepository) Overview(ctx context.Context, user, month string, no
 		d.HistoryNote += " Earlier balances are unavailable where opening dates or dated activity are missing."
 	}
 
+	d.Accounts, err = rows(ctx, tx, `
+ SELECT a.id::text,a.name,a.currency,
+   (a.initial_balance::numeric+COALESCE(sum(CASE WHEN e.kind IN ('INCOME','TRANSFER_IN') THEN e.amount::numeric ELSE -e.amount::numeric END),0))::text,
+   CASE WHEN (a.initial_balance=0 OR LEAST((a.created_at AT TIME ZONE 'UTC')::date,COALESCE(min(e.entry_date),(a.created_at AT TIME ZONE 'UTC')::date))<=$2::date-30)
+     AND count(e.id)>0 THEN
+     COALESCE(sum(CASE WHEN e.kind IN ('INCOME','TRANSFER_IN') THEN e.amount::numeric ELSE -e.amount::numeric END) FILTER(WHERE e.entry_date>$2::date-30),0)::text
+     ELSE '' END
+ FROM account a LEFT JOIN entry e ON e.account_id=a.id AND e.user_id=a.user_id AND e.entry_date<=$2::date
+ WHERE a.user_id=$1 GROUP BY a.id ORDER BY lower(a.name),a.id
+ `, []string{"id", "name", "currency", "amount", "change30"}, user, today)
+	if err != nil {
+		return d, err
+	}
+	for _, a := range d.Accounts {
+		if _, err = checked(a["amount"]); err != nil {
+			return d, err
+		}
+		if a["change30"] != "" {
+			if _, e := checked(a["change30"]); e != nil {
+				a["change30"] = ""
+			}
+		}
+	}
 	d.Flows, err = rows(ctx, tx, `SELECT to_char(date_trunc('month',e.entry_date),'YYYY-MM'),a.currency,COALESCE(sum(e.amount::numeric) FILTER(WHERE e.kind='INCOME'),0)::text,COALESCE(sum(e.amount::numeric) FILTER(WHERE e.kind='EXPENSE'),0)::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=$1 AND e.kind IN ('INCOME','EXPENSE') AND e.entry_date>=($2::date-interval '5 months') AND e.entry_date<($2::date+interval '1 month') GROUP BY 1,a.currency ORDER BY 1,a.currency`, []string{"month", "currency", "income", "expense"}, user, month+"-01")
 	if err != nil {
 		return d, err

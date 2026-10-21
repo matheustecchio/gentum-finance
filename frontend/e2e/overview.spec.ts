@@ -29,6 +29,10 @@ for (const width of [1280, 390])
             json: {
               data: {
                 overview: {
+                  accounts: empty ? [] : [
+                    { id: "main", name: "Everyday account", currency: "EUR", amount: "1914000", change30: "14000" },
+                    { id: "savings", name: "Savings", currency: "GBP", amount: "17178", change30: "-178" },
+                  ],
                   currency: "EUR",
                   today: "2026-10-18",
                   wealth,
@@ -87,7 +91,13 @@ for (const width of [1280, 390])
       await expect(
         page.getByRole("heading", { name: "Total Wealth" }),
       ).toBeVisible();
-      await expect(page.getByText("+€140.00", { exact: false })).toBeVisible();
+      await expect(page.locator(".wealth-change-amount")).toBeVisible();
+      if (!empty) {
+        await expect(page.getByText("Everyday account", { exact: true })).toBeVisible();
+        await expect(page.getByLabel("Savings change", { exact: true })).toHaveText("-£1.78");
+      }
+      const panelTitles = await page.locator(".panel h2").allTextContents();
+      expect(panelTitles.at(-1)).toBe("Total Wealth");
       const nav = page.getByRole("group", {
         name: "Cash flow month navigation",
       });

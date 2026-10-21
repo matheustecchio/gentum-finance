@@ -52,3 +52,12 @@ Horizontal position selects the nearest calendar day across the full plot height
 missing days remain unavailable. Pointer, touch and keyboard share the same
 selection. The old History details disclosure is replaced by this interaction;
 ledger methodology remains documented here and in the chart accessibility text.
+
+Overview also returns `accounts`, ordered by name, with `id`, `name`, `currency`,
+`amount` (today's balance), and `change30` (the difference from 30 days earlier).
+Amounts use integer-cent strings in each account's original currency. Changes
+include dated transfers and exclude future entries, using the same balance
+reconstruction as total wealth. An empty change means insufficient history or
+an unsupported difference. Account balances remain available when exchange rates
+are unavailable. The Overview displays Total Wealth after cash flow and categories,
+with the account breakdown always visible below the combined total and chart.

@@ -6,7 +6,7 @@ A personal-finance app that runs on your computer. Track accounts, transactions 
 
 - Accounts and categories for income and expenses.
 - Transfers, monthly budgets and recurring transactions.
-- Wealth, cash-flow and category spending reports.
+- Wealth, cash-flow and category spending reports, with balances and changes by account.
 - CSV import and export.
 - A local wallet with optional PIN protection.
 

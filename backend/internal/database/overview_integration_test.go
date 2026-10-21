@@ -57,6 +57,9 @@ func TestOverviewObservationsPreferenceAndMonthlyFlows(t *testing.T) {
 	if err != nil || len(o.Wealth) != 31 || o.Wealth[30]["amount"] != "9499" || o.Change30 != "-1" {
 		t.Fatalf("same-day update: %+v %v", o, err)
 	}
+	if len(o.Accounts) != 1 || o.Accounts[0]["name"] != "Main" || o.Accounts[0]["amount"] != "9499" || o.Accounts[0]["change30"] != "-1" {
+		t.Fatalf("account balances and changes: %+v", o.Accounts)
+	}
 	now = now.AddDate(0, 0, 30)
 	o, err = s.Overview(ctx, "2026-11")
 	if err != nil || len(o.Wealth) != 31 || o.Change30 != "0" {
@@ -72,7 +75,7 @@ func TestOverviewObservationsPreferenceAndMonthlyFlows(t *testing.T) {
 	}
 	s.CurrentUser = owner(other)
 	o, err = s.Overview(ctx, "2026-11")
-	if err != nil || o.Currency != "EUR" || len(o.Wealth) != 1 || o.Wealth[0]["amount"] != "0" || len(o.Flows) != 0 {
+	if err != nil || o.Currency != "EUR" || len(o.Wealth) != 1 || o.Wealth[0]["amount"] != "0" || len(o.Flows) != 0 || len(o.Accounts) != 0 {
 		t.Fatalf("cross-owner leakage: %+v %v", o, err)
 	}
 }
@@ -136,6 +139,9 @@ func TestOverviewReconstructsDatedBalancesWithoutTransfersOrFutureActivityChangi
 		if w["date"] == "2026-10-01" && w["amount"] != "15900" {
 			t.Fatal("transfer changed total wealth", w)
 		}
+	}
+	if len(o.Accounts) != 3 || o.Accounts[0]["name"] != "Archived" || o.Accounts[0]["amount"] != "5300" || o.Accounts[0]["change30"] != "400" || o.Accounts[1]["amount"] != "10400" || o.Accounts[1]["change30"] != "-600" || o.Accounts[2]["change30"] != "" {
+		t.Fatalf("account changes must include transfers and exclude future activity: %+v", o.Accounts)
 	}
 	var observations int
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM wealth_observation`).Scan(&observations); err != nil || observations != 0 {

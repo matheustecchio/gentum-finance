@@ -6,6 +6,7 @@ import { execute, graphql, type Row, type Snapshot } from "./client";
 import "./overview.css";
 
 export interface OverviewData {
+  accounts?: Row[];
   historyNote?: string;
   change30?: string;
   changeError?: string;
@@ -79,7 +80,6 @@ export function WealthCard({ data }: { data: OverviewData }) {
             }}
           >
             <span className="wealth-change-amount">{deltaText}</span>
-            <small>over 30 days</small>
           </span>
         )}
       </div>
@@ -102,6 +102,45 @@ export function WealthCard({ data }: { data: OverviewData }) {
             </p>
           )}
         </>
+      )}
+      {!!data.accounts?.length && (
+        <div className="wealth-accounts" aria-label="Account balances and changes">
+          <div className="wealth-account-head" aria-hidden="true">
+            <span>Account</span>
+            <span>Balance</span>
+            <span>Change</span>
+          </div>
+          <ul>
+            {data.accounts.map((account) => {
+              const change = account.change30
+                ? BigInt(account.change30)
+                : undefined;
+              return (
+                <li className="wealth-account" key={account.id}>
+                  <div className="wealth-account-name">
+                    <strong>{account.name}</strong>
+                    <small>{account.currency}</small>
+                  </div>
+                  <strong className="wealth-account-balance">
+                    {formatMoney(account.amount, account.currency)}
+                  </strong>
+                  <span
+                    className={
+                      change === undefined
+                        ? "wealth-account-unavailable"
+                        : change < 0n ? "loss" : "gain"
+                    }
+                    aria-label={`${account.name} change`}
+                  >
+                    {change === undefined
+                      ? "Unavailable"
+                      : `${change >= 0n ? "+" : ""}${formatMoney(account.change30, account.currency)}`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </section>
   );
@@ -591,7 +630,6 @@ export function OverviewCharts({
           <button onClick={() => setRetry((r) => r + 1)}>Retry Overview</button>
         </p>
       )}
-      {data && <WealthCard data={data} />}
       {data && (
         <CashFlowTimeline
           key={`${flowMonth}:${currentMonth}`}
@@ -607,6 +645,7 @@ export function OverviewCharts({
         />
       )}
       <CategoryChart snapshot={snapshot} month={month} />
+      {data && <WealthCard data={data} />}
     </>
   );
 }

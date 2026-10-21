@@ -326,3 +326,25 @@
 .flow-tooltip-net {
   color: #3477d9;
 }
+
+.wealth-accounts {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #ffffff24;
+}
+.wealth-accounts ul { list-style: none; margin: 0; padding: 0; }
+.wealth-account-head, .wealth-account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+.wealth-account-head { color: #c1c8c6; font-size: .75rem; padding-bottom: 8px; }
+.wealth-account-head > :not(:first-child), .wealth-account > :not(:first-child) { text-align: right; }
+.wealth-account { padding: 16px 0; border-top: 1px solid #ffffff12; overflow-wrap: anywhere; }
+.wealth-account-name { display: grid; gap: 6px; }
+.wealth-account-name small, .wealth-account-unavailable { color: #c1c8c6; font-size: .8rem; }
+.wealth-account-balance { font-weight: 500; }
+@media (max-width: 600px) {
+  .wealth-account-head, .wealth-account { gap: 10px; font-size: .85rem; }
+}
