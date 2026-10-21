@@ -8,7 +8,8 @@ A personal-finance app that runs on your computer. Track accounts, transactions 
 - Transfers, monthly budgets and recurring transactions.
 - Wealth, cash-flow and category spending reports, with balances and changes by account.
 - CSV import and export.
-- A local wallet with optional PIN protection.
+- Separate local PostgreSQL databases with independent optional PIN protection.
+- Create, rename and switch databases from Settings at the same local address.
 
 ## Start locally
 
@@ -18,7 +19,7 @@ Install Docker Engine with Docker Compose v2, then run:
 ./gentum start
 ```
 
-Open [http://localhost:5173](http://localhost:5173) and choose whether to protect your wallet with a PIN. Save the recovery code if you enable protection.
+Open [http://localhost:5173](http://localhost:5173) and choose whether to protect your wallet with a PIN. Save the recovery code if you enable protection. Settings lets you create independent databases and switch between them. Each has its own records, currency and optional PIN.
 
 This is an early MVP for trusted local use. Use fictional data while evaluating it. The PIN does not encrypt the database.
 

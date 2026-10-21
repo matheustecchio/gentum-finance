@@ -275,9 +275,10 @@ test("bounded history, separate recording and category deletion work with keyboa
   const api = async (query: string, variables: unknown = {}) =>
     page.evaluate(
       async ({ query, variables }) => {
+        const status = await fetch("/auth/status").then(response => response.json());
         const response = await fetch("/graphql", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-Gentum-Database": status.databaseId },
           body: JSON.stringify({ query, variables }),
         });
         const result = await response.json();

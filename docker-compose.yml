@@ -15,17 +15,32 @@ services:
       - gentum-postgres-data:/var/lib/postgresql/data
     networks: [private]
     restart: unless-stopped
+  database-roles:
+    image: postgres:17.6-alpine
+    environment:
+      GENTUM_DATABASE_NAME: ${GENTUM_DATABASE_NAME:-gentum_finance}
+      GENTUM_DATABASE_USERNAME: ${GENTUM_DATABASE_USERNAME:-gentum}
+      GENTUM_DATABASE_PASSWORD: ${GENTUM_DATABASE_PASSWORD:-gentum_dev_only}
+      GENTUM_PROVISION_PASSWORD: ${GENTUM_PROVISION_PASSWORD:-gentum_provision_dev_only}
+    volumes:
+      - ./scripts/bootstrap-database-roles.sh:/bootstrap-database-roles.sh:ro
+    entrypoint: ["sh", "/bootstrap-database-roles.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [private]
   backend:
     build: ./backend
     environment:
       GENTUM_DATABASE_HOST: postgres
       GENTUM_DATABASE_NAME: ${GENTUM_DATABASE_NAME:-gentum_finance}
-      GENTUM_DATABASE_USERNAME: ${GENTUM_DATABASE_USERNAME:-gentum}
+      GENTUM_DATABASE_USERNAME: gentum_runtime
+      GENTUM_PROVISION_USERNAME: gentum_provision
+      GENTUM_PROVISION_PASSWORD: ${GENTUM_PROVISION_PASSWORD:-gentum_provision_dev_only}
       GENTUM_DATABASE_PASSWORD: ${GENTUM_DATABASE_PASSWORD:-gentum_dev_only}
       GENTUM_SERVER_ADDRESS: 0.0.0.0
       GENTUM_FRONTEND_ORIGIN: http://localhost:${GENTUM_PORT:-5173}
     depends_on:
-      postgres: { condition: service_healthy }
+      database-roles: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 3s

@@ -43,3 +43,7 @@ The accepted MVP now uses `./gentum start` to build and start nginx/React, Go an
 ## Optional local access protection
 
 [ADR 0005](0005-local-profile-and-optional-pin.md) replaces email registration with one local profile and optional PIN protection. The free local application needs no online account. A possible future paid hosted synchronization service is outside the current implementation. Local persistence and loopback delivery remain unchanged.
+
+## Multiple database update
+
+[ADR 0008](0008-multiple-local-databases.md) adds independent physical databases under the same local endpoint. Compose bootstraps financial and provisioning roles before the backend starts, including on existing volumes. All databases and the original registry persist in the existing named PostgreSQL volume. The original configured database remains the registry and default; it is never replaced or automatically adopted into a different owner.

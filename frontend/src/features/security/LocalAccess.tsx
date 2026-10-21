@@ -4,12 +4,15 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
   type FormEvent,
   type ReactNode,
 } from "react";
-import { request } from "../finance/client";
+import { request, setActiveDatabase, invalidateDatabaseRequests } from "../finance/client";
 
 interface AccessStatus {
+  databaseId?: string;
+  databaseName?: string;
   setupRequired: boolean;
   existingProfilesAvailable: boolean;
   pinEnabled: boolean;
@@ -27,7 +30,7 @@ export function useLocalAccess() {
   if (!value) throw new Error("Local access is unavailable");
   return value;
 }
-const signalChange = () => {
+export const signalChange = () => {
   try {
     localStorage.setItem(
       "gentum:access-change",
@@ -38,7 +41,7 @@ const signalChange = () => {
   }
 };
 
-function PINField({ name, label }: { name: string; label: string }) {
+export function PINField({ name, label }: { name: string; label: string }) {
   return (
     <label>
       {label}
@@ -200,6 +203,7 @@ function AccessScreen({
                 ? "Reset your PIN"
                 : "Unlock your wallet"}
           </h2>
+          {status.databaseName && <p>Database: <strong>{status.databaseName}</strong></p>}
           {status.setupRequired && status.existingProfilesAvailable && (
             <fieldset className="wallet-source">
               <legend>Choose your wallet</legend>
@@ -346,18 +350,27 @@ function AccessScreen({
 }
 export function LocalAccess({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AccessStatus>();
+  const [checking, setChecking] = useState(false);
+  const refreshVersion = useRef(0);
   const [recovery, showRecovery] = useState("");
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     try {
       const next = await request<AccessStatus>("/auth/status");
+      if (version !== refreshVersion.current) return;
+      setActiveDatabase(next.databaseId);
       if (!next.setupRequired && !next.pinEnabled && !next.unlocked) {
         await request("/auth/open", {});
         next.unlocked = true;
       }
+      if (version !== refreshVersion.current) return;
       setStatus(next);
+      setChecking(false);
       setError("");
     } catch (e) {
+      if (version !== refreshVersion.current) return;
+      setChecking(false);
       setStatus(undefined);
       setError(e instanceof Error ? e.message : "Unable to open local wallet");
     }
@@ -367,13 +380,20 @@ export function LocalAccess({ children }: { children: ReactNode }) {
     const check = () => {
       void refresh();
     };
-    const storage = (e: StorageEvent) => {
-      if (e.key === "gentum:access-change") check();
+    const changed = () => {
+      invalidateDatabaseRequests();
+      setChecking(true);
+      check();
     };
+    const storage = (e: StorageEvent) => {
+      if (e.key === "gentum:access-change") changed();
+    };
+    window.addEventListener("gentum:database-changed", changed);
     window.addEventListener("gentum:unauthorized", check);
     window.addEventListener("focus", check);
     window.addEventListener("storage", storage);
     return () => {
+      window.removeEventListener("gentum:database-changed", changed);
       window.removeEventListener("gentum:unauthorized", check);
       window.removeEventListener("focus", check);
       window.removeEventListener("storage", storage);
@@ -399,7 +419,7 @@ export function LocalAccess({ children }: { children: ReactNode }) {
         <button onClick={() => void refresh()}>Try again</button>
       </main>
     );
-  if (!status)
+  if (!status || checking)
     return (
       <p className="loading" role="status">
         Opening your wallet…
@@ -414,7 +434,7 @@ export function LocalAccess({ children }: { children: ReactNode }) {
       />
     );
   return (
-    <Context.Provider
+    <Context.Provider key={status.databaseId}
       value={{
         status,
         refresh,

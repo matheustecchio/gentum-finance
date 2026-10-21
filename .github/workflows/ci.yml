@@ -107,6 +107,7 @@ jobs:
       - run: npm run test:e2e
         working-directory: frontend
       - run: node scripts/check-persistence.mjs
+      - run: node scripts/check-databases.mjs
       - if: failure()
         run: docker compose logs --tail=100
       - uses: actions/upload-artifact@v4

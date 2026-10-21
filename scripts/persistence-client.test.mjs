@@ -65,3 +65,27 @@ test("failed financial requests are surfaced once without retry", async () => {
     await once(server, "close");
   }
 });
+
+test("database discovery retains both selection and authentication cookies and binds later requests", async () => {
+  const server = createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/auth/status") {
+      response.setHeader("Set-Cookie", ["gentum_database_session=selection; HttpOnly", "gentum_session=auth; HttpOnly"]);
+      response.end(JSON.stringify({ databaseId: "database-a" }));
+    } else {
+      assert.equal(request.headers["x-gentum-database"], "database-a");
+      assert.equal(request.headers.cookie, "gentum_database_session=selection; gentum_session=auth");
+      response.end("{}");
+    }
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const call = createClient(`http://127.0.0.1:${server.address().port}`);
+    await call("/auth/status");
+    await call("/graphql", { query: "{accounts{id}}" });
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});

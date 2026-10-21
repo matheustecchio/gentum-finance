@@ -53,11 +53,40 @@ func run() error {
 	if err = database.Migrate(startup, pool); err != nil {
 		return err
 	}
-	handler, err := api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, env("GENTUM_FRONTEND_ORIGIN", "http://localhost:5173"), finance.Service{Rates: &finance.ECBRates{}, Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
-	if err != nil {
+	origin := env("GENTUM_FRONTEND_ORIGIN", "http://localhost:5173")
+	build := func(pool *pgxpool.Pool) (http.Handler, error) {
+		return api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, origin, finance.Service{Rates: &finance.ECBRates{}, Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
+	}
+	var provision *pgxpool.Pool
+	if url := os.Getenv("GENTUM_PROVISION_DATABASE_URL"); url != "" {
+		provision, err = pgxpool.New(startup, url)
+		if err != nil {
+			return errors.New("invalid provisioner configuration")
+		}
+		defer provision.Close()
+	} else if username := os.Getenv("GENTUM_PROVISION_USERNAME"); username != "" {
+		pc := config.Copy()
+		pc.ConnConfig.User = username
+		pc.ConnConfig.Password = os.Getenv("GENTUM_PROVISION_PASSWORD")
+		provision, err = pgxpool.NewWithConfig(startup, pc)
+		if err != nil {
+			return errors.New("invalid provisioner configuration")
+		}
+		defer provision.Close()
+	}
+	var superuser, createdb bool
+	if err = pool.QueryRow(startup, `SELECT rolsuper,rolcreatedb FROM pg_roles WHERE rolname=current_user`).Scan(&superuser, &createdb); err != nil {
 		return err
 	}
-	server := &http.Server{Addr: net.JoinHostPort(host, env("GENTUM_SERVER_PORT", "8080")), Handler: security.Auth{Pool: pool, Origin: env("GENTUM_FRONTEND_ORIGIN", "http://localhost:5173")}.Middleware(handler), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	if superuser || createdb {
+		return errors.New("financial database role must not have SUPERUSER or CREATEDB; run the local role bootstrap")
+	}
+	registry := &security.Databases{Registry: pool, Provision: provision, Config: config, Origin: origin, Build: build, Migrate: database.Migrate}
+	if err = registry.Initialize(startup); err != nil {
+		return err
+	}
+	defer registry.Close()
+	server := &http.Server{Addr: net.JoinHostPort(host, env("GENTUM_SERVER_PORT", "8080")), Handler: registry.Middleware(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second}
 	done := make(chan error, 1)
 	go func() { slog.Info("Gentum Finance listening", "address", server.Addr); done <- server.ListenAndServe() }()
 	select {

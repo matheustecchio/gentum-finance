@@ -1,5 +1,5 @@
 import { ApolloClient, ApolloProvider, HttpLink, InMemoryCache } from "@apollo/client";
-import type { PropsWithChildren } from "react";
+import { useEffect, type PropsWithChildren } from "react";
 import { BrowserRouter } from "react-router-dom";
 
 const client = new ApolloClient({
@@ -11,6 +11,11 @@ const client = new ApolloClient({
 });
 
 export function AppProviders({ children }: PropsWithChildren) {
+  useEffect(() => {
+    const clear = () => { void client.clearStore(); };
+    window.addEventListener("gentum:database-ready", clear);
+    return () => window.removeEventListener("gentum:database-ready", clear);
+  }, []);
   return (
     <ApolloProvider client={client}>
       <BrowserRouter>{children}</BrowserRouter>

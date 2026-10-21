@@ -20,6 +20,7 @@ export default defineConfig({
     proxy: {
       "/graphql": "http://localhost:8080",
       "/auth": "http://localhost:8080",
+      "/databases": "http://localhost:8080",
     },
   },
   build: {

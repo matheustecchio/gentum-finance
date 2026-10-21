@@ -1,6 +1,6 @@
 # Architecture
 
-Gentum Finance is a local-first modular monolith: React browser UI → same-origin nginx → Go GraphQL/application services → PostgreSQL. Docker Compose runs the three services locally; only nginx publishes a loopback port.
+Gentum Finance is a local-first modular monolith: React browser UI → same-origin nginx → Go GraphQL/application services → PostgreSQL. Docker Compose runs the services locally and bootstraps separate financial and provisioning roles; only nginx publishes a loopback port.
 
 ## Components
 
@@ -22,7 +22,7 @@ GraphQL preserves typed accounts and uses the documented `FinanceData` JSON scal
 
 ## Local access
 
-The browser talks only to same-origin routes. Cookie sessions use hashed opaque tokens, browser-session cookies and 24-hour server expiry. Local setup selects one wallet, with direct access or optional four-digit PIN. PIN derivation uses PBKDF2-SHA256; recovery codes are randomly generated and stored as digests. Locking and protection changes revoke previous sessions. Attempt counters and progressive waits are persisted in PostgreSQL. Mutation Origin checks and JSON-only requests protect against CSRF; response CSP and frame restrictions reduce browser exposure. Local HTTP omits Secure cookies intentionally. This architecture is intended for trusted loopback operation, without public hosting or bank credentials.
+The browser talks only to same-origin routes. Cookie sessions use hashed opaque tokens, browser-session cookies and 24-hour server expiry. Local setup configures the original database, with direct access or optional four-digit PIN. A registry in that original database lists all physical databases. Each additional database has an independent owner, access configuration and financial pool. A persistent HttpOnly selection cookie maps each browser to a registry ID; financial/authentication operations carry X-Gentum-Database to reject stale selections. A PostgreSQL advisory lock serializes selection changes against requests from that browser. Switching verifies the target before issuing a new target-specific session. PIN derivation uses PBKDF2-SHA256; recovery codes are randomly generated and stored as digests. Locking and protection changes revoke previous sessions. Per-database attempt counters and an independent installation-wide counter with progressive waits persist in PostgreSQL. Successful PIN verification resets the installation counter; direct access and creation do not. Mutation Origin checks and JSON-only requests protect against CSRF; response CSP and frame restrictions reduce browser exposure. Local HTTP omits Secure cookies intentionally. This architecture is intended for trusted loopback operation, without public hosting or bank credentials.
 
 ## Storage
 
@@ -33,3 +33,5 @@ See [local-first delivery](decisions/0002-local-first-web-application.md), [Go a
 ## Reporting
 
 Overview reconstructs owner-scoped native-currency daily balances from opening balances and dated ledger entries in a read-only PostgreSQL transaction. Coverage rules omit unsupported complete totals before undated openings; future entries are excluded. The backend optionally requests ECB reference rates from Frankfurter over HTTPS, sending only currency codes and caching rates for one hour. Exact rational conversion, overflow checks and 30-day differences stay in the finance service. This optional external dependency does not move ledger data off the local machine. See [the Overview API](api/graphql.md).
+
+See [ADR 0008](decisions/0008-multiple-local-databases.md) for database lifecycle, privileges and session selection.

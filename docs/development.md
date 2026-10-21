@@ -17,12 +17,13 @@ Open http://localhost:5173 and choose **Use without a PIN** or **Protect with a 
 
 ### Configuration and data
 
-Copy [`.env.example`](../.env.example) to `.env` to override the port, database settings or volume name. For example, `GENTUM_PORT=5180 ./gentum start` uses http://localhost:5180. The database defaults remain `gentum`, `gentum_dev_only` and `gentum_finance`. Credentials must match an initialized volume; changing `.env` does not change an existing PostgreSQL role password.
+Copy [`.env.example`](../.env.example) to `.env` to override the port, database settings or volume name. For example, `GENTUM_PORT=5180 ./gentum start` uses http://localhost:5180. The PostgreSQL administrator defaults remain `gentum`, `gentum_dev_only` and `gentum_finance`. A startup service creates `gentum_runtime` (financial queries, without SUPERUSER or CREATEDB) and `gentum_provision` (CREATEDB and membership in the runtime role). The runtime uses the configured local database password; the provisioner uses `GENTUM_PROVISION_PASSWORD` (default `gentum_provision_dev_only`). Existing public application tables and the original database transfer to the runtime role without changing records or access settings. Credentials must match an initialized volume; changing `.env` does not change an existing PostgreSQL role password.
 
-Data lives in the persistent `gentum-finance_gentum-postgres-data` volume unless configured otherwise. Stopping, restarting, rebuilding and ordinary container recreation preserve it. Removing the volume or running `docker compose down -v` deletes data. Back up important data before upgrades. CSV export covers transaction interchange, not a complete database backup.
+All physical databases, the registry, browser selections and access settings live in the persistent `gentum-finance_gentum-postgres-data` volume unless configured otherwise. Stopping, restarting, rebuilding and ordinary container recreation preserve it. Removing the volume or running `docker compose down -v` deletes data. Back up important data before upgrades. CSV export covers transaction interchange, not a complete database backup.
 
 ### Wallet workflow and limits
 
+- **Settings** lets you create, rename and select independent databases. Creation keeps the current selection. Names are trimmed, unique without case sensitivity, and limited to 100 characters. There is no app count limit beyond PostgreSQL/storage capacity. Protected targets require their own PIN or recovery code. Database deletion and cloning are not included.
 - **Settings** holds the primary currency, accounts, categories, PIN and recovery controls. Account and category creation use dismissible modals. An incomplete wallet offers setup guidance that can be dismissed with **Configure later** for the current visit.
 - Accounts support current, savings, cash and credit-card types in EUR, GBP, USD and BRL. Record dated income and expenses through **Add transaction**. **Transactions** shows 10 entries per page with inclusive date and category/subcategory filters. Reporting month changes dashboard totals, not transaction history.
 - Categories have one optional subcategory level. New wallets receive starter categories; existing wallets can add missing defaults without reclassifying records. Deletion requires confirmation and is limited to unused categories with no children or references. Root budgets include child spending; child budgets remain separate limits.
@@ -51,7 +52,7 @@ go test -race ./...
 go vet ./...
 GENTUM_TEST_DATABASE_URL=postgres://gentum:gentum_test_only@localhost:55439/gentum_test?sslmode=disable go test -race -tags=integration -coverprofile=coverage.out ./...
 go build -o bin/gentum ./cmd/server
-GENTUM_DATABASE_URL=postgres://gentum:gentum_dev_only@localhost:5432/gentum_finance?sslmode=disable go run ./cmd/server
+GENTUM_DATABASE_URL=postgres://gentum_runtime:gentum_dev_only@localhost:5432/gentum_finance?sslmode=disable GENTUM_PROVISION_DATABASE_URL=postgres://gentum_provision:gentum_provision_dev_only@localhost:5432/gentum_finance?sslmode=disable go run ./cmd/server
 ```
 
 The backend defaults to `127.0.0.1:8080` and `GENTUM_FRONTEND_ORIGIN=http://localhost:5173`. In Docker, `GENTUM_DATABASE_HOST`, `GENTUM_DATABASE_NAME`, `GENTUM_DATABASE_USERNAME`, `GENTUM_DATABASE_PASSWORD` are discrete overrides, avoiding URL escaping issues. HTTP has bounded read/write/header timeouts; embedded migrations run atomically at startup with checksum verification.
@@ -66,7 +67,7 @@ npm run build
 npm run dev
 ```
 
-Vite proxies `/auth` and `/graphql` to the host backend. Browse using `localhost` to match Origin validation.
+Vite proxies `/auth`, `/databases` and `/graphql` to the host backend. Browse using `localhost` to match Origin validation.
 
 ## Real stack checks
 
@@ -79,9 +80,10 @@ npm run test:e2e
 cd ..
 node --test scripts/persistence-client.test.mjs
 node scripts/check-persistence.mjs
+node scripts/check-databases.mjs
 ```
 
-`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite verifies optional PIN setup, recovery-code acknowledgement, wrong/correct unlock, lock isolation, PIN change, recovery, disabling protection, exact cents, transfers, budgets, recurrence and CSV. The persistence script invokes the real launcher status/stop/start and verifies local access and exact account cents survive. Both create fictional data in the single local wallet: run them only against a disposable stack and set `GENTUM_VERIFICATION_FIXTURE=1`. They must not target your normal database.
+`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite verifies optional PIN setup, recovery-code acknowledgement, wrong/correct unlock, lock isolation, PIN change, recovery, disabling protection, exact cents, transfers, budgets, recurrence and CSV. The persistence script invokes the real launcher status/stop/start and verifies local access and exact account cents survive. These checks create fictional data in the default database and additional isolated databases: run them only against a disposable stack and set `GENTUM_VERIFICATION_FIXTURE=1`. They must not target your normal database.
 
 For an isolated local run, export these variables in the shell before starting the launcher and keep them set for browser and persistence checks:
 
@@ -94,6 +96,7 @@ export GENTUM_VERIFICATION_FIXTURE=1
 ./gentum start
 (cd frontend && npm run test:e2e)
 node scripts/check-persistence.mjs
+node scripts/check-databases.mjs
 ./gentum stop
 ```
 
@@ -110,3 +113,9 @@ Backend integration tests isolate schemas in the configured test database and co
 - Authentication origin rejection: open the exact printed `http://localhost:PORT` URL.
 - Database authentication failure after changing configuration: restore credentials matching the existing volume; do not delete a volume to fix a password mismatch.
 - Migration rejects fractional cents or checksums: preserve the database and investigate; do not edit applied migration files or bypass checks.
+
+### Multiple database verification
+
+Run `node scripts/check-databases.mjs` after the existing browser and persistence journeys against an explicitly disposable Compose stack. It creates fictional isolated financial data, checks another browser session, then restarts the stack and checks selection, names, PIN protection and records.
+
+Host PostgreSQL setup must provide a normal financial role that owns the original database and a separate provisioner with CREATEDB and membership in that financial role. Set `GENTUM_DATABASE_URL` and `GENTUM_PROVISION_DATABASE_URL`, or use the discrete provisioner username/password variables in Compose. The backend rejects financial roles with SUPERUSER or CREATEDB. Missing provisioning credentials keep existing databases usable but creation reports a configuration error. Every registered database is migrated on startup; an unavailable or incompatible database blocks startup. A failed new provision/migration is removed before publication; abrupt process termination during provisioning may leave an unregistered generated database requiring local administrator cleanup.
