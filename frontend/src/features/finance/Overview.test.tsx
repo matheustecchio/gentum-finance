@@ -301,3 +301,25 @@ it("clamps a future reporting month before requesting or rendering cash flow", a
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("2027-12", { selector: "svg text" })).toBeNull();
 });
+
+it("places wealth after cash flow and categories and lists each account without a click", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: { overview: {
+    ...data,
+    accounts: [
+      { id: "1", name: "Main", currency: "EUR", amount: "9000", change30: "-1000" },
+      { id: "2", name: "Savings", currency: "GBP", amount: "17178", change30: "0" },
+      { id: "3", name: "New account", currency: "USD", amount: "0", change30: "" },
+    ],
+  } } }))));
+  render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
+  await screen.findByRole("heading", { name: "Total Wealth" });
+  expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+    "Monthly cash flow", "Monthly categories · 2026-10", "Total Wealth",
+  ]);
+  expect(screen.getByText("Main")).toBeVisible();
+  expect(screen.getByText("£171.78")).toBeVisible();
+  expect(screen.getByLabelText("Main change")).toHaveTextContent("-€10.00");
+  expect(screen.getByLabelText("Savings change")).toHaveTextContent("+£0.00");
+  expect(screen.getByLabelText("New account change")).toHaveTextContent("Unavailable");
+  expect(screen.queryByText(/over 30 days/i)).toBeNull();
+});
