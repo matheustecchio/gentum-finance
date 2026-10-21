@@ -36,12 +36,24 @@ is needed only for conversion; native-currency wealth remains available offline.
 Conversion uses rational arithmetic and rounds the combined total once to cents,
 ties away from zero. Values outside signed int64 cents are unavailable.
 
-The cash-flow UI retains loaded six-month ranges in a continuous horizontal
-timeline. Prepending earlier months preserves the viewport anchor; loading failures
-keep existing months visible and offer retry. Cash Flow requests and visible month
-groups stop at the current calendar month in Europe/Dublin, including when a future
-reporting month is selected. The boundary refreshes while the app is open and on
-returning to the tab. Each bar has an amount-only tooltip above it, matching the
+The Overview uses `analytics(start: String!, end: String!): FinanceData` for cash
+flow and categories. Dates are inclusive, valid date-only values from 1900-01-01
+through today in Europe/Dublin, ordered and at most five calendar years apart.
+The result contains `flows` (month/currency/income/expense/net integer-cent strings)
+and `breakdown` (categoryId/currency/direct integer-cent strings). Ranges of up to
+63 dates use YYYY-MM-DD flow keys in the `month` field; longer ranges use YYYY-MM.
+Monthly buckets are clipped to the selected dates. Transfers, opening balances,
+unposted schedules and other owners are excluded. Native currencies stay separate;
+aggregates outside signed int64 cents reject the query. Empty dates render zero bars.
+The original `overview(month:)` contract remains available for wealth and older clients.
+
+The UI starts with the current month and offers Week (Monday to Sunday), Month,
+6 months (ending in the selected month), Year (calendar year), and Custom.
+Current periods stop today. Previous/next controls move by the selected period;
+future periods are disabled. Custom dates update both charts together and retain
+an inline validation or retry state on failure. Changing periods clears old chart
+results and ignores late responses. Total Wealth retains its current 30-day view.
+Each bar has an amount-only tooltip above it, matching the
 Income, Expenses or Net flow legend color. Pointer, touch and keyboard focus can
 inspect positive, negative and zero values. The wealth card uses a compact
 empty/single-observation state, with a low fixed-height chart only when multiple

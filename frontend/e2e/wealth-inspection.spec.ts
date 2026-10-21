@@ -35,6 +35,7 @@ async function setup(page: Page, change = "-7410", gap = false) {
       json: {
         data: {
           overview,
+          analytics: { flows: [], breakdown: [] },
           financeSummary: {
             accounts: [{ id: "a", currency: "EUR" }],
             categories: [{ id: "food", name: "Food", kind: "EXPENSE" }],

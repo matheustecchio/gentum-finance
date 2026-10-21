@@ -83,7 +83,7 @@ New local wallets receive the starter catalog during creation in the same transa
 | Expense | Transportation | Public transportation; Gas & Fuel; Insurance; Repairs; Car Wash & Services; Parking & Tolls |
 | Expense | Vacations | Transport; Accommodations; Food; Shopping; Pet boarding; Rental car |
 
-Monthly `breakdown` separates currencies and reports `direct` entries and `total` including immediate children exactly once. Overview spending bars show direct expense amounts for each root and child path, without double-counting child amounts. Income, expense and net exclude opening balances and transfers. A root expense budget includes its direct spending and children; a child budget includes only that child. Overlapping budgets are independent limits and are never summed into a combined budget total. All sums retain exact integer cents.
+Monthly `breakdown` separates currencies and reports `direct` entries and `total` including immediate children exactly once. The Overview uses the inclusive date-range `analytics` query documented in [graphql.md](graphql.md). Its spending bars show direct expense amounts for each root and child path, without double-counting child amounts. Income, expense and net exclude opening balances and transfers. A root expense budget includes its direct spending and children; a child budget includes only that child. Overlapping budgets are independent limits and are never summed into a combined budget total. All sums retain exact integer cents.
 
 ## CSV interchange
 

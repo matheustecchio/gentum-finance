@@ -86,68 +86,6 @@ it("does not invent wealth or a 30-day delta when data is unavailable", () => {
   expect(screen.getByText("Unavailable")).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Rates unavailable");
 });
-it("moves continuously before pointer release, loads at the edge, and preserves the visible month when prepending", async () => {
-  const fetcher = vi.fn(
-    async (_url: string, _init?: RequestInit) =>
-      new Response(JSON.stringify({ data: { overview: data } })),
-  );
-  vi.stubGlobal("fetch", fetcher);
-  class MousePointer extends MouseEvent {
-    pointerType = "mouse";
-  }
-  vi.stubGlobal("PointerEvent", MousePointer);
-  render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
-  const bar = await screen.findByRole("button", {
-    name: "2026-10 Net: -€1.00",
-  });
-  const baseline = Number(
-    document.querySelector(".zero-line")?.getAttribute("y1"),
-  );
-  expect(Number(bar.previousElementSibling?.getAttribute("y"))).toBe(baseline);
-  const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
-  Object.defineProperty(nav, "clientWidth", { value: 300 });
-  Object.defineProperty(nav, "scrollWidth", {
-    get: () => parseInt((nav.firstElementChild as HTMLElement).style.width),
-  });
-  nav.scrollLeft = 400;
-  fireEvent.pointerDown(nav, { clientX: 100 });
-  fireEvent.pointerMove(nav, { clientX: 180 });
-  expect(nav.scrollLeft).toBe(320); // Before pointerup, not pagination on release.
-  fireEvent.pointerUp(nav);
-  expect(
-    screen.queryByRole("button", { name: "Earlier months" }),
-  ).not.toBeInTheDocument();
-  fireEvent.keyDown(nav, { key: "ArrowLeft" });
-  expect(nav.scrollLeft).toBe(180);
-  nav.scrollLeft = 40;
-  fireEvent.scroll(nav);
-  await waitFor(() =>
-    expect(String(fetcher.mock.calls.at(-1)?.[1]?.body)).toContain(
-      '"month":"2026-04"',
-    ),
-  );
-  await waitFor(() => expect(nav.scrollLeft).toBe(880));
-  expect(
-    screen.getByRole("button", { name: "2026-10 Net: -€1.00" }),
-  ).toBeInTheDocument();
-});
-it("keeps existing chart data and offers retry when history fails", async () => {
-  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
-    if (String(init?.body).includes('"month":"2026-04"'))
-      throw new Error("Offline");
-    return new Response(JSON.stringify({ data: { overview: data } }));
-  });
-  vi.stubGlobal("fetch", fetcher);
-  render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
-  await screen.findByRole("heading", { name: "Total Wealth" });
-  const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
-  fireEvent.keyDown(nav, { key: "ArrowLeft" });
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Unable to load more months",
-  );
-  expect(screen.getByRole("button", { name: "Retry history" })).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Total Wealth" })).toBeVisible();
-});
 it("shows category names and exact direct spending on focus and touch/click without counting child spending twice", async () => {
   render(<CategoryChart snapshot={snapshot} month="2026-10" />);
   const parent = screen.getByRole("button", { name: "Food: €0.29" });
@@ -285,25 +223,18 @@ it("shows only the exact selected amount and exposes zero bars to keyboard and t
   fireEvent.keyDown(zero, { key: "Escape" });
   expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
 });
-it("clamps a future reporting month before requesting or rendering cash flow", async () => {
-  const fetcher = vi.fn(
-    async (_url: string, _init?: RequestInit) =>
-      new Response(JSON.stringify({ data: { overview: data } })),
-  );
+it("clamps a future reporting month before requesting wealth", async () => {
+  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: String(init?.body).includes("query Analytics") ? { analytics: { flows: data.flows, breakdown: snapshot.breakdown } } : { overview: data } })));
   vi.stubGlobal("fetch", fetcher);
   render(<OverviewCharts snapshot={snapshot} month="2027-12" />);
-  await screen.findByRole("button", { name: "2026-10 Net: -€1.00" });
-  expect(String(fetcher.mock.calls[0]?.[1]?.body)).toContain(
-    '"month":"2026-10"',
-  );
-  const nav = screen.getByRole("group", { name: "Cash flow month navigation" });
-  fireEvent.keyDown(nav, { key: "ArrowRight" });
-  expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(screen.queryByText("2027-12", { selector: "svg text" })).toBeNull();
+  await screen.findByRole("heading", { name: "Total Wealth" });
+  const calls = fetcher.mock.calls.map(call => JSON.parse(String(call[1]?.body)));
+  expect(calls.find(call => call.query.includes("query Overview")).variables.month).toBe("2026-10");
+  expect(calls.find(call => call.query.includes("query Analytics")).variables).toEqual({start: "2026-10-01", end: "2026-10-18"});
 });
 
 it("places wealth after cash flow and categories and lists each account without a click", async () => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: { overview: {
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: { analytics: { flows: data.flows, breakdown: snapshot.breakdown }, overview: {
     ...data,
     accounts: [
       { id: "1", name: "Main", currency: "EUR", amount: "9000", change30: "-1000" },
@@ -312,9 +243,10 @@ it("places wealth after cash flow and categories and lists each account without 
     ],
   } } }))));
   render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
+  await screen.findByRole("heading", { name: "Categories" });
   await screen.findByRole("heading", { name: "Total Wealth" });
   expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-    "Monthly cash flow", "Monthly categories · 2026-10", "Total Wealth",
+    "Cash flow", "Categories", "Total Wealth",
   ]);
   expect(screen.getByText("Main")).toBeVisible();
   expect(screen.getByText("£171.78")).toBeVisible();

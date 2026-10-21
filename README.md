@@ -1,11 +1,12 @@
 # Gentum Finance
 
-A personal-finance app that runs on your computer. Track accounts, transactions and monthly spending without an online account.
+A personal-finance app that runs on your computer. Track accounts, transactions and spending without an online account.
 
 ## Features
 
 - Accounts and categories for income and expenses.
 - Transfers, monthly budgets and recurring transactions.
+- Overview analytics by week, month, six months, year or a custom date range.
 - Wealth, cash-flow and category spending reports, with balances and changes by account.
 - CSV import and export.
 - Separate local PostgreSQL databases with independent optional PIN protection.
