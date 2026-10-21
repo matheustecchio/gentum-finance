@@ -1,7 +1,7 @@
 import { Databases } from "../security/Databases";
 import { CategoryColor } from "./CategoryColor";
 import "./categories.css";
-import { OverviewCharts, PrimaryCurrency } from "./Overview";
+import { OverviewCharts, PrimaryCurrency, dublinMonth } from "./Overview";
 import { History, clearFilters, type Filters } from "./History";
 import trashIcon from "../../assets/icons/trash.svg";
 import {
@@ -189,7 +189,7 @@ function Wallet({
     else deleteTrigger.current?.focus();
   }, [deleting]);
   const [tab, setTab] = useState("Overview");
-  const [month, setMonth] = useState(today().slice(0, 7));
+  const [month, setMonth] = useState(dublinMonth);
   const [data, setData] = useState<Snapshot>(empty);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -342,9 +342,8 @@ function Wallet({
             <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
             <h1>{tab}</h1>
             {status.databaseName && <p className="active-database">Database: <strong>{status.databaseName}</strong></p>}
-            <p>Every amount accounted for. Your wealth in perspective.</p>
           </div>
-          <label>
+          {tab !== "Overview" && <label>
             Reporting month
             <input
               aria-label="Reporting month"
@@ -361,7 +360,7 @@ function Wallet({
                   setMonth(e.target.value);
               }}
             />
-          </label>
+          </label>}
         </header>
         {notice && (
           <p role="status" className="notice">

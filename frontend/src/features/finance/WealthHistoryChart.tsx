@@ -96,7 +96,7 @@ export function WealthHistoryChart({
         aria-valuemax={30}
         aria-valuenow={selected}
         aria-valuetext={`${dateLabel(point.date)}: ${value}`}
-        aria-describedby={`${id}-help ${id}-method`}
+        aria-describedby={`${id}-method`}
         onFocus={() => {
           focused.current = true;
           setActive(true);
@@ -223,9 +223,6 @@ export function WealthHistoryChart({
             <span key={p.date}>{p.day}</span>
           ))}
       </div>
-      <p id={`${id}-help`} className="wealth-inspection-help">
-        Hover, tap or use arrow keys to inspect a day.
-      </p>
       <p id={`${id}-method`} className="wealth-methodology">
         {methodology ||
           "Recorded ledger balances. Missing dates are unavailable."}

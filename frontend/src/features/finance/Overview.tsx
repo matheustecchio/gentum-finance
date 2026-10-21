@@ -1,6 +1,7 @@
+import { Analytics } from "./Analytics";
 import { FlowTooltip, type FlowSelection } from "./FlowTooltip";
 import { WealthHistoryChart } from "./WealthHistoryChart";
-import { useEffect, useLayoutEffect, useRef, useState, useId } from "react";
+import { useEffect, useState, useId } from "react";
 import { formatMoney } from "../accounts/money";
 import { execute, graphql, type Row, type Snapshot } from "./client";
 import "./overview.css";
@@ -181,7 +182,7 @@ export function FlowChart({
       <svg
         viewBox={`0 0 ${months.length * 140} 210`}
         role="group"
-        aria-label={`Monthly cash flow in ${currency}`}
+        aria-label={`Cash flow in ${currency}`}
       >
         <line
           x1="10"
@@ -275,11 +276,11 @@ export function FlowChart({
         />
       )}
       <details>
-        <summary>View monthly amounts</summary>
+        <summary>View amounts</summary>
         <table>
           <thead>
             <tr>
-              <th>Month</th>
+              <th>Period</th>
               <th>Income</th>
               <th>Expenses</th>
               <th>Net</th>
@@ -320,8 +321,9 @@ export function CategoryChart({
   const currencies = [...new Set(bars.map((b) => b.currency))];
   return (
     <section className="panel category-chart">
-      <h2>Monthly categories · {month}</h2>
-      {!bars.length && <p>No spending this month.</p>}
+      <h2>Categories</h2>
+      <p className="chart-note">{month}</p>
+      {!bars.length && <p>No spending in this period.</p>}
       {currencies.map((currency) => {
         const rows = bars.filter((b) => b.currency === currency);
         const max = rows.reduce(
@@ -375,216 +377,6 @@ export function CategoryChart({
     </section>
   );
 }
-const MONTH_WIDTH = 140;
-export function CashFlowTimeline({
-  initial,
-  month,
-  currencies,
-  currentMonth,
-}: {
-  initial: OverviewData;
-  month: string;
-  currencies: string[];
-  currentMonth: string;
-}) {
-  const [range, setRange] = useState({
-    start: shiftMonth(month < currentMonth ? month : currentMonth, -5),
-    end: month < currentMonth ? month : currentMonth,
-  });
-  const [rows, setRows] = useState(initial.flows);
-  const [loading, setLoading] = useState(false);
-  const [failure, setFailure] = useState<"earlier" | "later">();
-  const viewport = useRef<HTMLDivElement>(null);
-  const inFlight = useRef(false);
-  const active = useRef(true);
-  const interacted = useRef(false);
-  const anchor = useRef<number | null>(null);
-  const initialized = useRef(false);
-  const dragged = useRef(false);
-  const pointer = useRef<{ x: number; left: number } | null>(null);
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-    };
-  }, []);
-  const months: string[] = [];
-  for (let m = range.start; m <= range.end; m = shiftMonth(m, 1))
-    months.push(m);
-  async function load(direction: "earlier" | "later") {
-    if (
-      inFlight.current ||
-      (direction === "later" && range.end >= currentMonth)
-    )
-      return;
-    const end =
-      direction === "earlier"
-        ? shiftMonth(range.start, -1)
-        : shiftMonth(range.end, 6) < currentMonth
-          ? shiftMonth(range.end, 6)
-          : currentMonth;
-    if (end < "1900-06" || end > "9998-12") return;
-    inFlight.current = true;
-    setLoading(true);
-    setFailure(undefined);
-    try {
-      const result = await graphql<{ overview: OverviewData }>(
-        "query Overview($month:String!){overview(month:$month)}",
-        { month: end },
-      );
-      if (!active.current) return;
-      if (!result.overview) throw new Error("Missing cash flow history");
-      if (direction === "earlier")
-        anchor.current = viewport.current?.scrollLeft ?? 0;
-      setRows((old) => [...old, ...result.overview.flows]);
-      setRange((old) =>
-        direction === "earlier"
-          ? { ...old, start: shiftMonth(end, -5) }
-          : { ...old, end },
-      );
-    } catch {
-      if (active.current) setFailure(direction);
-    } finally {
-      inFlight.current = false;
-      if (active.current) setLoading(false);
-    }
-  }
-  useLayoutEffect(() => {
-    const element = viewport.current;
-    if (!element) return;
-    if (anchor.current !== null) {
-      element.scrollLeft = anchor.current + 6 * MONTH_WIDTH;
-      if (pointer.current) pointer.current.left += 6 * MONTH_WIDTH;
-      anchor.current = null;
-    } else if (!initialized.current) {
-      element.scrollLeft = element.scrollWidth;
-      initialized.current = true;
-    }
-    // Provide a real scroll range even on wide screens or empty ledgers.
-    if (
-      element.clientWidth > 0 &&
-      element.scrollWidth <= element.clientWidth + MONTH_WIDTH &&
-      !failure
-    )
-      void load("earlier");
-  }, [range, failure]);
-  useEffect(() => {
-    const element = viewport.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      if (
-        element.clientWidth > 0 &&
-        element.scrollWidth <= element.clientWidth + MONTH_WIDTH &&
-        !failure
-      )
-        void load("earlier");
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [range, failure]);
-  const inspectEdges = () => {
-    const element = viewport.current;
-    if (!element || !interacted.current || inFlight.current || failure) return;
-    if (element.scrollLeft < MONTH_WIDTH) void load("earlier");
-    else if (
-      element.scrollWidth - element.clientWidth - element.scrollLeft <
-      MONTH_WIDTH
-    )
-      void load("later");
-  };
-  return (
-    <section className="panel cash-chart">
-      <h2>Monthly cash flow</h2>
-      <p className="chart-legend">
-        <span className="income-key">Income</span>
-        <span className="expense-key">Expenses</span>
-        <span className="net-key">Net flow</span>
-      </p>
-      <p id="flow-help" className="chart-note">
-        Drag or swipe through months up to the current month. Older history
-        loads at the left edge. With the chart focused, use the left and right
-        arrow keys.
-      </p>
-      <div
-        ref={viewport}
-        className="flow-viewport flow-timeline"
-        tabIndex={0}
-        role="group"
-        aria-label="Cash flow month navigation"
-        aria-describedby="flow-help"
-        aria-busy={loading}
-        onScroll={inspectEdges}
-        onWheel={() => {
-          interacted.current = true;
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-            e.preventDefault();
-            interacted.current = true;
-            e.currentTarget.scrollLeft +=
-              e.key === "ArrowLeft" ? -MONTH_WIDTH : MONTH_WIDTH;
-            inspectEdges();
-          }
-        }}
-        onPointerDown={(e) => {
-          interacted.current = true;
-          dragged.current = false;
-          if (e.pointerType === "mouse")
-            pointer.current = {
-              x: e.clientX,
-              left: e.currentTarget.scrollLeft,
-            };
-        }}
-        onPointerMove={(e) => {
-          const start = pointer.current;
-          if (!start) return;
-          if (Math.abs(e.clientX - start.x) > 5) {
-            dragged.current = true;
-            e.currentTarget.setPointerCapture?.(e.pointerId);
-            e.preventDefault();
-            e.currentTarget.scrollLeft = start.left - (e.clientX - start.x);
-          }
-        }}
-        onPointerUp={() => {
-          pointer.current = null;
-          inspectEdges();
-        }}
-        onPointerCancel={() => {
-          pointer.current = null;
-        }}
-        onClickCapture={(e) => {
-          if (dragged.current) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-      >
-        <div
-          className="timeline-track"
-          style={{ width: months.length * MONTH_WIDTH }}
-        >
-          {(currencies.length ? currencies : [initial.currency]).map(
-            (currency) => (
-              <FlowChart
-                key={currency}
-                rows={rows}
-                currency={currency}
-                months={months}
-              />
-            ),
-          )}
-        </div>
-      </div>
-      {loading && <p role="status">Loading more months…</p>}
-      {failure && (
-        <p role="alert">
-          Unable to load more months.{" "}
-          <button onClick={() => void load(failure)}>Retry history</button>
-        </p>
-      )}
-    </section>
-  );
-}
 export function OverviewCharts({
   snapshot,
   month,
@@ -630,21 +422,7 @@ export function OverviewCharts({
           <button onClick={() => setRetry((r) => r + 1)}>Retry Overview</button>
         </p>
       )}
-      {data && (
-        <CashFlowTimeline
-          key={`${flowMonth}:${currentMonth}`}
-          initial={data}
-          month={flowMonth}
-          currentMonth={currentMonth}
-          currencies={[
-            ...new Set([
-              ...snapshot.accounts.map((a) => a.currency),
-              ...data.flows.map((f) => f.currency),
-            ]),
-          ].sort()}
-        />
-      )}
-      <CategoryChart snapshot={snapshot} month={month} />
+      <Analytics snapshot={snapshot} month={flowMonth} />
       {data && <WealthCard data={data} />}
     </>
   );

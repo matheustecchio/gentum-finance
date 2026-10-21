@@ -25,6 +25,7 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
                 }
               : {
                   data: {
+                    analytics: { flows: [], breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                       currency: "EUR",
                       today: "2026-10-18",
@@ -138,6 +139,7 @@ function mockLedger(
               data: body.variables?.action
                 ? { executeFinance: "Saved" }
                 : {
+                    analytics: { flows: [], breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                       currency: "EUR",
                       today: "2026-10-18",
@@ -223,7 +225,7 @@ it("filters transaction and recurring category paths by kind and expands direct 
   mockLedger();
   render(<FinanceApp />);
   await screen.findByRole("heading", { name: "Total Wealth" });
-  await userEvent.click(screen.getByRole("button", { name: "Home: €0.29" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Home: €0.29" }));
   expect(screen.getByRole("status")).toHaveTextContent("Home: €0.29");
   expect(
     screen.getByRole("button", { name: "Home / Repairs: €1.00" }),
@@ -590,7 +592,8 @@ for (const pinEnabled of [false, true]) {
                 ? { setupRequired: false, pinEnabled, unlocked: true }
                 : {
                     data: {
-                      overview: {
+                      analytics: { flows: [], breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
+                    overview: {
                         currency: "EUR",
                         today: "2026-10-18",
                         wealth: [

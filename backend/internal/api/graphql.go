@@ -84,6 +84,18 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			fields[key] = &graphql.InputObjectFieldConfig{Type: graphql.String}
 		}
 		input := graphql.NewInputObject(graphql.InputObjectConfig{Name: "FinanceInput", Fields: fields})
+		financeFields["analytics"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"start": {Type: graphql.NewNonNull(graphql.String)}, "end": {Type: graphql.NewNonNull(graphql.String)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			result, err := fs.Analytics(p.Context, p.Args["start"].(string), p.Args["end"].(string))
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load analytics")
+			}
+			return result, nil
+		}}
+
 		financeFields["overview"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"month": {Type: graphql.NewNonNull(graphql.String)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			result, err := fs.Overview(p.Context, p.Args["month"].(string))
 			if err != nil {

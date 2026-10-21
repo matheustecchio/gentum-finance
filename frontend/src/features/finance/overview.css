@@ -348,3 +348,10 @@
 @media (max-width: 600px) {
   .wealth-account-head, .wealth-account { gap: 10px; font-size: .85rem; }
 }
+
+.analytics-period { display: grid; gap: 1rem; margin-bottom: 1.5rem; }
+.period-options, .period-navigation, .period-dates { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.period-options button { background: #e3ebe6; color: #153e33; border: 1px solid transparent; }
+.period-options button[aria-pressed="true"] { background: #195c49; color: white; border-color: #195c49; }
+.period-dates label { display: grid; gap: .35rem; }
+.analytics-flow-track { width: 100%; }
