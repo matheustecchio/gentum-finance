@@ -40,48 +40,70 @@ func createCategory(ctx context.Context, tx pgx.Tx, user string, in Row) error {
 	return err
 }
 
-var starterCatalog = []struct {
-	kind, name string
-	children   []string
-}{
-	{"INCOME", "Income", []string{"Wages", "Interest/dividends", "Miscellaneous"}},
-	{"EXPENSE", "Daily Living", []string{"Groceries", "Dining out", "Well-being", "Clothes", "Recreation", "Gifts"}},
-	{"EXPENSE", "Medical Expenses", []string{"Health dues", "Medicines"}},
-	{"EXPENSE", "Bills & Subscriptions", []string{"Phone plan", "Digital subscriptions"}},
-	{"EXPENSE", "Education", nil},
-	{"EXPENSE", "Home", []string{"Rent", "Tools & Equipment", "Furniture & Repairs", "Services", "Utilities"}},
-	{"EXPENSE", "Transportation", []string{"Public transportation", "Gas & Fuel", "Insurance", "Repairs", "Car Wash & Services", "Parking & Tolls"}},
-	{"EXPENSE", "Vacations", []string{"Transport", "Accommodations", "Food", "Shopping", "Pet boarding", "Rental car"}},
+var starterCatalog = []struct{ kind, name string }{
+	{"INCOME", "Income"},
+	{"INCOME", "Wages"},
+	{"INCOME", "Interest/dividends"},
+	{"INCOME", "Miscellaneous"},
+	{"EXPENSE", "Daily Living"},
+	{"EXPENSE", "Groceries"},
+	{"EXPENSE", "Dining out"},
+	{"EXPENSE", "Well-being"},
+	{"EXPENSE", "Clothes"},
+	{"EXPENSE", "Recreation"},
+	{"EXPENSE", "Gifts"},
+	{"EXPENSE", "Medical Expenses"},
+	{"EXPENSE", "Health dues"},
+	{"EXPENSE", "Medicines"},
+	{"EXPENSE", "Bills & Subscriptions"},
+	{"EXPENSE", "Phone plan"},
+	{"EXPENSE", "Digital subscriptions"},
+	{"EXPENSE", "Education"},
+	{"EXPENSE", "Home"},
+	{"EXPENSE", "Rent"},
+	{"EXPENSE", "Tools & Equipment"},
+	{"EXPENSE", "Furniture & Repairs"},
+	{"EXPENSE", "Services"},
+	{"EXPENSE", "Utilities"},
+	{"EXPENSE", "Transportation"},
+	{"EXPENSE", "Public transportation"},
+	{"EXPENSE", "Gas & Fuel"},
+	{"EXPENSE", "Insurance"},
+	{"EXPENSE", "Repairs"},
+	{"EXPENSE", "Car Wash & Services"},
+	{"EXPENSE", "Parking & Tolls"},
+	{"EXPENSE", "Vacations"},
 }
 
-// AddStarterCategories is explicit for existing profiles and called once during new profile creation.
-// The caller holds the owner's write lock or is creating an uncommitted owner.
+// AddStarterCategories is called only while creating a new, uncommitted owner.
+// Existing ledgers are never backfilled or changed by the starter catalog.
 func AddStarterCategories(ctx context.Context, tx pgx.Tx, user string) error {
-	ensure := func(name, kind string, parent interface{}) (string, error) {
-		var id string
-		err := tx.QueryRow(ctx, `SELECT id::text FROM category WHERE user_id=$1 AND kind=$2 AND parent_id IS NOT DISTINCT FROM $3::uuid AND lower(btrim(name))=lower($4) ORDER BY id LIMIT 1`, user, kind, parent, name).Scan(&id)
-		if err == nil {
-			return id, nil
-		}
-		if err != pgx.ErrNoRows {
-			return "", err
-		}
-		id = newID()
-		_, err = tx.Exec(ctx, `INSERT INTO category(id,user_id,name,kind,parent_id) VALUES($1,$2,$3,$4,$5)`, id, user, name, kind, parent)
-		return id, err
-	}
-	for _, root := range starterCatalog {
-		id, err := ensure(root.name, root.kind, nil)
-		if err != nil {
+	for _, category := range starterCatalog {
+		if _, err := tx.Exec(ctx, `INSERT INTO category(id,user_id,name,kind) VALUES($1,$2,$3,$4)`, newID(), user, category.name, category.kind); err != nil {
 			return err
-		}
-		for _, child := range root.children {
-			if _, err = ensure(child, root.kind, id); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
+}
+
+func renameCategory(ctx context.Context, tx pgx.Tx, user string, in Row) error {
+	name := strings.TrimSpace(in["name"])
+	if len([]rune(name)) < 1 || len([]rune(name)) > 100 {
+		return invalid("Category name must contain 1–100 characters")
+	}
+	var duplicate bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM category other WHERE other.user_id=c.user_id AND other.id<>c.id AND other.kind=c.kind AND other.parent_id IS NOT DISTINCT FROM c.parent_id AND lower(btrim(other.name))=lower($3)) FROM category c WHERE c.user_id=$1 AND c.id::text=$2 FOR UPDATE OF c`, user, in["id"], name).Scan(&duplicate)
+	if err == pgx.ErrNoRows {
+		return invalid("Category not found")
+	}
+	if err != nil {
+		return err
+	}
+	if duplicate {
+		return invalid("A category with this name already exists in this group")
+	}
+	_, err = tx.Exec(ctx, `UPDATE category SET name=$3 WHERE user_id=$1 AND id::text=$2`, user, in["id"], name)
+	return err
 }
 
 // categoryBreakdown rolls each direct sum into its root once, separately per currency.

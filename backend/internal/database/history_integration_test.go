@@ -175,8 +175,8 @@ func TestHistoryPaginationFiltersAndDeletion(t *testing.T) {
 	if err != nil || stable.Accounts[0]["balance"] != before || !reflect.DeepEqual(beforeTotals, stable.Totals) {
 		t.Fatal("category deletion changed money", err)
 	}
-	// A leaf default remains deleted on reads; only explicit starter installation restores it.
-	must("starterCategories", finance.Row{})
+	// A category remains deleted on reads and the obsolete installer is rejected.
+	must("category", finance.Row{"name": "Wages", "kind": "INCOME"})
 	defaults, _ := svc.Summary(ctx, "2026-10")
 	var defaultID string
 	for _, c := range defaults.Categories {
@@ -196,16 +196,12 @@ func TestHistoryPaginationFiltersAndDeletion(t *testing.T) {
 			}
 		}
 	}
-	must("starterCategories", finance.Row{})
-	restored, _ := svc.Summary(ctx, "2026-10")
-	found := false
-	for _, c := range restored.Categories {
+	fail("starterCategories", finance.Row{})
+	again, _ := svc.Summary(ctx, "2026-10")
+	for _, c := range again.Categories {
 		if c["name"] == "Wages" && c["kind"] == "INCOME" {
-			found = true
+			t.Fatal("obsolete action restored a default")
 		}
-	}
-	if !found {
-		t.Fatal("explicit restore failed")
 	}
 	// Concurrent reference creation and deletion must not both succeed.
 	for i := 0; i < 4; i++ {
