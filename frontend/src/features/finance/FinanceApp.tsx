@@ -1,3 +1,4 @@
+import { Databases } from "../security/Databases";
 import { OverviewCharts, PrimaryCurrency } from "./Overview";
 import { History, clearFilters, type Filters } from "./History";
 import trashIcon from "../../assets/icons/trash.svg";
@@ -338,6 +339,7 @@ function Wallet({
           <div>
             <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
             <h1>{tab}</h1>
+            {status.databaseName && <p className="active-database">Database: <strong>{status.databaseName}</strong></p>}
             <p>Every amount accounted for. Your wealth in perspective.</p>
           </div>
           <label>
@@ -548,7 +550,7 @@ function Wallet({
             </section>
           </>
         )}
-        {tab === "Settings" && <AccessSettings />}
+        {tab === "Settings" && <>{status.databaseId && <Databases />}<AccessSettings /></>}
         {tab === "Add transaction" && (
           <Form
             title="Record a transaction"

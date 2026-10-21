@@ -559,3 +559,9 @@ input:focus-visible {
 .dialog-footer {
   padding: 0 28px 28px;
 }
+
+.database-list { list-style: none; padding: 0; }
+.database-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--border, #ddd); }
+.database-list small { display: block; margin-top: .25rem; }
+.active-database { overflow-wrap: anywhere; }
+@media (max-width: 650px) { .database-list li { flex-direction: column; align-items: stretch; } }
