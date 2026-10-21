@@ -27,7 +27,7 @@ Do not edit dependencies, build output, coverage output, generated bundles, or t
 - Preserve the browser-based, local-first delivery model. Keep application services and data on the user's machine by default, and bind development services to the loopback interface.
 - Do not introduce Electron, Tauri, cloud hosting, or an embedded-database replacement without an accepted ADR that changes the product direction.
 
-The runtime uses one configured local ledger with optional PIN protection and verified cookie sessions through the `CurrentUserProvider` seam. Keep same-origin session creation even when PIN protection is disabled; never expose financial routes through a fixed development identity. PIN changes/recovery must preserve ledger data, revoke older sessions, rotate the recovery code, and retain persistent installation-wide throttling. The PIN is an app lock, not database encryption. Keep all financial routes authenticated, enforce mutation Origin/JSON checks and retain ownership scoping. The legacy development provider is used only by compatibility tests; never wire it into the server. Keep local HTTP services on trusted loopback.
+The runtime uses a registry in the original PostgreSQL database and separate physical databases for each local ledger, each with optional PIN protection and verified cookie sessions through the `CurrentUserProvider` seam. Browser selection is server-side and financial/authentication requests must bind to the observed database ID. Keep the financial role free of SUPERUSER and CREATEDB; only the separate provisioning role creates databases. Keep same-origin session creation even when PIN protection is disabled; never expose financial routes through a fixed development identity. PIN changes/recovery must preserve ledger data, revoke older sessions, rotate the recovery code, and retain persistent installation-wide throttling independently of each ledger. The PIN is an app lock, not database encryption. Keep all financial routes authenticated, enforce mutation Origin/JSON checks and retain ownership scoping. The legacy development provider is used only by compatibility tests; never wire it into the server. Keep local HTTP services on trusted loopback.
 
 ## Commands and validation
 
@@ -53,7 +53,7 @@ npm run test:coverage
 npm run build
 ```
 
-For backend code or schema changes, run unit tests and PostgreSQL integration tests. For frontend code, run type checking, unit tests, and the production build. Run both sides for GraphQL contract changes. Run the full relevant suite before committing. Run the enabled Playwright journey against the full Compose stack and `node scripts/check-persistence.mjs` for delivery changes.
+For backend code or schema changes, run unit tests and PostgreSQL integration tests. For frontend code, run type checking, unit tests, and the production build. Run both sides for GraphQL contract changes. Run the full relevant suite before committing. Run the enabled Playwright journey against the full Compose stack and `node scripts/check-persistence.mjs` and `node scripts/check-databases.mjs` for delivery changes.
 
 No coverage threshold exists yet; use the generated reports as a baseline and add meaningful behavioral tests with new work.
 

@@ -8,7 +8,7 @@ Gentum's immediate scope is free, open-source financial tracking on one person's
 
 ## Decision
 
-Use one configured local wallet per installation. On first opening, choose direct access or a four-digit PIN. Direct access opens automatically on later visits. PIN protection can be enabled, changed, or disabled in Settings; changing or disabling it requires the current PIN. Lock now revokes all browser sessions for the installation. Other open tabs refresh their state on access-change events or when focused; subsequent financial requests from revoked sessions are rejected.
+Use one configured local wallet per physical database (extended by ADR 0008). On first opening, choose direct access or a four-digit PIN. Direct access opens automatically on later visits. PIN protection can be enabled, changed, or disabled in Settings; changing or disabling it requires the current PIN. Lock now revokes all browser sessions for the selected database. Other open tabs refresh their state on access-change events or when focused; subsequent financial requests from revoked sessions are rejected.
 
 Keep server-issued, hashed, HttpOnly, SameSite Strict session cookies and server-derived ownership even in direct-access mode. Direct access obtains a session through a same-origin JSON POST. PIN sessions use a browser-session cookie, expire server-side after 24 hours, and may remain available across page reloads or browser session restoration. Users should use Lock now before leaving a protected wallet unattended. A PIN protects casual access through the application; it does not encrypt the database, resist an attacker controlling the operating system, or secure an exposed server. Keep the Compose frontend on loopback and Go/PostgreSQL internal.
 
@@ -24,4 +24,8 @@ Legacy registration/login/logout endpoints are removed. Old sessions cannot auth
 
 ## Consequences
 
-The app works locally without an online identity or subscription. Authentication transport changes; the GraphQL finance and integer-cent contracts remain unchanged. Tests cover PIN validation, persistent throttling, concurrent setup, session revocation, recovery-code rotation, data preservation, browser flows, and launcher restart persistence. Browser and persistence tests require an explicitly disposable stack because they now share the installation's single local wallet.
+The app works locally without an online identity or subscription. Authentication transport changes; the GraphQL finance and integer-cent contracts remain unchanged. Tests cover PIN validation, persistent throttling, concurrent setup, session revocation, recovery-code rotation, data preservation, browser flows, and launcher restart persistence. Browser and persistence tests require an explicitly disposable stack because they now share the installation's default local database.
+
+## Multiple database update
+
+[ADR 0008](0008-multiple-local-databases.md) adds a registry and physical databases with independent PINs and recovery codes. Selection belongs to the browser and survives reloads and service restarts; authentication still expires after 24 hours. Unlock or recover a protected target before switching. Failed verification preserves the previous selection and cookie. Installation-wide counters in the original database prevent switching or creating databases from bypassing lockouts. Legacy profiles remain untouched unless explicitly adopted by the existing verified setup flow.

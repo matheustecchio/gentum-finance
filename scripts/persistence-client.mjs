@@ -4,22 +4,28 @@ import assert from "node:assert/strict";
 // socket's close event before the next fetch. Close each verification request
 // explicitly; never retry a registration or financial mutation.
 export function createClient(base) {
-  let cookie;
+  const cookies = new Map();
+  let databaseId;
   return async function call(path, body) {
     const response = await fetch(base + path, {
-      method: "POST",
+      method: body === undefined ? "GET" : "POST",
       headers: {
         "Content-Type": "application/json",
         Origin: base,
         Connection: "close",
-        ...(cookie ? { Cookie: cookie } : {}),
+        ...(cookies.size ? { Cookie: [...cookies].map(([k, v]) => `${k}=${v}`).join("; ") } : {}),
+        ...(databaseId ? { "X-Gentum-Database": databaseId } : {}),
       },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
     assert.equal(response.status, 200, await response.clone().text());
-    if (response.headers.get("set-cookie"))
-      cookie = response.headers.get("set-cookie").split(";")[0];
+    for (const cookie of response.headers.getSetCookie()) {
+      const pair = cookie.split(";", 1)[0];
+      const index = pair.indexOf("=");
+      cookies.set(pair.slice(0, index), pair.slice(index + 1));
+    }
     const result = await response.json();
+    if (path === "/auth/status") databaseId = result.databaseId;
     assert.equal(result.errors, undefined, JSON.stringify(result));
     return result;
   };

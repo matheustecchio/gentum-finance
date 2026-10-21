@@ -9,9 +9,7 @@ if (process.env.GENTUM_VERIFICATION_FIXTURE !== "1") {
   );
 }
 const call = createClient(base);
-const status = await fetch(base + "/auth/status").then((response) =>
-  response.json(),
-);
+const status = await call("/auth/status");
 if (status.setupRequired)
   await call("/auth/setup", { mode: "open", source: "new" });
 else await call("/auth/open", {});
