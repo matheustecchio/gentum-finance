@@ -1,3 +1,5 @@
+import { CategoryColor } from "./CategoryColor";
+import "./categories.css";
 import { OverviewCharts, PrimaryCurrency } from "./Overview";
 import { History, clearFilters, type Filters } from "./History";
 import trashIcon from "../../assets/icons/trash.svg";
@@ -521,15 +523,18 @@ function Wallet({
                 </button>
               </div>
               <button onClick={() => void act("starterCategories")}>
-                Add starter categories
+                Add categories
               </button>
               <ul className="item-list category-list">
                 {data.categories.map((c) => (
                   <li key={c.id}>
-                    <strong>{c.path || c.name}</strong>
-                    <span className="badge">
-                      {c.kind === "INCOME" ? "Income" : "Expense"}
-                    </span>
+                    <div className="category-identity">
+                      <CategoryColor category={c} />
+                      <strong>{c.path || c.name}</strong>
+                      <span className={`badge category-kind-${c.kind.toLowerCase()}`}>
+                        {c.kind === "INCOME" ? "Income" : "Expense"}
+                      </span>
+                    </div>
                     <button
                       className="delete-category"
                       aria-label={`Delete ${c.path || c.name}`}

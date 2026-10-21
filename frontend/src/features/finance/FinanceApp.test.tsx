@@ -210,7 +210,7 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
     ),
   ).toBe(true);
   await userEvent.click(
-    screen.getByRole("button", { name: "Add starter categories" }),
+    screen.getByRole("button", { name: "Add categories" }),
   );
   expect(
     fetcher.mock.calls.some(([, init]) =>
