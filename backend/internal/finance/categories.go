@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"math/big"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -127,4 +128,20 @@ func categoryBreakdown(categories, direct []Row) ([]Row, error) {
 		out = append(out, sums[key])
 	}
 	return out, nil
+}
+
+var categoryColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+func updateCategoryColor(ctx context.Context, tx pgx.Tx, user string, in Row) error {
+	if !categoryColorPattern.MatchString(in["color"]) {
+		return invalid("Choose a color in #RRGGBB format")
+	}
+	result, err := tx.Exec(ctx, `UPDATE category SET color=$3 WHERE user_id=$1 AND id::text=$2`, user, in["id"], strings.ToLower(in["color"]))
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() != 1 {
+		return invalid("Category not found")
+	}
+	return nil
 }

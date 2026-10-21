@@ -38,6 +38,19 @@ func TestHierarchyStarterAggregationAndCSV(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := snap.Categories[0]["id"]
+	if len(snap.Categories[0]["color"]) != 7 {
+		t.Fatal("missing initial color")
+	}
+	must("categoryColor", finance.Row{"id": root, "color": "#A1B2C3"})
+	snap, err = svc.Snapshot(ctx, "2026-10")
+	if err != nil || snap.Categories[0]["color"] != "#a1b2c3" {
+		t.Fatal("color did not persist", err)
+	}
+	for _, color := range []string{"red", "#fff", "#gggggg", "#1234567", ""} {
+		fail("categoryColor", finance.Row{"id": root, "color": color})
+	}
+	fail("categoryColor", finance.Row{"id": security.ID(), "color": "#123456"})
+
 	must("category", finance.Row{"name": "Repairs", "kind": "EXPENSE", "parentId": root})
 	snap, _ = svc.Snapshot(ctx, "2026-10")
 	child := ""
@@ -59,6 +72,10 @@ func TestHierarchyStarterAggregationAndCSV(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreign := finance.Service{Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: owner(other)}
+	if _, err := foreign.Execute(ctx, "categoryColor", finance.Row{"id": root, "color": "#123456"}); err == nil {
+		t.Fatal("foreign color update")
+	}
+
 	if _, err := foreign.Execute(ctx, "category", finance.Row{"name": "Foreign", "kind": "EXPENSE", "parentId": root}); err == nil {
 		t.Fatal("foreign parent")
 	}
