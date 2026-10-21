@@ -8,6 +8,7 @@ import (
 	"embed"
 	"fmt"
 	"hash/crc32"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -39,6 +40,14 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return err
 	}
+	// Filenames sort lexically (V10 before V2); migrations must run numerically.
+	sort.Slice(entries, func(i, j int) bool {
+		version := func(name string) int {
+			n, _ := strconv.Atoi(strings.Split(strings.TrimPrefix(name, "V"), "__")[0])
+			return n
+		}
+		return version(entries[i].Name()) < version(entries[j].Name())
+	})
 	for _, entry := range entries {
 		versionText := strings.Split(strings.TrimPrefix(entry.Name(), "V"), "__")[0]
 		version, err := strconv.Atoi(versionText)

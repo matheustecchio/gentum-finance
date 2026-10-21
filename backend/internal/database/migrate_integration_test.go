@@ -203,3 +203,33 @@ func TestPostgresOwnershipScope(t *testing.T) {
 		t.Fatalf("cross-user accounts: %v, %v", others, err)
 	}
 }
+
+func TestDatabaseRegistryUpgradePreservesCategoryColorsAndAccess(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	// Reconstruct the released V9 schema before adding registry metadata.
+	if _, err := pool.Exec(ctx, `DROP TABLE local_database_selection,local_database,local_installation_attempt; DELETE FROM gentum_schema_migration WHERE version=10;
+ INSERT INTO category(id,user_id,name,kind,color) VALUES('00000000-0000-0000-0000-000000007777','00000000-0000-0000-0000-000000000001','Upgrade fixture','EXPENSE','#123456');
+ INSERT INTO local_access(singleton,user_id,pin_salt,pin_hash,recovery_hash) VALUES(true,'00000000-0000-0000-0000-000000000001','original-salt','original-pin','original-recovery')`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var color, salt, pin, recovery string
+	if err := pool.QueryRow(ctx, `SELECT c.color,l.pin_salt,l.pin_hash,l.recovery_hash FROM category c CROSS JOIN local_access l WHERE c.id='00000000-0000-0000-0000-000000007777'`).Scan(&color, &salt, &pin, &recovery); err != nil {
+		t.Fatal(err)
+	}
+	if color != "#123456" || salt != "original-salt" || pin != "original-pin" || recovery != "original-recovery" {
+		t.Fatal("upgrade changed existing category or access settings", color, salt, pin, recovery)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM gentum_schema_migration WHERE version IN (9,10)`).Scan(&count); err != nil || count != 2 {
+		t.Fatal("missing migration versions", count, err)
+	}
+}
