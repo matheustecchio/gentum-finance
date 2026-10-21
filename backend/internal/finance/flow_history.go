@@ -162,19 +162,28 @@ func (r PostgresRepository) FlowHistory(ctx context.Context, user string, f Flow
 		first, _ := date(earliest)
 		first = bucketStart(first, f.Grouping, f.WeekEnd)
 		cursor := bucketStart(stop, f.Grouping, f.WeekEnd)
-		for len(out.Buckets) < 8 && cursor.Year() >= 1900 {
+		minimum, _ := date("1900-01-01")
+		for len(out.Buckets) < 8 && nextBucket(cursor, f.Grouping).After(minimum) {
 			end := nextBucket(cursor, f.Grouping).AddDate(0, 0, -1).Format("2006-01-02")
 			if end > stop.Format("2006-01-02") {
 				end = stop.Format("2006-01-02")
 			}
-			out.Buckets = append([]FlowBucket{{cursor.Format("2006-01-02"), end}}, out.Buckets...)
+			start := cursor.Format("2006-01-02")
+			if start < "1900-01-01" {
+				start = "1900-01-01"
+			}
+			out.Buckets = append([]FlowBucket{{start, end}}, out.Buckets...)
 			previous := bucketStart(cursor.AddDate(0, 0, -1), f.Grouping, f.WeekEnd)
 			if previous.Before(first) {
 				break
 			}
 			cursor = previous
 		}
-		out.HasEarlier = len(out.Buckets) > 0 && out.Buckets[0].Start > first.Format("2006-01-02")
+		firstDate := first.Format("2006-01-02")
+		if firstDate < "1900-01-01" {
+			firstDate = "1900-01-01"
+		}
+		out.HasEarlier = len(out.Buckets) > 0 && out.Buckets[0].Start > firstDate
 	}
 	if len(out.Buckets) == 0 {
 		return out, tx.Commit(ctx)
