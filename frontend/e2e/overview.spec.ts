@@ -19,6 +19,7 @@ for (const width of [1280, 390]) {
     await page.goto("/");
     await expect(page.getByRole("button", { name: "Food: €0.29" })).toBeVisible();
     expect(requested.at(-1)).toEqual({ start: "2026-10-01", end: "2026-10-21" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.getByLabel("Reporting month")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Next period" })).toBeDisabled();
     await page.getByRole("button", { name: "Week", exact: true }).click();

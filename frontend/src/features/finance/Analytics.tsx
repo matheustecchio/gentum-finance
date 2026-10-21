@@ -95,7 +95,7 @@ export function Analytics({ snapshot, month }: { snapshot: Snapshot; month: stri
     {valid && data && <>
       <section className="panel cash-chart"><h2>Cash flow</h2>
         <p className="chart-legend"><span className="income-key">Income</span><span className="expense-key">Expenses</span><span className="net-key">Net flow</span></p>
-        <div className="flow-viewport"><div className="analytics-flow-track" style={{ minWidth: rangeBuckets(start, end).length * 70 }}>
+        <div className="flow-viewport flow-timeline"><div className="analytics-flow-track" style={{ minWidth: rangeBuckets(start, end).length * 70 }}>
           {[...new Set([...snapshot.accounts.map(a => a.currency), ...data.flows.map(f => f.currency)])].sort().map(currency => <FlowChart key={`${start}:${end}:${currency}`} currency={currency} rows={data.flows} months={rangeBuckets(start, end)} />)}
         </div></div>
       </section>
