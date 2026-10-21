@@ -1,105 +1,129 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { graphql, type Row, type Snapshot } from "./client";
-import { CategoryChart, FlowChart, shiftMonth } from "./Overview";
+import { CategoryChart } from "./Overview";
+import { CashFlowChart, rangeLabel, type Bucket } from "./CashFlowChart";
 
-export type Period = "week" | "month" | "sixMonths" | "year" | "custom";
+export type Period = "week" | "month" | "quarter" | "fourMonths" | "halfYear" | "year" | "fiveYears" | "all" | "custom";
 export function calendarDay(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   return ["year", "month", "day"].map(key => parts.find(p => p.type === key)!.value).join("-");
 }
-function dayShift(day: string, count: number) {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + count);
-  return d.toISOString().slice(0, 10);
-}
-export function periodRange(period: Exclude<Period, "custom">, anchor: string) {
-  if (period === "week") {
-    const offset = (new Date(`${anchor}T00:00:00Z`).getUTCDay() + 6) % 7;
-    const start = dayShift(anchor, -offset);
-    return { start, end: dayShift(start, 6) };
-  }
-  const month = anchor.slice(0, 7);
-  const start = period === "year" ? `${anchor.slice(0, 4)}-01-01` : period === "sixMonths" ? `${shiftMonth(month, -5)}-01` : `${month}-01`;
-  const endMonth = period === "year" ? `${anchor.slice(0, 4)}-12` : month;
-  return { start, end: dayShift(`${shiftMonth(endMonth, 1)}-01`, -1) };
-}
-function rangeLabel(start: string, end: string) {
-  const format = new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  return format.formatRange(new Date(`${start}T00:00:00Z`), new Date(`${end}T00:00:00Z`));
-}
-export function rangeBuckets(start: string, end: string) {
-  const daily = (Date.parse(end) - Date.parse(start)) / 86400000 <= 62;
-  const result: string[] = [];
-  for (let point = daily ? start : start.slice(0, 7); point <= (daily ? end : end.slice(0, 7)); point = daily ? dayShift(point, 1) : shiftMonth(point, 1)) result.push(point);
-  return result;
-}
 export function validRange(start: string, end: string, today: string) {
-  const realDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-  if (!realDate(start) || !realDate(end) || start < "1900-01-01" || start > end || end > today) return false;
-  const limit = new Date(`${start}T00:00:00Z`);
-  limit.setUTCFullYear(limit.getUTCFullYear() + 5);
-  return Date.parse(end) <= limit.getTime();
+  const real = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  return real(start) && real(end) && start >= "1900-01-01" && start <= end && end <= today;
 }
-interface AnalyticsData { flows: Row[]; breakdown: Row[] }
-export function Analytics({ snapshot, month }: { snapshot: Snapshot; month: string }) {
+interface HistoryData { buckets: Bucket[]; flows: Row[]; hasEarlier: boolean }
+const historyQuery = "query FlowHistory($grouping:String!,$weekEnd:Int!,$before:String,$start:String,$end:String){flowHistory(grouping:$grouping,weekEnd:$weekEnd,before:$before,start:$start,end:$end)}";
+const options = [["week", "Week"], ["month", "Month"], ["quarter", "Quarter"], ["fourMonths", "4 months"], ["halfYear", "Half-year"], ["year", "Year"], ["fiveYears", "5 years"], ["all", "All"], ["custom", "Custom"]] as const;
+export function Analytics({ snapshot }: { snapshot: Snapshot; month?: string }) {
   const [today, setToday] = useState(calendarDay);
-  const [period, setPeriod] = useState<Period>("month");
-  const [anchor, setAnchor] = useState(`${month}-01`);
-  const [custom, setCustom] = useState({ start: `${month}-01`, end: today });
-  const [data, setData] = useState<AnalyticsData>();
-  const [error, setError] = useState("");
+  const [period, setPeriod] = useState<Period>("week");
+  const [weekEnd, setWeekEnd] = useState(0);
+  const [settings, setSettings] = useState(false);
+  const [custom, setCustom] = useState({ start: `${today.slice(0, 7)}-01`, end: today });
+  const [history, setHistory] = useState<HistoryData>();
+  const [historyKey, setHistoryKey] = useState("");
+  const [selected, setSelected] = useState<Bucket>();
+  const [breakdown, setBreakdown] = useState<Row[]>();
+  const [breakdownKey, setBreakdownKey] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [spendingError, setSpendingError] = useState("");
   const [retry, setRetry] = useState(0);
-  useEffect(() => { setAnchor(`${month}-01`); }, [month]);
+  const [categoryRetry, setCategoryRetry] = useState(0);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(600);
+  const viewport = useRef<HTMLDivElement>(null);
+  const generation = useRef(0);
+  const inFlight = useRef(false);
+  const interacted = useRef(false);
+  const scrollAnchor = useRef<number | undefined>(undefined);
+  const initialized = useRef(false);
+  const drag = useRef<{ x: number; left: number; mouse: boolean } | undefined>(undefined);
+  const dragged = useRef(false);
+  const requestKey = `${period}:${weekEnd}:${period === "custom" ? `${custom.start}:${custom.end}` : ""}:${today}`;
+  const valid = period !== "custom" || validRange(custom.start, custom.end, today);
   useEffect(() => {
     const update = () => setToday(calendarDay());
-    const timer = window.setInterval(update, 60_000);
-    window.addEventListener("focus", update);
+    const timer = window.setInterval(update, 60_000); window.addEventListener("focus", update);
     return () => { clearInterval(timer); window.removeEventListener("focus", update); };
   }, []);
-  const raw = period === "custom" ? custom : periodRange(period, anchor > today ? today : anchor);
-  const start = raw.start;
-  const end = raw.end > today ? today : raw.end;
-  const valid = validRange(start, end, today) && (period !== "custom" || custom.end <= today);
   useEffect(() => {
-    let active = true;
-    setData(undefined); setError("");
-    if (valid) void graphql<{ analytics: AnalyticsData }>("query Analytics($start:String!,$end:String!){analytics(start:$start,end:$end)}", { start, end })
-      .then(result => { if (active) { if (!result.analytics) throw new Error("Unable to load analytics"); setData(result.analytics); } })
-      .catch((e: unknown) => { if (active) setError(e instanceof Error ? e.message : "Unable to load analytics"); });
+    const version = ++generation.current;
+    initialized.current = false; inFlight.current = false; interacted.current = false; scrollAnchor.current = undefined;
+    setHistory(undefined); setSelected(undefined); setHistoryError(""); setLoadingEarlier(false);
+    if (valid) void graphql<{ flowHistory: HistoryData }>(historyQuery, { grouping: period, weekEnd, ...(period === "custom" ? custom : {}) })
+      .then(r => { if (version !== generation.current) return; if (!r.flowHistory) throw new Error("Unable to load cash flow"); setHistory(r.flowHistory); setHistoryKey(requestKey); setSelected(period === "custom" ? custom : r.flowHistory.buckets.at(-1)); })
+      .catch((e: unknown) => { if (version === generation.current) setHistoryError(e instanceof Error ? e.message : "Unable to load cash flow"); });
+    return () => { generation.current++; };
+  }, [period, weekEnd, custom.start, custom.end, today, snapshot, retry, valid]);
+  useEffect(() => {
+    let active = true; setBreakdown(undefined); setSpendingError("");
+    if (selected) void graphql<{ categorySpending: { breakdown: Row[] } }>("query CategorySpending($start:String!,$end:String!){categorySpending(start:$start,end:$end)}", selected)
+      .then(r => { if (active) { if (!r.categorySpending) throw new Error("Unable to load category spending"); setBreakdown(r.categorySpending.breakdown); setBreakdownKey(`${selected!.start}:${selected!.end}`); } })
+      .catch((e: unknown) => { if (active) setSpendingError(e instanceof Error ? e.message : "Unable to load category spending"); });
     return () => { active = false; };
-  }, [start, end, valid, snapshot, retry]);
-  function navigate(direction: number) {
-    if (period === "custom") return;
-    const next = period === "week" ? dayShift(anchor, direction * 7) : `${shiftMonth(anchor.slice(0, 7), direction * (period === "year" ? 12 : period === "sixMonths" ? 6 : 1))}-01`;
-    setAnchor(next);
+  }, [selected?.start, selected?.end, snapshot, categoryRetry]);
+  useLayoutEffect(() => {
+    const element = viewport.current; if (!element) return;
+    const update = () => setViewportWidth(element.clientWidth || 600);
+    update(); const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(update); observer?.observe(element);
+    return () => observer?.disconnect();
+  }, [!!history]);
+  useLayoutEffect(() => {
+    const element = viewport.current; if (!element || !history) return;
+    if (scrollAnchor.current !== undefined) { element.scrollLeft = scrollAnchor.current; scrollAnchor.current = undefined; }
+    else if (!initialized.current) { element.scrollLeft = element.scrollWidth; initialized.current = true; }
+  }, [history]);
+  async function earlier(force = false) {
+    if (!history?.hasEarlier || inFlight.current || (historyError && !force)) return;
+    const version = generation.current; inFlight.current = true; setLoadingEarlier(true);
+    try {
+      const r = await graphql<{ flowHistory: HistoryData }>(historyQuery, { grouping: period, weekEnd, before: history.buckets[0].start });
+      if (version !== generation.current) return;
+      if (!r.flowHistory || !r.flowHistory.buckets.length || r.flowHistory.buckets.at(-1)!.start >= history.buckets[0].start) throw new Error("Unable to load older history");
+      const element = viewport.current;
+      const oldWidth = Math.max(viewportWidth, history.buckets.length * 150);
+      const newWidth = Math.max(viewportWidth, (history.buckets.length + r.flowHistory.buckets.length) * 150);
+      const left = element?.scrollLeft || 0;
+      const oldSlot = oldWidth / history.buckets.length;
+      const newSlot = newWidth / (history.buckets.length + r.flowHistory.buckets.length);
+      const visibleIndex = Math.floor(left / oldSlot);
+      const shift = (visibleIndex + r.flowHistory.buckets.length + .5) * newSlot - (visibleIndex + .5) * oldSlot;
+      scrollAnchor.current = left + shift;
+      if (drag.current) drag.current.left += shift;
+      setHistory(old => old && ({ buckets: [...r.flowHistory.buckets, ...old.buckets], flows: [...r.flowHistory.flows, ...old.flows], hasEarlier: r.flowHistory.hasEarlier }));
+    } catch (e) { if (version === generation.current) setHistoryError(e instanceof Error ? e.message : "Unable to load older history"); }
+    finally { if (version === generation.current) { inFlight.current = false; setLoadingEarlier(false); } }
   }
-  const atCurrent = period !== "custom" && periodRange(period, anchor).end >= today;
+  const inspectEdge = () => { if (interacted.current && viewport.current && viewport.current.scrollLeft < 150) void earlier(); };
+  const viewHistory = historyKey === requestKey ? history : undefined;
+  const currentBreakdown = breakdownKey === `${selected?.start}:${selected?.end}` ? breakdown : undefined;
+  const width = Math.max(viewportWidth, (viewHistory?.buckets.length || 1) * 150);
+  const currencies = [...new Set([...snapshot.accounts.map(a => a.currency), ...(viewHistory?.flows.map(f => f.currency) || [])])].sort();
   return <>
     <section className="analytics-period" aria-label="Analytics period">
-      <div className="period-options" role="group" aria-label="Period">
-        {([["week", "Week"], ["month", "Month"], ["sixMonths", "6 months"], ["year", "Year"], ["custom", "Custom"]] as const).map(([value, label]) => <button key={value} aria-pressed={period === value} onClick={() => { setPeriod(value); setAnchor(today); }}>{label}</button>)}
-      </div>
-      {period === "custom" ? <div className="period-dates">
-        <label>Start date<input type="date" min="1900-01-01" max={custom.end || today} value={custom.start} onChange={e => setCustom({ ...custom, start: e.target.value })} /></label>
-        <label>End date<input type="date" min={custom.start || "1900-01-01"} max={today} value={custom.end} onChange={e => setCustom({ ...custom, end: e.target.value })} /></label>
-      </div> : <div className="period-navigation">
-        <button aria-label="Previous period" disabled={start <= "1901-01-01"} onClick={() => navigate(-1)}>‹</button>
-        <span>{rangeLabel(start, end)}</span>
-        <button aria-label="Next period" disabled={atCurrent} onClick={() => navigate(1)}>›</button>
-        {!atCurrent && <button onClick={() => setAnchor(today)}>Current period</button>}
-      </div>}
+      <div className="analytics-toolbar"><div className="period-options" role="group" aria-label="Grouping">{options.map(([value, label]) => <button key={value} aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</button>)}</div>
+        <button className="week-settings" aria-label="Week settings" aria-expanded={settings} onClick={() => setSettings(v => !v)} title="Week settings">⚙</button></div>
+      {settings && <div className="week-settings-panel"><label>Week ends on<select value={weekEnd} onChange={e => setWeekEnd(Number(e.target.value))}>{["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, i) => <option key={day} value={i}>{day}</option>)}</select></label></div>}
+      {period === "custom" && <div className="period-dates"><label>Start date<input type="date" min="1900-01-01" max={custom.end || today} value={custom.start} onChange={e => setCustom({ ...custom, start: e.target.value })} /></label><label>End date<input type="date" min={custom.start || "1900-01-01"} max={today} value={custom.end} onChange={e => setCustom({ ...custom, end: e.target.value })} /></label></div>}
     </section>
-    {!valid && <p role="alert">Choose valid dates, ending today or earlier, within five years.</p>}
-    {valid && !data && !error && <p role="status">Loading analytics…</p>}
-    {error && <p role="alert">{error} <button onClick={() => setRetry(v => v + 1)}>Retry analytics</button></p>}
-    {valid && data && <>
-      <section className="panel cash-chart"><h2>Cash flow</h2>
-        <p className="chart-legend"><span className="income-key">Income</span><span className="expense-key">Expenses</span><span className="net-key">Net flow</span></p>
-        <div className="flow-viewport flow-timeline"><div className="analytics-flow-track" style={{ minWidth: rangeBuckets(start, end).length * 70 }}>
-          {[...new Set([...snapshot.accounts.map(a => a.currency), ...data.flows.map(f => f.currency)])].sort().map(currency => <FlowChart key={`${start}:${end}:${currency}`} currency={currency} rows={data.flows} months={rangeBuckets(start, end)} />)}
-        </div></div>
-      </section>
-      <CategoryChart key={`${start}:${end}`} snapshot={{ ...snapshot, breakdown: data.breakdown }} month={rangeLabel(start, end)} />
-    </>}
+    {!valid && <p role="alert">Choose valid dates, ending today or earlier.</p>}
+    {valid && !viewHistory && !historyError && <p role="status">Loading cash flow…</p>}
+    {historyError && <p role="alert">{historyError} <button onClick={() => { if (history) { setHistoryError(""); void earlier(true); } else setRetry(v => v + 1); }}>Retry cash flow</button>{history && <button onClick={() => { setHistoryError(""); setRetry(v => v + 1); }}>Reload history</button>}</p>}
+    {viewHistory && <section className="panel cash-chart"><h2>Cash flow</h2><p className="chart-legend"><span className="income-key">Income</span><span className="expense-key">Expenses</span><span className="net-key">Net flow</span></p>
+      <div ref={viewport} className="flow-viewport grouped-timeline" role="group" aria-label="Cash flow history navigation" tabIndex={0}
+        onScroll={inspectEdge} onWheel={() => { interacted.current = true; }}
+        onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); interacted.current = true; e.currentTarget.scrollLeft += e.key === "ArrowLeft" ? -150 : 150; inspectEdge(); } }}
+        onPointerDown={e => { interacted.current = true; dragged.current = false; drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft, mouse: e.pointerType === "mouse" }; }}
+        onPointerMove={e => { const start = drag.current; if (!start) return; if (Math.abs(e.clientX - start.x) > 6) { dragged.current = true; if (start.mouse) { e.currentTarget.setPointerCapture?.(e.pointerId); e.preventDefault(); e.currentTarget.scrollLeft = start.left - (e.clientX - start.x); } } }}
+        onPointerUp={() => { drag.current = undefined; inspectEdge(); }} onPointerCancel={() => { drag.current = undefined; }}
+        onClickCapture={e => { if (dragged.current) { e.preventDefault(); e.stopPropagation(); } }}>
+        <div className="history-track" style={{ width }}>{(currencies.length ? currencies : ["EUR"]).map(currency => <CashFlowChart key={currency} rows={viewHistory.flows} currency={currency} buckets={viewHistory.buckets} width={width} selected={selected?.start || ""} grouping={period} today={today} onSelect={setSelected} />)}</div>
+      </div>
+      {loadingEarlier && <p role="status">Loading older history…</p>}
+    </section>}
+    {viewHistory && selected && !currentBreakdown && !spendingError && <p role="status">Loading categories…</p>}
+    {spendingError && <p role="alert">{spendingError} <button onClick={() => setCategoryRetry(v => v + 1)}>Retry categories</button></p>}
+    {viewHistory && selected && currentBreakdown && <CategoryChart key={`${selected.start}:${selected.end}`} snapshot={{ ...snapshot, breakdown: currentBreakdown }} month={rangeLabel(selected.start, selected.end)} />}
   </>;
 }

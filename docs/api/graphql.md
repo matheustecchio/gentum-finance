@@ -36,29 +36,51 @@ is needed only for conversion; native-currency wealth remains available offline.
 Conversion uses rational arithmetic and rounds the combined total once to cents,
 ties away from zero. Values outside signed int64 cents are unavailable.
 
-The Overview uses `analytics(start: String!, end: String!): FinanceData` for cash
-flow and categories. Dates are inclusive, valid date-only values from 1900-01-01
-through today in Europe/Dublin, ordered and at most five calendar years apart.
-The result contains `flows` (month/currency/income/expense/net integer-cent strings)
-and `breakdown` (categoryId/currency/direct integer-cent strings). Ranges of up to
-63 dates use YYYY-MM-DD flow keys in the `month` field; longer ranges use YYYY-MM.
-Monthly buckets are clipped to the selected dates. Transfers, opening balances,
-unposted schedules and other owners are excluded. Native currencies stay separate;
-aggregates outside signed int64 cents reject the query. Empty dates render zero bars.
-The original `overview(month:)` contract remains available for wealth and older clients.
+## Grouped cash flow and selected category spending
 
-The UI starts with the current month and offers Week (Monday to Sunday), Month,
-6 months (ending in the selected month), Year (calendar year), and Custom.
-The backend bundles IANA timezone rules so the date boundary also works in the minimal container image.
-Current periods stop today. Previous/next controls move by the selected period;
-future periods are disabled. Custom dates update both charts together and retain
-an inline validation or retry state on failure. Changing periods clears old chart
-results and ignores late responses. Total Wealth retains its current 30-day view.
-Each bar has an amount-only tooltip above it, matching the
-Income, Expenses or Net flow legend color. Pointer, touch and keyboard focus can
-inspect positive, negative and zero values. The wealth card uses a compact
-empty/single-observation state, with a low fixed-height chart only when multiple
-supported daily balances exist. No curve is generated from a lone balance.
+The Overview uses `flowHistory(grouping: String!, weekEnd: Int = 0, before: String,
+start: String, end: String): FinanceData`. Groupings are `week`, `month`, `quarter`,
+`fourMonths`, `halfYear`, `year`, `fiveYears`, `all`, and `custom`.
+
+The response contains `buckets` with inclusive `start`/`end` date strings, `flows`
+with `month` (the bucket start), native `currency`, `income`, `expense`, `net`
+integer-cent strings, and `hasEarlier`. Missing flow rows render as zero values.
+Preset pages have at most eight buckets, stop today in Europe/Dublin and load older
+pages using the first bucket's start as exclusive `before`. Month and larger
+buckets align to the calendar; quarters start January/April/July/October,
+four-month blocks January/May/September, half-years January/July, and five-year
+blocks in years divisible by five (for example 2025–2029). `weekEnd` follows
+Sunday=0 through Saturday=6. Current groups are clipped through today.
+
+`all` returns one bucket from the earliest owned income/expense through today,
+without a five-year limit. Custom requires inclusive, ordered dates from 1900-01-01
+through today and uses daily groups for at most 63 dates, otherwise clipped months.
+Empty histories still expose a current zero-activity group, not fictional amounts.
+Transfers, opening balances, unposted schedules and foreign owners are excluded.
+All SQL aggregates remain numeric until checked against signed int64 cents.
+
+`categorySpending(start: String!, end: String!): FinanceData` returns `breakdown`
+(categoryId/currency/direct integer-cent strings) for exactly the selected group.
+It supports the same date bounds without a five-year cap, allowing All to show
+complete spending. Each category's direct expenses are included once. Currencies
+are separate. This query never loads transaction history.
+
+Overview starts with the current configured week selected. Clicking any part of a
+period group selects its dates and fades all other groups. Dragging, native touch,
+trackpad and keyboard scroll loaded history; prepending preserves the viewport
+anchor and scrolling does not change selection. Group changes select the current
+bucket. The gear at the right of the grouping controls chooses the week-ending
+day for the current Overview visit. Custom keeps its explicit dates until a bucket
+is selected. Errors retain usable history; stale category responses are ignored.
+The old Previous/Next date strip is removed. Month names and interval labels stay
+readable because SVG width grows with the loaded groups instead of shrinking bars.
+
+Categories is a descending horizontal ranking, separately per currency, with
+persisted category colors. Exact amounts stay visible inside wide bars or outside
+short bars. Total Wealth retains its current 30-day behavior independently.
+The original `overview(month:)` and bounded `analytics(start:, end:)` contracts
+remain available for existing consumers. The backend bundles IANA timezone rules
+so reporting dates also work in the minimal runtime container.
 
 Wealth inspection is client-side and uses the exact supplied daily values.
 Horizontal position selects the nearest calendar day across the full plot height;

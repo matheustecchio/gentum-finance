@@ -355,3 +355,42 @@
 .period-options button[aria-pressed="true"] { background: #195c49; color: white; border-color: #195c49; }
 .period-dates label { display: grid; gap: .35rem; }
 .analytics-flow-track { width: 100%; }
+
+.analytics-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.period-options { gap: 6px; }
+.period-options button { padding: 10px 12px; font-size: .88rem; }
+.week-settings { flex: 0 0 42px; font-size: 1.3rem; padding: 6px; }
+.week-settings-panel { padding: 12px; border: 1px solid #d4ded6; border-radius: 12px; }
+.week-settings-panel label { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.grouped-timeline { overflow-x: auto; overflow-y: hidden; max-width: 100%; touch-action: pan-x pan-y; scrollbar-width: thin; overscroll-behavior-x: contain; cursor: grab; }
+.grouped-timeline:active { cursor: grabbing; }
+.history-track .currency-flow svg { display: block; width: auto; height: 240px; overflow: visible; }
+.history-track .currency-flow text { font-size: 12px; fill: #426057; }
+.history-track .period-current { font-size: 10px; fill: #5a756b; }
+.flow-period { cursor: pointer; outline: none; }
+.period-bar { transition: opacity 160ms ease; }
+.flow-period.is-muted .period-bar { opacity: .24; }
+.flow-period.is-selected .period-bar { opacity: 1; }
+.flow-period:focus-visible .period-hit { stroke: #ad670d; stroke-width: 2px; }
+.category-chart-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.category-chart-heading .chart-note { margin: 0; }
+.category-ranking { list-style: none; padding: 0; display: grid; gap: 18px; }
+.category-rank-row { display: grid; grid-template-columns: minmax(100px, 25%) minmax(0, 1fr); align-items: center; gap: 16px; }
+.category-rank-name { font-weight: 600; overflow-wrap: anywhere; }
+.category-rank-track { position: relative; height: 42px; margin-right: var(--amount-reserve, 160px); }
+.category-rank-fill { height: 100%; border-radius: 7px; min-width: 2px; }
+.category-rank-amount { position: absolute; top: 50%; transform: translateY(-50%); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.category-rank-amount.inside { transform: translate(-100%, -50%); padding-right: 12px; }
+.category-rank-amount.outside { padding-left: 10px; }
+@media (max-width: 600px) {
+  .category-rank-row { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+
+  .period-options button { padding: 9px 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .period-bar { transition: none; } }
+
+.category-currency { position: relative; }
+.category-amount-measure { position: absolute; visibility: hidden; white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; }
+.category-rank-track.is-stacked { margin-right: 0; height: auto; min-height: 42px; }
+.category-rank-track.is-stacked .category-rank-fill { height: 32px; }
+.category-rank-track.is-stacked .category-rank-amount { position: static; display: block; transform: none; padding: 6px 0 0; white-space: normal; overflow-wrap: anywhere; }

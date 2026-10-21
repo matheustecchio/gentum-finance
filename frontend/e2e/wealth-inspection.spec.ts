@@ -35,7 +35,8 @@ async function setup(page: Page, change = "-7410", gap = false) {
       json: {
         data: {
           overview,
-          analytics: { flows: [], breakdown: [] },
+          flowHistory: { buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false },
+          categorySpending: { breakdown: [] },
           financeSummary: {
             accounts: [{ id: "a", currency: "EUR" }],
             categories: [{ id: "food", name: "Food", kind: "EXPENSE" }],

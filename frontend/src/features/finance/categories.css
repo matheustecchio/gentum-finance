@@ -1,5 +1,5 @@
 .category-list.category-list li {
-  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
 }
 .category-identity {
@@ -28,3 +28,9 @@ input.category-color {
 .category-color::-webkit-color-swatch { border: 0; border-radius: 2px; }
 .category-color::-moz-color-swatch { border: 0; border-radius: 2px; }
 .category-color:focus-visible { outline: 2px solid #24523c; outline-offset: 3px; }
+
+.category-actions { display: flex; gap: 4px; }
+
+.edit-category { min-width: 44px; min-height: 44px; padding: 10px; color: #52615a; background: transparent; }
+.edit-category svg { display: block; width: 22px; height: 22px; }
+.edit-category:hover, .edit-category:focus-visible { color: #185d48; background: #e4eee8; }
