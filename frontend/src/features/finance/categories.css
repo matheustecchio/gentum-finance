@@ -5,15 +5,14 @@
 .category-identity {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
 }
-.category-identity strong { max-width: 100%; }
+.category-identity strong { max-width: 100%; flex: 0 1 auto; }
 .category-identity .badge { flex-shrink: 0; }
 .category-identity .category-kind-expense { background: #fce8e6; color: #9d3022; }
 .category-identity .category-kind-income { background: #edf3e5; color: #24523c; }
-.category-color-control { display: inline-flex; align-items: center; gap: 8px; }
+.category-color-control { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
 .category-color-control [role="alert"] { color: #9d3022; font-size: .8rem; }
 input.category-color {
   width: 26px;
