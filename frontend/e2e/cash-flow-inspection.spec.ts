@@ -13,7 +13,7 @@ for (const width of [1280, 390]) {
   });
   await page.goto("/");
   const current=page.getByRole("button",{name:"Select 19–21 Oct 2026 in EUR",exact:true});
-  await current.focus();await expect(page.getByRole("tooltip")).toHaveText("€90,071,992,547,409.93");await current.press("Escape");await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await current.focus();await expect(page.getByRole("tooltip")).toHaveText("€90,071,992,547,409.93");await current.press("ArrowUp");await expect(page.getByRole("tooltip")).toHaveText("€0.00");await current.press("Escape");await expect(page.getByRole("tooltip")).toHaveCount(0);
   fail=true;const old=page.getByRole("button",{name:"Select 12–18 Oct 2026 in EUR",exact:true});await old.focus();await old.press("Enter");await expect(page.getByRole("alert")).toContainText("Categories offline");await expect(page.getByRole("heading",{name:"Categories",exact:true})).toHaveCount(0);
   fail=false;await page.getByRole("button",{name:"Retry categories"}).click();await expect(page.getByText("No spending in this period.")).toBeVisible();
  });

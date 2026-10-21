@@ -55,6 +55,24 @@ for (const width of [1280, 390]) {
     await page.mouse.move(navBox.x + navBox.width / 2 - 90, navBox.y + 70, { steps: 6 }); await page.mouse.up();
     expect(await nav.evaluate(e => e.scrollLeft)).toBeGreaterThan(scrollBefore);
     await expect(page.locator(".category-chart .chart-note")).toHaveText(selectedDate);
+    if (width === 390) {
+      await nav.evaluate(e => { e.scrollLeft = e.scrollWidth; });
+      const touchBox = (await nav.boundingBox())!;
+      const touchBefore = await nav.evaluate(e => e.scrollLeft);
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+      const x = touchBox.x + touchBox.width / 2, y = touchBox.y + 85;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+      for (let step = 1; step <= 6; step++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + step * 12, y }] });
+        await page.waitForTimeout(20);
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await expect.poll(() => nav.evaluate(e => e.scrollLeft)).toBeLessThan(touchBefore - 20);
+      await expect(page.locator(".category-chart .chart-note")).toHaveText(selectedDate);
+      await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+      await cdp.detach();
+    }
     await page.getByRole("button", { name: "Week settings" }).click(); await page.getByLabel("Week ends on").selectOption("3");
     await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
     for (const label of ["Month", "Quarter", "4 months", "Half-year", "Year", "5 years", "All"]) {
