@@ -213,16 +213,10 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 		if err != nil {
 			return "", err
 		}
-		for _, row := range data {
-			if legacy, ok := row["account_id"]; ok {
-				row["accountId"] = legacy
-			} else {
-				row["accountId"] = in["accountId"]
-			}
-			row["categoryId"] = row["category_id"]
-			row["amount"] = row["amount_cents"]
+		for i, row := range data {
+			row = importRow(row, in["accountId"])
 			if err = insertEntry(ctx, tx, user, row, "", ""); err != nil {
-				return "", err
+				return "", csvRecordError(i+2, err)
 			}
 		}
 		result = "Imported " + strconv.Itoa(len(data)) + " transactions"
@@ -249,18 +243,9 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 	return result, nil
 }
 func validateEntry(ctx context.Context, tx pgx.Tx, user string, in Row) (int64, error) {
-	amount, err := positive(in["amount"])
+	amount, err := validateEntryValues(in)
 	if err != nil {
 		return 0, err
-	}
-	if _, err = date(in["date"]); err != nil {
-		return 0, err
-	}
-	if _, err = description(in["description"]); err != nil {
-		return 0, err
-	}
-	if in["kind"] != "INCOME" && in["kind"] != "EXPENSE" {
-		return 0, invalid("Choose income or expense")
 	}
 	var count int
 	err = tx.QueryRow(ctx, `SELECT count(*) FROM account a,category c WHERE a.user_id=$1 AND a.id=$2 AND NOT a.archived AND c.user_id=$1 AND c.id=$3 AND c.kind=$4`, user, in["accountId"], in["categoryId"], in["kind"]).Scan(&count)
@@ -334,4 +319,21 @@ func checkBalances(ctx context.Context, tx pgx.Tx, user string) error {
 	}
 
 	return nil
+}
+
+func validateEntryValues(in Row) (int64, error) {
+	amount, err := positive(in["amount"])
+	if err != nil {
+		return 0, err
+	}
+	if _, err = date(in["date"]); err != nil {
+		return 0, err
+	}
+	if _, err = description(in["description"]); err != nil {
+		return 0, err
+	}
+	if in["kind"] != "INCOME" && in["kind"] != "EXPENSE" {
+		return 0, invalid("Choose income or expense")
+	}
+	return amount, nil
 }

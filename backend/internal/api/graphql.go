@@ -84,6 +84,23 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			fields[key] = &graphql.InputObjectFieldConfig{Type: graphql.String}
 		}
 		input := graphql.NewInputObject(graphql.InputObjectConfig{Name: "FinanceInput", Fields: fields})
+		financeFields["previewImport"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"input": {Type: graphql.NewNonNull(input)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			values := finance.Row{}
+			for key, value := range p.Args["input"].(map[string]interface{}) {
+				if text, ok := value.(string); ok {
+					values[key] = text
+				}
+			}
+			result, err := fs.PreviewImport(p.Context, values)
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to preview CSV")
+			}
+			return result, nil
+		}}
 		financeFields["flowHistory"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"grouping": {Type: graphql.NewNonNull(graphql.String)}, "weekEnd": {Type: graphql.Int, DefaultValue: 0}, "before": {Type: graphql.String}, "start": {Type: graphql.String}, "end": {Type: graphql.String}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			value := func(key string) string { v, _ := p.Args[key].(string); return v }
 			weekEnd, _ := p.Args["weekEnd"].(int)

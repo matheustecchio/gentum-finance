@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { FinanceApp } from "./FinanceApp";
@@ -25,6 +25,7 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
                 }
               : {
                   data: {
+                    previewImport: { count: 1, errors: [], transactions: [{ record: "2", account: "Wallet", category: "Home / Repairs", currency: "EUR", date: "2026-10-17", kind: "EXPENSE", amount: "29", description: "Test" }] },
                     flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
                     categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
@@ -140,6 +141,7 @@ function mockLedger(
               data: body.variables?.action
                 ? { executeFinance: "Saved" }
                 : {
+                    previewImport: { count: 1, errors: [], transactions: [{ record: "2", account: "Wallet", category: "Home / Repairs", currency: "EUR", date: "2026-10-17", kind: "EXPENSE", amount: "29", description: "Test" }] },
                     flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
                     categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
@@ -271,6 +273,8 @@ it("uses the single eligible destination and keeps only category ID references",
     screen.getByLabelText("CSV content"),
     "2026-10-17,EXPENSE,child,29,Test",
   );
+  await userEvent.click(screen.getByRole("button", { name: "Preview CSV" }));
+  await screen.findByRole("heading", { name: "Import preview: 1 transactions" });
   await userEvent.click(screen.getByRole("button", { name: "Import CSV" }));
   expect(
     fetcher.mock.calls.some(([, init]) =>
@@ -299,7 +303,8 @@ it("requires a destination choice for multiple accounts and explains missing acc
     screen.getByLabelText("Import into account"),
     "b",
   );
-  expect(screen.getByRole("button", { name: "Import CSV" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Preview CSV" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Import CSV" })).toBeDisabled();
   expect(screen.getByText("Destination: Two · USD")).toBeVisible();
   view.unmount();
   mockLedger([]);
@@ -586,7 +591,8 @@ for (const pinEnabled of [false, true]) {
                 ? { setupRequired: false, pinEnabled, unlocked: true }
                 : {
                     data: {
-                      flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                      previewImport: { count: 1, errors: [], transactions: [{ record: "2", account: "Wallet", category: "Home / Repairs", currency: "EUR", date: "2026-10-17", kind: "EXPENSE", amount: "29", description: "Test" }] },
+                    flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
                     categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                         currency: "EUR",
@@ -667,4 +673,69 @@ it("retains the rename text after a server error and closes with Escape", async 
  fireEvent(screen.getByRole("dialog"), new Event("cancel", { bubbles: true, cancelable: true }));
  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
  expect(trigger).toHaveFocus();
+});
+
+for (const fails of [false, true]) {
+  it(`blocks duplicate CSV writes and recovers after ${fails ? "failure" : "success"}`, async () => {
+    const base = mockLedger();
+    let complete!: (response: Response) => void;
+    let writes = 0;
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (body.variables?.action === "import") {
+        writes++;
+        return new Promise<Response>(resolve => { complete = resolve; });
+      }
+      return base(url, init);
+    }));
+    render(<FinanceApp />);
+    await screen.findByRole("heading", {name:"Total Wealth"});
+    await userEvent.click(screen.getByRole("button", {name:"Import & export"}));
+    fireEvent.change(screen.getByLabelText("CSV content"), {target:{value:"date,kind,category_id,amount_cents,description\n2026-10-17,EXPENSE,child,29,Test"}});
+    await userEvent.click(screen.getByRole("button", {name:"Preview CSV"}));
+    await screen.findByRole("region", {name:"CSV preview"});
+    const button=screen.getByRole("button", {name:"Import CSV"});
+    act(() => { button.click(); button.click(); button.click(); });
+    expect(writes).toBe(1);
+    expect(screen.getByRole("button", {name:"Importing…"})).toBeDisabled();
+    await act(async () => complete(new Response(JSON.stringify(fails ? {errors:[{message:"Import rejected"}]} : {data:{executeFinance:"Imported 1 transactions"}}))));
+    if (fails) {
+      await screen.findByText("Import rejected");
+      expect(screen.getByRole("button", {name:"Import CSV"})).toBeEnabled();
+    } else {
+      await screen.findByText("Imported 1 transactions");
+      await userEvent.click(screen.getByRole("button", {name:"Preview CSV"}));
+      await waitFor(() => expect(screen.getByRole("button", {name:"Import CSV"})).toBeEnabled());
+    }
+    expect(writes).toBe(1);
+    await userEvent.click(screen.getByRole("button", {name:"Import CSV"}));
+    expect(writes).toBe(2);
+    await act(async () => complete(new Response(JSON.stringify({data:{executeFinance:"Imported 1 transactions"}}))));
+  });
+}
+it("invalidates CSV preview on content or destination changes and blocks row errors", async () => {
+ const base=mockLedger([{id:"a",name:"One",type:"CASH",currency:"EUR",balance:"0"},{id:"b",name:"Two",type:"CASH",currency:"USD",balance:"0"}]);
+ let invalid=false;
+ vi.stubGlobal("fetch",vi.fn(async (url:string,init?:RequestInit) => {
+  const body=init?.body?JSON.parse(String(init.body)):{};
+  if (invalid && body.query?.includes("previewImport")) return new Response(JSON.stringify({data:{previewImport:{count:1,transactions:[],errors:[{record:"2",message:"Invalid amount"}]}}}));
+  return base(url,init);
+ }));
+ render(<FinanceApp />);await screen.findByRole("heading",{name:"Total Wealth"});
+ await userEvent.click(screen.getByRole("button",{name:"Import & export"}));
+ await userEvent.selectOptions(screen.getByLabelText("Import into account"),"a");
+ fireEvent.change(screen.getByLabelText("CSV content"),{target:{value:"csv"}});
+ await userEvent.click(screen.getByRole("button",{name:"Preview CSV"}));
+ await waitFor(()=>expect(screen.getByRole("button",{name:"Import CSV"})).toBeEnabled());
+ await userEvent.selectOptions(screen.getByLabelText("Import into account"),"b");
+ expect(screen.queryByRole("region",{name:"CSV preview"})).not.toBeInTheDocument();
+ expect(screen.getByRole("button",{name:"Import CSV"})).toBeDisabled();
+ await userEvent.click(screen.getByRole("button",{name:"Preview CSV"}));
+ await screen.findByRole("region",{name:"CSV preview"});
+ fireEvent.change(screen.getByLabelText("CSV content"),{target:{value:"different csv"}});
+ expect(screen.getByRole("button",{name:"Import CSV"})).toBeDisabled();
+ invalid=true;
+ await userEvent.click(screen.getByRole("button",{name:"Preview CSV"}));
+ await screen.findByText("CSV record 2: Invalid amount");
+ expect(screen.getByRole("button",{name:"Import CSV"})).toBeDisabled();
 });
