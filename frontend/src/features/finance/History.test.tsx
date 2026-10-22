@@ -129,3 +129,44 @@ it("shows loading, distinct empty states and retryable request errors", async ()
   render(<Harness />);
   await screen.findByText("No transactions yet. Add your first transaction.");
 });
+
+it("edits exact cents, validates, cancels and refreshes history", async () => {
+  let current = { ...entry };
+  const writes: Record<string, unknown>[] = [];
+  const saved = vi.fn(async () => {});
+  vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+    const { query, variables } = JSON.parse(init.body);
+    if (query.includes("mutation")) {
+      writes.push(variables);
+      current = { ...current, ...variables.input };
+      return new Response(JSON.stringify({ data: { executeFinance: "Saved" } }));
+    }
+    return new Response(JSON.stringify({ data: { entryHistory: { entries: [current], nextCursor: "", hasEntries: true } } }));
+  }));
+  render(<History categories={categories} accounts={[{id:"a",name:"Wallet"}]} filters={clearFilters} onFilters={() => {}} onSaved={saved} />);
+  await userEvent.click(await screen.findByRole("button", {name:"Edit transaction"}));
+  expect(screen.getByLabelText("Amount")).toHaveValue("90071992547409.93");
+  await userEvent.click(screen.getByRole("button", {name:"Cancel"}));
+  expect(writes).toHaveLength(0);
+  await userEvent.click(screen.getByRole("button", {name:"Edit transaction"}));
+  await userEvent.clear(screen.getByLabelText("Amount"));
+  await userEvent.type(screen.getByLabelText("Amount"), "0");
+  await userEvent.click(screen.getByRole("button", {name:"Save correction"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("positive");
+  expect(writes).toHaveLength(0);
+  await userEvent.clear(screen.getByLabelText("Amount"));
+  await userEvent.type(screen.getByLabelText("Amount"), "12.34");
+  await userEvent.clear(screen.getByLabelText("Description"));
+  await userEvent.type(screen.getByLabelText("Description"), "Corrected");
+  await userEvent.click(screen.getByRole("button", {name:"Save correction"}));
+  await screen.findByRole("cell", {name:"Corrected"});
+  expect(saved).toHaveBeenCalledOnce();
+  expect(writes[0].input).toMatchObject({ id:"e", amount:"1234", description:"Corrected" });
+});
+
+it("hides editing for transfers and recurring entries", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({data:{entryHistory:{entries:[{...entry,id:"transfer",kind:"TRANSFER_OUT",transferId:"t"},{...entry,id:"scheduled",recurringId:"r"}],nextCursor:"",hasEntries:true}}}))));
+  render(<Harness />);
+  await screen.findByText("TRANSFER OUT");
+  expect(screen.queryByRole("button",{name:"Edit transaction"})).not.toBeInTheDocument();
+});

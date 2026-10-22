@@ -30,7 +30,7 @@ All physical databases, the registry, browser selections and access settings liv
 - Overview shows Total Wealth in the saved primary currency, plus native-currency cash flow and category spending. Chart inspection supports pointer, touch and keyboard. Cash Flow loads older history continuously and stops at the current Europe/Dublin month. See [reporting rules](api/graphql.md) for coverage, exchange rates and unavailable values.
 - Recurring income and expenses are created only by **Run due transactions**, through today's UTC date. Runs are idempotent, handle month ends and can be stopped. There is no scheduled background execution.
 - CSV imports are all-or-nothing and additive: importing twice creates duplicate entries. Export downloads a ZIP with one CSV per account across all history. See the [CSV contract](api/finance.md#csv-interchange) for headers, account selection, legacy files and spreadsheet-safe descriptions.
-- This MVP does not offer transaction editing/deletion or automatic bank connections.
+- Transaction history supports corrections to non-transfer, non-recurring income and expenses. Account and kind stay fixed. This MVP does not offer transaction deletion or automatic bank connections.
 
 ### Local access
 

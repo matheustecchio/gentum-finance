@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { graphql, type Row } from "./client";
-import { formatMoney } from "../accounts/money";
+import { useEffect, useRef, useState } from "react";
+import { execute, graphql, type Row } from "./client";
+import { formatMoney, toCents } from "../accounts/money";
 export type Filters = {
   start: string;
   end: string;
@@ -19,12 +19,18 @@ export function History({
   accounts,
   filters,
   onFilters,
+  onSaved,
 }: {
   categories: Row[];
   accounts: Row[];
   filters: Filters;
   onFilters: (f: Filters) => void;
+  onSaved?: () => Promise<void>;
 }) {
+  const [editing, setEditing] = useState<Row>();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [editError, setEditError] = useState("");
   const [cursors, setCursors] = useState([""]);
   const [page, setPage] = useState<Page>();
   const [error, setError] = useState("");
@@ -64,6 +70,32 @@ export function History({
   return (
     <section className="panel">
       <h2>Transaction history</h2>
+      {editing && <form key={editing.id} aria-label="Edit transaction" onSubmit={async (event) => {
+        event.preventDefault();
+        if (savingRef.current) return;
+        savingRef.current = true; setSaving(true); setEditError("");
+        const values = Object.fromEntries(new FormData(event.currentTarget).entries()) as Row;
+        try {
+          const amount = toCents(values.amount);
+          if (BigInt(amount) <= 0n) throw new Error("Amount must be positive");
+          await execute("editTransaction", { ...values, id: editing.id, amount });
+          setEditing(undefined); setCursors([""]); setRetry(v => v + 1);
+          await onSaved?.();
+        } catch (e) { setEditError(e instanceof Error ? e.message : "Unable to save correction"); }
+        finally { savingRef.current = false; setSaving(false); }
+      }}>
+        <h3>Edit transaction</h3>
+        <p>{accounts.find(a => a.id === editing.accountId)?.name} · {editing.kind} · {editing.currency}</p>
+        <label>Amount<input name="amount" required inputMode="decimal" defaultValue={`${BigInt(editing.amount) / 100n}.${(BigInt(editing.amount) % 100n).toString().padStart(2, "0")}`} /></label>
+        <label>Date<input name="date" required type="date" min="1900-01-01" max="9998-12-31" defaultValue={editing.date} /></label>
+        <label>Description<input name="description" maxLength={200} defaultValue={editing.description} /></label>
+        <label>Transaction category<select name="categoryId" required defaultValue={editing.categoryId}>
+          {categories.filter(c => c.kind === editing.kind).map(c => <option key={c.id} value={c.id}>{c.path || c.name}</option>)}
+        </select></label>
+        {editError && <p role="alert">{editError}</p>}
+        <button type="submit" disabled={saving}>{saving ? "Saving…" : "Save correction"}</button>
+        <button type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</button>
+      </form>}
       <div className="form-grid">
         <label>
           Start date
@@ -159,6 +191,7 @@ export function History({
                     <th>Description</th>
                     <th>Kind</th>
                     <th>Amount</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -182,6 +215,7 @@ export function History({
                         {formatMoney(e.amount, e.currency)}{" "}
                         <small>{e.currency}</small>
                       </td>
+                      <td>{["INCOME", "EXPENSE"].includes(e.kind) && !e.transferId && !e.recurringId && <button disabled={saving} onClick={() => { setEditing({ ...e }); setEditError(""); }}>Edit transaction</button>}</td>
                     </tr>
                   ))}
                 </tbody>

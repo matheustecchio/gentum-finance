@@ -589,6 +589,7 @@ function Wallet({
             accounts={data.accounts}
             filters={filters}
             onFilters={setFilters}
+            onSaved={load}
           />
         )}
         {deleting && (
