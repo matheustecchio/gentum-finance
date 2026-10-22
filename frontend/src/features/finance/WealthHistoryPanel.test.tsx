@@ -10,17 +10,17 @@ beforeEach(()=>{vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date("2
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();});
 it("loads all supported groupings, pages history and applies Custom independently of Cash flow",async()=>{
  const calls:Record<string,unknown>[]=[];
- vi.stubGlobal("fetch",vi.fn(async(_url:string,init?:RequestInit)=>{const body=JSON.parse(String(init?.body));calls.push(body);return new Response(JSON.stringify({data:body.query.includes("WealthHistory")?{wealthHistory:history}:body.query.includes("FlowHistory")?{flowHistory:{buckets:[buckets[1]],flows:[],hasEarlier:false}}:{categorySpending:{breakdown:[]}}}));}));
+ vi.stubGlobal("fetch",vi.fn(async(_url:string,init?:RequestInit)=>{const body=JSON.parse(String(init?.body));calls.push(body);return new Response(JSON.stringify({data:body.query.includes("WealthHistory")?{wealthHistory:history}:body.query.includes("FlowHistory")?{cashFlowPage: { start: "2026-10-01", end: "2026-10-31", today: "2026-10-21", grouping:"month", previous:"2026-09-30", next:"", buckets:[{start:"2026-10-01",end:"2026-10-31"}], flows:[], totals:[], incoming:[], outgoing:[], entries:[], trendBuckets:[], trendFlows:[] }, flowHistory:{buckets:[buckets[1]],flows:[],hasEarlier:false}}:{categorySpending:{breakdown:[]}}}));}));
  const snapshot:Snapshot={accounts:[],categories:[],entries:[],totals:[],budgets:[],recurring:[]};
  render(<><Analytics snapshot={snapshot}/><WealthCard data={data}/></>);
  await screen.findByRole("slider");
- const card=screen.getByRole("region",{name:"Total Wealth"});const flow=document.querySelector(".cash-chart")!;
+ const card=screen.getByRole("region",{name:"Total Wealth"});const flow=document.querySelector(".analytics-dashboard")!;
  for(const [name,grouping] of [["Month","month"],["Quarter","quarter"],["Semester","halfYear"],["Year","year"],["5 years","fiveYears"],["All","all"]]){
   fireEvent.click(within(card).getByRole("button",{name}));
   await waitFor(()=>expect(calls.some(c=>(c.variables as Record<string,unknown>).grouping===grouping && String(c.query).includes("WealthHistory"))).toBe(true));
   await screen.findByRole("slider");
  }
- expect(within(flow as HTMLElement).getByRole("button",{name:"Week"})).toHaveAttribute("aria-pressed","true");
+ expect(within(flow as HTMLElement).getByRole("button",{name:"Month"})).toHaveAttribute("aria-pressed","true");
  expect(within(card).getByText("€100.00",{selector:".wealth-value > strong"})).toBeVisible();
  fireEvent.click(within(card).getByRole("button",{name:"Older wealth history"}));
  await waitFor(()=>expect((calls.at(-1)?.variables as Record<string,unknown>).before).toBe("2016-01-01"));

@@ -55,7 +55,7 @@ for (const width of [1280, 390]) {
       await route.fulfill({
         json: {
           data: {
-            flowHistory: { buckets: [{ start: "2026-10-01", end: "2026-10-31", label: "October 2026" }], flows: [], hasEarlier: false },
+            cashFlowPage:{start:"2026-10-01",end:"2026-10-31",today:"2026-10-21",buckets:[],flows:[],totals:[],incoming:[],outgoing:[],entries:[]},flowHistory: { buckets: [{ start: "2026-10-01", end: "2026-10-31", label: "October 2026" }], flows: [], hasEarlier: false },
             categorySpending: { breakdown: [] },
             financeSummary: {
               accounts,

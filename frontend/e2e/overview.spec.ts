@@ -1,132 +1,267 @@
 import { expect, test } from "@playwright/test";
 for (const width of [1280, 390]) {
-  test(`Grouped cash flow selection, ranking and colors at ${width}px`, async ({ page, baseURL }) => {
-    test.skip(process.env.GENTUM_VERIFICATION_FIXTURE !== "1", "Requires a disposable full stack");
+  test(`Calendar Analytics workflow at ${width}px`, async ({
+    page,
+    baseURL,
+  }) => {
+    test.skip(
+      process.env.GENTUM_VERIFICATION_FIXTURE !== "1",
+      "Requires a disposable full stack",
+    );
     await page.setViewportSize({ width, height: 900 });
     const origin = baseURL!;
-    let status = await page.request.get("/auth/status").then(r => r.json());
+    let status = await page.request.get("/auth/status").then((r) => r.json());
     const post = async (path: string, data: unknown) => {
-      const response = await page.request.post(path, { data, headers: { Origin: origin, ...(status.databaseId ? { "X-Gentum-Database": status.databaseId } : {}) } });
+      const response = await page.request.post(path, {
+        data,
+        headers: {
+          Origin: origin,
+          ...(status.databaseId
+            ? { "X-Gentum-Database": status.databaseId }
+            : {}),
+        },
+      });
       expect(response.ok(), await response.text()).toBe(true);
-      const result = await response.json(); expect(result.errors).toBeUndefined(); return result;
+      const result = await response.json();
+      expect(result.errors).toBeUndefined();
+      return result;
     };
-    if (status.setupRequired) await post("/auth/setup", { source: "new", mode: "open" }); else if (!status.unlocked) await post("/auth/open", {});
-    status = await page.request.get("/auth/status").then(r => r.json());
+    if (status.setupRequired)
+      await post("/auth/setup", { source: "new", mode: "open" });
+    else if (!status.unlocked) await post("/auth/open", {});
+    status = await page.request.get("/auth/status").then((r) => r.json());
     const name = `Overview fixture ${width} ${Date.now()}`;
     await post("/databases/create", { name, mode: "open" });
-    const registry = await page.request.get("/databases", { headers: { "X-Gentum-Database": status.databaseId } }).then(r => r.json());
-    await post("/databases/select", { id: registry.databases.find((d: { name: string }) => d.name === name).id });
-    status = await page.request.get("/auth/status").then(r => r.json());
-    const gql = (query: string, variables = {}) => post("/graphql", { query, variables });
-    const execute = (action: string, input: Record<string, string>) => gql("mutation($action:String!,$input:FinanceInput!){executeFinance(action:$action,input:$input)}", { action, input });
-    const account = (await gql('mutation{createAccount(input:{name:"Chart fixture",type:CASH,currency:"EUR",initialBalance:"1000000"}){id}}')).data.createAccount.id;
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-    const day = (offset: number) => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
-    const summary = (await gql(`{financeSummary(month:"${today.slice(0, 7)}")}`)).data.financeSummary;
-    const category = (name: string) => summary.categories.find((c: { name: string }) => c.name === name).id;
-    for (const [label, color] of [["Rent", "#ecc05b"], ["Dining out", "#ad5e84"]]) await execute("categoryColor", { id: category(label), color });
-    for (const [label, amount] of [["Rent", "120000"], ["Dining out", "7230"]]) await execute("transaction", { accountId: account, categoryId: category(label), kind: "EXPENSE", amount, date: today, description: "Fictional current-week expense" });
-    for (let i = 1; i <= 15; i++) await execute("transaction", { accountId: account, categoryId: category("Groceries"), kind: "EXPENSE", amount: "1000", date: day(-i * 7), description: "Fictional previous-week expense" });
-    await execute("transaction", { accountId: account, categoryId: category("Groceries"), kind: "EXPENSE", amount: "100", date: "2017-01-01", description: "Fictional old history" });
+    const registry = await page.request
+      .get("/databases", {
+        headers: { "X-Gentum-Database": status.databaseId },
+      })
+      .then((r) => r.json());
+    await post("/databases/select", {
+      id: registry.databases.find((d: { name: string }) => d.name === name).id,
+    });
+    status = await page.request.get("/auth/status").then((r) => r.json());
+    const gql = (query: string, variables = {}) =>
+      post("/graphql", { query, variables });
+    const execute = (action: string, input: Record<string, string>) =>
+      gql(
+        "mutation($action:String!,$input:FinanceInput!){executeFinance(action:$action,input:$input)}",
+        { action, input },
+      );
+    const account = (
+      await gql(
+        'mutation{createAccount(input:{name:"Chart fixture",type:CASH,currency:"EUR",initialBalance:"1000000"}){id}}',
+      )
+    ).data.createAccount.id;
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Dublin",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const day = (offset: number) => {
+      const d = new Date(`${today}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + offset);
+      return d.toISOString().slice(0, 10);
+    };
+    const summary = (
+      await gql(`{financeSummary(month:"${today.slice(0, 7)}")}`)
+    ).data.financeSummary;
+    const category = (name: string) =>
+      summary.categories.find((c: { name: string }) => c.name === name).id;
+    for (const [label, color] of [
+      ["Rent", "#ecc05b"],
+      ["Dining out", "#ad5e84"],
+    ])
+      await execute("categoryColor", { id: category(label), color });
+    for (const [label, amount] of [
+      ["Rent", "120000"],
+      ["Dining out", "7230"],
+    ])
+      await execute("transaction", {
+        accountId: account,
+        categoryId: category(label),
+        kind: "EXPENSE",
+        amount,
+        date: today,
+        description: "Fictional current-week expense",
+      });
+    for (let i = 1; i <= 15; i++)
+      await execute("transaction", {
+        accountId: account,
+        categoryId: category("Groceries"),
+        kind: "EXPENSE",
+        amount: "1000",
+        date: day(-i * 7),
+        description: "Fictional previous-week expense",
+      });
+    await execute("transaction", {
+      accountId: account,
+      categoryId: category("Groceries"),
+      kind: "EXPENSE",
+      amount: "100",
+      date: "2017-01-01",
+      description: "Fictional old history",
+    });
     await page.goto("/");
-    await expect(page.locator(".cash-chart").getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
-    await expect(page.locator(".category-ranking li").first()).toContainText("Rent");
-    await expect(page.getByRole("listitem", { name: "Dining out: €72.30", exact: true }).locator(".category-rank-amount")).toHaveClass(/outside/);
-    await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true }).locator(".category-rank-amount")).toHaveClass(/inside/);
-    await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true }).locator(".category-rank-fill")).toHaveCSS("background-color", "rgb(236, 192, 91)");
-    await expect(page.getByRole("button", { name: "Previous period" })).toHaveCount(0);
-    const groups = page.locator(".flow-period");
-    const previous = groups.nth((await groups.count()) - 2);
-    await previous.locator(".period-hit").click({ position: { x: 15, y: 20 } });
-    await expect(page.getByRole("listitem", { name: "Groceries: €10.00", exact: true })).toBeVisible();
-    await expect(previous).toHaveAttribute("aria-pressed", "true");
-    await expect(groups.last().locator(".period-bar").first()).toHaveCSS("opacity", "0.24");
-    await expect(previous).toHaveCSS("outline-style", "none");
-    const selectedDate = await page.locator(".category-chart .chart-note").innerText();
-    const nav = page.getByRole("group", { name: "Cash flow history navigation" });
-    const before = await groups.count();
-    await nav.focus(); for (let i = 0; i < 9; i++) await page.keyboard.press("ArrowLeft");
-    await expect.poll(() => groups.count()).toBeGreaterThan(before);
-    await expect(page.locator(".category-chart .chart-note")).toHaveText(selectedDate);
-    const navBox = (await nav.boundingBox())!;
-    const scrollBefore = await nav.evaluate(e => e.scrollLeft);
-    await page.mouse.move(navBox.x + navBox.width / 2, navBox.y + 70); await page.mouse.down();
-    await page.mouse.move(navBox.x + navBox.width / 2 - 90, navBox.y + 70, { steps: 6 }); await page.mouse.up();
-    expect(await nav.evaluate(e => e.scrollLeft)).toBeGreaterThan(scrollBefore);
-    await expect(page.locator(".category-chart .chart-note")).toHaveText(selectedDate);
+    await page.getByRole("button", { name: /Net cash flow · EUR/ }).click();
+    const cash = page.locator(".cash-chart");
+    await cash.getByRole("button", { name: "Week", exact: true }).click();
+    await expect(cash.locator(".calendar-slot")).toHaveCount(7);
+    await expect(cash.locator(".calendar-label").first()).toHaveText(
+      width === 1280 ? "Monday" : "Mon",
+    );
+    await expect(cash.locator(".calendar-label").last()).toHaveText(
+      width === 1280 ? "Sunday" : "Sun",
+    );
+    await expect(
+      page.getByRole("button", { name: "Open Rent transactions" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Open Rent transactions" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Transactions", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Fictional current-week expense"),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Clear category" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Transactions", exact: true }),
+    ).toHaveCount(0);
+    await cash.getByRole("button", { name: "Year", exact: true }).click();
+    await expect(cash.locator(".calendar-slot")).toHaveCount(12);
+    const year = Number(today.slice(0, 4));
+    await expect(cash.locator(".cash-page-navigation")).toContainText(
+      String(year),
+    );
+    const nav = page.getByRole("group", {
+      name: "Cash flow period navigation",
+    });
+    await nav.focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(cash.locator(".cash-page-navigation")).toContainText(
+      String(year - 1),
+    );
+    await cash
+      .getByRole("button", { name: "Next period", exact: true })
+      .click();
+    await expect(cash.locator(".cash-page-navigation")).toContainText(
+      String(year),
+    );
+    const box = (await nav.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.4, box.y + 90);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.4 + 100, box.y + 90, {
+      steps: 8,
+    });
+    await page.mouse.up();
+    await expect(cash.locator(".cash-page-navigation")).toContainText(
+      String(year - 1),
+    );
     if (width === 390) {
-      await nav.evaluate(e => { e.scrollLeft = e.scrollWidth; });
+      await cash
+        .getByRole("button", { name: "Next period", exact: true })
+        .click();
+      await expect(cash.locator(".cash-page-navigation")).toContainText(
+        String(year),
+      );
       const touchBox = (await nav.boundingBox())!;
-      const touchBefore = await nav.evaluate(e => e.scrollLeft);
+      const x = touchBox.x + touchBox.width * 0.3,
+        y = touchBox.y + 70;
       const cdp = await page.context().newCDPSession(page);
-      await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-      const x = touchBox.x + touchBox.width / 2, y = touchBox.y + 85;
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-      for (let step = 1; step <= 6; step++) {
-        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + step * 12, y }] });
+      await cdp.send("Emulation.setTouchEmulationEnabled", {
+        enabled: true,
+        maxTouchPoints: 1,
+      });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y }],
+      });
+      for (let i = 1; i <= 8; i++) {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: x + i * 12, y }],
+        });
         await page.waitForTimeout(20);
       }
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await expect.poll(() => nav.evaluate(e => e.scrollLeft)).toBeLessThan(touchBefore - 20);
-      await expect(page.locator(".category-chart .chart-note")).toHaveText(selectedDate);
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      await expect(cash.locator(".cash-page-navigation")).toContainText(
+        String(year - 1),
+      );
       await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
       await cdp.detach();
     }
-    await page.locator(".cash-chart").getByRole("button", { name: "Week settings" }).click(); await page.getByLabel("Week ends on").selectOption("3");
-    await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
-    for (const label of ["Month", "Quarter", "Semester", "Year", "5 years", "All"]) {
-      await page.locator(".cash-chart").getByRole("button", { name: label, exact: true }).click(); await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    }
-    await expect(page.locator(".category-chart .chart-note")).toContainText("2017");
-    const custom = page.locator(".cash-chart").getByRole("button", { name: "Custom", exact: true });
-    await custom.click();
-    await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
-    await expect(page.getByRole("dialog").getByRole("heading", { name: "Custom date range" })).toHaveCSS("color", "rgb(21, 62, 51)");
+    await cash.getByRole("button", { name: "More cash flow periods" }).click();
+    await page.getByLabel("Week starts on").selectOption("0");
+    await page.getByRole("button", { name: "Quarter", exact: true }).click();
+    await expect(cash.locator(".calendar-slot")).toHaveCount(3);
+    await cash.getByRole("button", { name: "More cash flow periods" }).click();
+    await page.getByRole("button", { name: "Custom", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Custom date range" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading")).toHaveCSS(
+      "color",
+      "rgb(21, 62, 51)",
+    );
     await page.keyboard.press("Escape");
-    await expect(custom).toBeFocused();
-    await custom.click();
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(custom).toBeFocused();
-    await custom.click(); await page.getByLabel("Start date", { exact: true }).fill(day(-1));
-    await page.getByLabel("End date", { exact: true }).fill(today);
-    await page.getByRole("button", { name: "Apply", exact: true }).click();
-    await expect(custom).toBeFocused();
-    await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
-    await page.locator(".cash-chart").getByRole("button", { name: "Month", exact: true }).click();
-    await expect(page.locator(".flow-period text").filter({ hasText: new Intl.DateTimeFormat("en-IE", { month: "long", timeZone: "Europe/Dublin" }).format(new Date()) }).last()).toBeVisible();
-    await page.locator(".cash-chart").getByRole("button", { name: "Week", exact: true }).click(); await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
-    const wealth = page.getByRole("region", { name: "Total Wealth", exact: true });
-    await expect(wealth.getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
-    const currentWealth = await wealth.locator(".wealth-value > strong").innerText();
-    for (const [label, grouping] of [["Month", "month"], ["Quarter", "quarter"], ["Semester", "halfYear"], ["Year", "year"], ["5 years", "fiveYears"], ["All", "all"]]) {
-      const response = page.waitForResponse(r => r.url().endsWith("/graphql") && r.request().postDataJSON()?.query?.includes("query WealthHistory") && r.request().postDataJSON()?.variables.grouping === grouping);
-      await wealth.getByRole("button", { name: label, exact: true }).click();
-      const result = await (await response).json();
-      expect(result.errors).toBeUndefined();
-      expect(result.data.wealthHistory.wealth.length).toBeGreaterThan(1);
-      await expect(wealth.getByRole("slider")).toBeVisible();
-      await expect(wealth.locator(".wealth-value > strong")).toHaveText(currentWealth);
-      await expect(page.locator(".cash-chart").getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      if (label === "All") expect(result.data.wealthHistory.wealth[0].date).toContain("2017");
-    }
-    const wealthCustom = wealth.getByRole("button", { name: "Custom", exact: true });
-    await wealthCustom.click();
-    await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
-    await expect(page.getByRole("dialog").getByRole("heading", { name: "Custom date range" })).toHaveCSS("color", "rgb(21, 62, 51)");
-    await page.keyboard.press("Escape");
-    await expect(wealthCustom).toBeFocused();
-    await wealthCustom.click();
+    await expect(
+      cash.getByRole("button", { name: "More cash flow periods" }),
+    ).toBeFocused();
+    await cash.getByRole("button", { name: "More cash flow periods" }).click();
+    await page.getByRole("button", { name: "Custom", exact: true }).click();
     await page.getByLabel("Start date", { exact: true }).fill("2017-01-01");
     await page.getByLabel("End date", { exact: true }).fill(today);
     await page.getByRole("button", { name: "Apply", exact: true }).click();
-    await expect(wealthCustom).toBeFocused();
+    await expect(
+      cash.getByRole("button", { name: "More cash flow periods" }),
+    ).toBeFocused();
+    await expect(cash.locator(".cash-period-range")).toContainText("2017");
+    await page.getByRole("button", { name: "Spent", exact: true }).click();
+    await expect(
+      page.getByRole("img", { name: "Cumulative expense in EUR" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "pie chart", exact: true }).click();
+    await expect(
+      page.getByRole("img", { name: "Categories in EUR" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Back to Analytics" }).click();
+    await page.getByRole("button", { name: /Total Wealth/ }).click();
+    const wealth = page.getByRole("region", {
+      name: "Total Wealth",
+      exact: true,
+    });
+    await wealth.getByRole("button", { name: "Year", exact: true }).click();
+    await expect(
+      page.getByRole("group", { name: "Wealth period navigation" }),
+    ).toBeVisible();
     await expect(wealth.getByRole("slider")).toBeVisible();
-    await wealth.getByRole("slider").focus();
-    await page.keyboard.press("Home");
-    await expect(wealth.getByRole("slider")).toHaveAttribute("aria-valuetext", /2017/);
-    await page.screenshot({ path: `/tmp/gentum-grouped-${width}.png`, fullPage: true });
+    await wealth
+      .getByRole("button", { name: "Previous wealth period" })
+      .click();
+    await expect(wealth.locator(".cash-page-navigation")).toContainText(
+      String(year - 1),
+    );
+    await wealth.getByRole("button", { name: "More wealth periods" }).click();
+    await page.getByRole("button", { name: "Custom", exact: true }).click();
+    await expect(page.getByRole("dialog").getByRole("heading")).toHaveCSS(
+      "color",
+      "rgb(21, 62, 51)",
+    );
+    await page.keyboard.press("Escape");
+    await expect(
+      wealth.getByRole("button", { name: "More wealth periods" }),
+    ).toBeFocused();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `/tmp/gentum-calendar-wealth-${width}.png`,
+      fullPage: true,
+    });
   });
 }

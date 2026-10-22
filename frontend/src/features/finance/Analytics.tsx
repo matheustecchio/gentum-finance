@@ -1,123 +1,848 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { graphql, type Row, type Snapshot } from "./client";
-import { CategoryChart } from "./Overview";
-import { CashFlowChart, rangeLabel, type Bucket } from "./CashFlowChart";
-
-import { PeriodControls, validRange, type Period } from "./PeriodControls";
+import { rangeLabel, type Bucket } from "./CashFlowChart";
+import { CashPeriodControls } from "./CashPeriodControls";
+import { CalendarFlowChart } from "./CalendarFlowChart";
+import { MoneyBreakdown } from "./MoneyBreakdown";
+import { AnalyticsIcon } from "./AnalyticsIcon";
+import { AnalyticsLineChart } from "./AnalyticsLineChart";
+import { formatMoney } from "../accounts/money";
+import type { Period } from "./PeriodControls";
+import type { OverviewData } from "./Overview";
 export { validRange } from "./PeriodControls";
 export function calendarDay(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
-  return ["year", "month", "day"].map(key => parts.find(p => p.type === key)!.value).join("-");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Dublin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  return ["year", "month", "day"]
+    .map((key) => parts.find((p) => p.type === key)!.value)
+    .join("-");
 }
-interface HistoryData { buckets: Bucket[]; flows: Row[]; hasEarlier: boolean }
-const historyQuery = "query FlowHistory($grouping:String!,$weekEnd:Int!,$before:String,$start:String,$end:String){flowHistory(grouping:$grouping,weekEnd:$weekEnd,before:$before,start:$start,end:$end)}";
-export function Analytics({ snapshot }: { snapshot: Snapshot; month?: string }) {
+export interface CashPage {
+  start: string;
+  end: string;
+  today: string;
+  grouping: string;
+  previous: string;
+  next: string;
+  buckets: Bucket[];
+  flows: Row[];
+  totals: Row[];
+  incoming: Row[];
+  outgoing: Row[];
+  selectedStart: string;
+  selectedEnd: string;
+  entries: Row[];
+  nextOffset?: number;
+  trendBuckets: Bucket[];
+  trendFlows: Row[];
+  comparisonBuckets?: Bucket[];
+  comparisonFlows?: Row[];
+}
+type Screen = "overview" | "cash" | "income" | "expense";
+const query =
+  "query CashFlowPage($period:String!,$weekStart:Int!,$anchor:String,$start:String,$end:String,$selected:String,$categoryId:String,$offset:Int){cashFlowPage(period:$period,weekStart:$weekStart,anchor:$anchor,start:$start,end:$end,selected:$selected,categoryId:$categoryId,offset:$offset)}";
+const emptyTotal: Row = { income: "0", expense: "0", net: "0" };
+export function Analytics({
+  snapshot,
+  overview,
+  onWealth,
+  onManage,
+}: {
+  snapshot: Snapshot;
+  month?: string;
+  overview?: OverviewData;
+  onWealth?: () => void;
+  onManage?: () => void;
+}) {
   const [today, setToday] = useState(calendarDay);
-  const [period, setPeriod] = useState<Period>("week");
-  const [weekEnd, setWeekEnd] = useState(0);
-  const [custom, setCustom] = useState({ start: `${today.slice(0, 7)}-01`, end: today });
-  const [history, setHistory] = useState<HistoryData>();
-  const [historyKey, setHistoryKey] = useState("");
-  const [selected, setSelected] = useState<Bucket>();
-  const [breakdown, setBreakdown] = useState<Row[]>();
-  const [breakdownKey, setBreakdownKey] = useState("");
-  const [historyError, setHistoryError] = useState("");
-  const [spendingError, setSpendingError] = useState("");
+  const [period, setPeriod] = useState<Period>("month");
+  const [screen, setScreen] = useState<Screen>("overview");
+  const [chart, setChart] = useState<"line" | "bar" | "pie">("bar");
+  const [selected, setSelected] = useState("");
+  const [focusSelection, setFocusSelection] = useState("");
+  const [category, updateCategory] = useState<Row>();
+  const [entryOffset, setEntryOffset] = useState(0);
+  const setCategory = (row: Row | undefined) => {
+    setEntryOffset(0);
+    setFocusSelection("");
+    updateCategory(row);
+  };
+  const [weekStart, setWeekStart] = useState(() => {
+    try {
+      return localStorage.getItem("gentum:week-start") === "0" ? 0 : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const [anchor, setAnchor] = useState<string>();
+  const [custom, setCustom] = useState({
+    start: `${today.slice(0, 7)}-01`,
+    end: today,
+  });
+  const [page, setPage] = useState<CashPage>();
+  const [pageKey, setPageKey] = useState("");
+  const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [categoryRetry, setCategoryRetry] = useState(0);
-  const [loadingEarlier, setLoadingEarlier] = useState(false);
-  const [viewportWidth, setViewportWidth] = useState(600);
+  const [width, setWidth] = useState(900);
+  const [offset, setOffset] = useState(0);
+  const [direction, setDirection] = useState(1);
   const viewport = useRef<HTMLDivElement>(null);
-  const generation = useRef(0);
-  const inFlight = useRef(false);
-  const interacted = useRef(false);
-  const scrollAnchor = useRef<number | undefined>(undefined);
-  const initialized = useRef(false);
-  const drag = useRef<{ x: number; left: number; mouse: boolean } | undefined>(undefined);
-  const dragged = useRef(false);
-  const requestKey = `${period}:${weekEnd}:${period === "custom" ? `${custom.start}:${custom.end}` : ""}:${today}`;
-  const valid = period !== "custom" || validRange(custom.start, custom.end, today);
+  const drag = useRef<{ x: number; y: number } | undefined>(undefined);
+  const suppressClick = useRef(false);
+  const requestKey = `${entryOffset}:${category?.categoryId || ""}:${selected}:${period}:${weekStart}:${anchor || today}:${period === "custom" ? `${custom.start}:${custom.end}` : ""}:${today}`;
+  const visible = pageKey === requestKey ? page : undefined;
   useEffect(() => {
     const update = () => setToday(calendarDay());
-    const timer = window.setInterval(update, 60_000); window.addEventListener("focus", update);
-    return () => { clearInterval(timer); window.removeEventListener("focus", update); };
+    const timer = window.setInterval(update, 60_000);
+    window.addEventListener("focus", update);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", update);
+    };
   }, []);
   useEffect(() => {
-    const version = ++generation.current;
-    initialized.current = false; inFlight.current = false; interacted.current = false; scrollAnchor.current = undefined;
-    setHistory(undefined); setSelected(undefined); setHistoryError(""); setLoadingEarlier(false);
-    if (valid) void graphql<{ flowHistory: HistoryData }>(historyQuery, { grouping: period, weekEnd, ...(period === "custom" ? custom : {}) })
-      .then(r => { if (version !== generation.current) return; if (!r.flowHistory) throw new Error("Unable to load cash flow"); setHistory(r.flowHistory); setHistoryKey(requestKey); setSelected(period === "custom" ? custom : r.flowHistory.buckets.at(-1)); })
-      .catch((e: unknown) => { if (version === generation.current) setHistoryError(e instanceof Error ? e.message : "Unable to load cash flow"); });
-    return () => { generation.current++; };
-  }, [period, weekEnd, custom.start, custom.end, today, snapshot, retry, valid]);
-  useEffect(() => {
-    let active = true; setBreakdown(undefined); setSpendingError("");
-    if (selected) void graphql<{ categorySpending: { breakdown: Row[] } }>("query CategorySpending($start:String!,$end:String!){categorySpending(start:$start,end:$end)}", selected)
-      .then(r => { if (active) { if (!r.categorySpending) throw new Error("Unable to load category spending"); setBreakdown(r.categorySpending.breakdown); setBreakdownKey(`${selected!.start}:${selected!.end}`); } })
-      .catch((e: unknown) => { if (active) setSpendingError(e instanceof Error ? e.message : "Unable to load category spending"); });
-    return () => { active = false; };
-  }, [selected?.start, selected?.end, snapshot, categoryRetry]);
+    let active = true;
+    setPage(undefined);
+    setError("");
+    void graphql<{ cashFlowPage: CashPage }>(query, {
+      period,
+      weekStart,
+      offset: entryOffset,
+      selected,
+      categoryId: category?.categoryId,
+      anchor: anchor || today,
+      ...(period === "custom" ? custom : {}),
+    })
+      .then((result) => {
+        if (!active) return;
+        if (!result.cashFlowPage) throw new Error("Unable to load cash flow");
+        setPage(result.cashFlowPage);
+        setPageKey(requestKey);
+      })
+      .catch((e: unknown) => {
+        if (active)
+          setError(e instanceof Error ? e.message : "Unable to load cash flow");
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    period,
+    weekStart,
+    anchor,
+    custom.start,
+    custom.end,
+    today,
+    snapshot,
+    retry,
+    selected,
+    category?.categoryId,
+    entryOffset,
+  ]);
   useLayoutEffect(() => {
-    const element = viewport.current; if (!element) return;
-    const update = () => setViewportWidth(element.clientWidth || 600);
-    update(); const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(update); observer?.observe(element);
+    const element = viewport.current;
+    if (!element) return;
+    const update = () => setWidth(element.clientWidth || 900);
+    update();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(update);
+    observer?.observe(element);
     return () => observer?.disconnect();
-  }, [!!history]);
-  useLayoutEffect(() => {
-    const element = viewport.current; if (!element || !history) return;
-    if (scrollAnchor.current !== undefined) { element.scrollLeft = scrollAnchor.current; scrollAnchor.current = undefined; }
-    else if (!initialized.current) { element.scrollLeft = element.scrollWidth; initialized.current = true; }
-  }, [history]);
-  async function earlier(force = false) {
-    if (!history?.hasEarlier || inFlight.current || (historyError && !force)) return;
-    const version = generation.current; inFlight.current = true; setLoadingEarlier(true);
-    try {
-      const r = await graphql<{ flowHistory: HistoryData }>(historyQuery, { grouping: period, weekEnd, before: history.buckets[0].start });
-      if (version !== generation.current) return;
-      if (!r.flowHistory || !r.flowHistory.buckets.length || r.flowHistory.buckets.at(-1)!.start >= history.buckets[0].start) throw new Error("Unable to load older history");
-      const element = viewport.current;
-      const oldWidth = Math.max(viewportWidth, history.buckets.length * 150);
-      const newWidth = Math.max(viewportWidth, (history.buckets.length + r.flowHistory.buckets.length) * 150);
-      const left = element?.scrollLeft || 0;
-      const oldSlot = oldWidth / history.buckets.length;
-      const newSlot = newWidth / (history.buckets.length + r.flowHistory.buckets.length);
-      const visibleIndex = Math.floor(left / oldSlot);
-      const shift = (visibleIndex + r.flowHistory.buckets.length + .5) * newSlot - (visibleIndex + .5) * oldSlot;
-      scrollAnchor.current = left + shift;
-      if (drag.current) drag.current.left += shift;
-      setHistory(old => old && ({ buckets: [...r.flowHistory.buckets, ...old.buckets], flows: [...r.flowHistory.flows, ...old.flows], hasEarlier: r.flowHistory.hasEarlier }));
-    } catch (e) { if (version === generation.current) setHistoryError(e instanceof Error ? e.message : "Unable to load older history"); }
-    finally { if (version === generation.current) { inFlight.current = false; setLoadingEarlier(false); } }
-  }
-  const inspectEdge = () => { if (interacted.current && viewport.current && viewport.current.scrollLeft < 150) void earlier(); };
-  const viewHistory = historyKey === requestKey ? history : undefined;
-  const currentBreakdown = breakdownKey === `${selected?.start}:${selected?.end}` ? breakdown : undefined;
-  const width = Math.max(viewportWidth, (viewHistory?.buckets.length || 1) * 150);
-  const currencies = [...new Set([...snapshot.accounts.map(a => a.currency), ...(viewHistory?.flows.map(f => f.currency) || [])])].sort();
-  return <>
-    <section className="panel cash-chart" aria-labelledby="cash-flow-title">
-      <div className="chart-header"><h2 id="cash-flow-title">Cash flow</h2>
-        <PeriodControls period={period} custom={custom} today={today} weekEnd={weekEnd} onWeekEnd={setWeekEnd} onPeriod={setPeriod} onCustom={range => { setCustom(range); setPeriod("custom"); }} />
+  }, [!!visible, screen]);
+  const currencies = [
+    ...new Set([
+      ...snapshot.accounts.map((a) => a.currency),
+      ...(visible?.totals.map((r) => r.currency) || []),
+    ]),
+  ].sort();
+  if (!currencies.length) currencies.push("EUR");
+  const navigate = (value: string, next: number) => {
+    if (value) {
+      setEntryOffset(0);
+      setSelected("");
+      setDirection(next);
+      setAnchor(value);
+    }
+  };
+  const finishDrag = (x: number, y: number) => {
+    const start = drag.current;
+    drag.current = undefined;
+    setOffset(0);
+    if (!start || !visible) return;
+    const dx = x - start.x,
+      dy = y - start.y;
+    if (
+      Math.abs(dx) >= Math.min(70, width * 0.18) &&
+      Math.abs(dx) > Math.abs(dy)
+    )
+      navigate(dx > 0 ? visible.previous : visible.next, dx > 0 ? -1 : 1);
+  };
+  const open = (next: Exclude<Screen, "overview">) => {
+    setScreen(next);
+    setChart(next === "expense" ? "line" : "bar");
+    setCategory(undefined);
+    setEntryOffset(0);
+    setSelected("");
+  };
+  const back = () => {
+    if (category) setCategory(undefined);
+    else {
+      setScreen("overview");
+      setEntryOffset(0);
+      setSelected("");
+    }
+  };
+  const title =
+    screen === "cash"
+      ? "Net cash flow"
+      : screen === "income"
+        ? "Income"
+        : "Spent";
+  const status = (
+    <>
+      {error && (
+        <p role="alert">
+          {error}{" "}
+          <button onClick={() => setRetry((v) => v + 1)}>
+            Retry cash flow
+          </button>
+        </p>
+      )}
+      {!visible && !error && <p role="status">Loading analytics…</p>}
+    </>
+  );
+  const controls = (
+    <CashPeriodControls
+      period={period}
+      custom={custom}
+      today={today}
+      weekStart={weekStart}
+      onWeekStart={(value) => {
+        setWeekStart(value);
+        try {
+          localStorage.setItem("gentum:week-start", String(value));
+        } catch {
+          /* Storage may be disabled. */
+        }
+        setEntryOffset(0);
+        setSelected("");
+        setAnchor(undefined);
+      }}
+      onPeriod={(value) => {
+        setEntryOffset(0);
+        setSelected("");
+        setDirection(1);
+        setPeriod(value);
+        setAnchor(undefined);
+      }}
+      onCustom={(range) => {
+        setEntryOffset(0);
+        setSelected("");
+        setCustom(range);
+        setPeriod("custom");
+        setAnchor(undefined);
+      }}
+    />
+  );
+  if (screen === "overview")
+    return (
+      <section className="analytics-dashboard" aria-label="Analytics overview">
+        <div className="analytics-dashboard-header">
+          <h2>Analytics</h2>
+          <span>{visible && rangeLabel(visible.start, visible.end)}</span>
+        </div>
+        {status}
+        {visible &&
+          currencies.map((currency) => {
+            const total =
+              visible.totals.find((r) => r.currency === currency) || emptyTotal;
+            return (
+              <div className="analytics-summary-grid" key={currency}>
+                <button
+                  className="analytics-summary-card spent-summary"
+                  onClick={() => open("expense")}
+                >
+                  <span>Spent · {currency}</span>
+                  <strong>{formatMoney(total.expense, currency)}</strong>
+                  <SummaryPlot
+                    rows={visible.trendFlows || []}
+                    currency={currency}
+                    field="cumulativeExpense"
+                  />
+                </button>
+                <button
+                  className="analytics-summary-card"
+                  onClick={() => open("income")}
+                >
+                  <span>Income · {currency}</span>
+                  <strong>{formatMoney(total.income, currency)}</strong>
+                  <SummaryPlot
+                    rows={visible.trendFlows || []}
+                    currency={currency}
+                    field="income"
+                    bars
+                  />
+                </button>
+                <button
+                  className="analytics-summary-card"
+                  onClick={() => open("cash")}
+                >
+                  <span>Net cash flow · {currency}</span>
+                  <strong>{formatMoney(total.net, currency)}</strong>
+                  <small
+                    className={
+                      BigInt(total.net) >= 0n
+                        ? "cash-money-in"
+                        : "cash-money-out"
+                    }
+                  >
+                    {BigInt(total.net) === 0n
+                      ? "Balanced"
+                      : BigInt(total.net) > 0n
+                        ? "⊕ Positive"
+                        : "⊖ Negative"}
+                  </small>
+                  <div className="summary-flow-bars">
+                    <i
+                      style={{
+                        width: `${BigInt(total.income) + BigInt(total.expense) > 0n ? Number((BigInt(total.income) * 100n) / (BigInt(total.income) > BigInt(total.expense) ? BigInt(total.income) : BigInt(total.expense))) : 0}%`,
+                      }}
+                    />
+                    <i
+                      style={{
+                        width: `${BigInt(total.income) + BigInt(total.expense) > 0n ? Number((BigInt(total.expense) * 100n) / (BigInt(total.income) > BigInt(total.expense) ? BigInt(total.income) : BigInt(total.expense))) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+        {controls}
+        {overview && (
+          <>
+            <h3>Overview</h3>
+            <button
+              className="analytics-summary-card wealth-summary"
+              onClick={onWealth}
+            >
+              <h2>Total Wealth</h2>
+              <strong>
+                {overview.wealth.find((w) => w.date === overview.today)
+                  ? formatMoney(
+                      overview.wealth.find((w) => w.date === overview.today)!
+                        .amount,
+                      overview.currency,
+                    )
+                  : "Unavailable"}
+              </strong>
+              <SummaryPlot
+                rows={overview.wealth.map((w) => ({
+                  ...w,
+                  currency: overview.currency,
+                }))}
+                currency={overview.currency}
+                field="amount"
+              />
+              <small>View assets and account balances</small>
+            </button>
+          </>
+        )}
+      </section>
+    );
+  return (
+    <div className="analytics-detail">
+      <div className="analytics-detail-heading">
+        <button
+          className="analytics-back"
+          aria-label={category ? "Back to categories" : "Back to Analytics"}
+          onClick={back}
+        >
+          ←
+        </button>
+        <h2>
+          {title}
+          {category && <span> · {category.name}</span>}
+        </h2>
+        {!category && (
+          <div
+            className="analytics-view-switch"
+            role="group"
+            aria-label="Analytics view"
+          >
+            {(
+              [
+                ["expense", "Spent"],
+                ["income", "Income"],
+                ["cash", "Net cash flow"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                aria-label={label}
+                aria-pressed={screen === value}
+                onClick={() => open(value)}
+              >
+                <AnalyticsIcon name={label} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-    {!valid && <p role="alert">Choose valid dates, ending today or earlier.</p>}
-    {valid && !viewHistory && !historyError && <p role="status">Loading cash flow…</p>}
-    {historyError && <p role="alert">{historyError} <button onClick={() => { if (history) { setHistoryError(""); void earlier(true); } else setRetry(v => v + 1); }}>Retry cash flow</button>{history && <button onClick={() => { setHistoryError(""); setRetry(v => v + 1); }}>Reload history</button>}</p>}
-    {viewHistory && <><p className="chart-legend"><span className="income-key">Income</span><span className="expense-key">Expenses</span><span className="net-key">Net flow</span></p>
-      <div ref={viewport} className="flow-viewport grouped-timeline" role="group" aria-label="Cash flow history navigation" tabIndex={0}
-        onScroll={inspectEdge} onWheel={() => { interacted.current = true; }}
-        onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); interacted.current = true; e.currentTarget.scrollLeft += e.key === "ArrowLeft" ? -150 : 150; inspectEdge(); } }}
-        onPointerDown={e => { interacted.current = true; dragged.current = false; drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft, mouse: e.pointerType === "mouse" }; }}
-        onPointerMove={e => { const start = drag.current; if (!start) return; if (Math.abs(e.clientX - start.x) > 6) { dragged.current = true; if (start.mouse) { e.currentTarget.setPointerCapture?.(e.pointerId); e.preventDefault(); e.currentTarget.scrollLeft = start.left - (e.clientX - start.x); } } }}
-        onPointerUp={() => { drag.current = undefined; inspectEdge(); }} onPointerCancel={() => { drag.current = undefined; }}
-        onClickCapture={e => { if (dragged.current) { e.preventDefault(); e.stopPropagation(); } }}>
-        <div className="history-track" style={{ width }}>{(currencies.length ? currencies : ["EUR"]).map(currency => <CashFlowChart key={currency} rows={viewHistory.flows} currency={currency} buckets={viewHistory.buckets} width={width} selected={selected?.start || ""} grouping={period} today={today} onSelect={setSelected} />)}</div>
+      <section
+        className="panel cash-chart revolut-flow"
+        aria-labelledby="cash-flow-title"
+      >
+        <h3 id="cash-flow-title">
+          {title} · {category?.name || "Personal"}
+        </h3>
+        {screen !== "cash" && (
+          <div
+            className="analytics-view-switch chart-style-switch"
+            role="group"
+            aria-label="Chart style"
+          >
+            {(["line", "bar", "pie"] as const).map((style) => (
+              <button
+                key={style}
+                aria-label={`${style} chart`}
+                aria-pressed={chart === style}
+                onClick={() => setChart(style)}
+              >
+                <AnalyticsIcon name={style} />
+              </button>
+            ))}
+          </div>
+        )}
+        {category && (
+          <button
+            className="analytics-clear"
+            onClick={() => setCategory(undefined)}
+          >
+            Clear category
+          </button>
+        )}
+        {status}
+        <div
+          ref={viewport}
+          className="flow-viewport calendar-viewport"
+          role="group"
+          aria-label="Cash flow period navigation"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget || !visible) return;
+            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+              e.preventDefault();
+              navigate(
+                e.key === "ArrowLeft" ? visible.previous : visible.next,
+                e.key === "ArrowLeft" ? -1 : 1,
+              );
+            }
+          }}
+          onPointerDown={(e) => {
+            if (
+              e.button !== 0 ||
+              (e.target as Element).closest("input,summary,table")
+            )
+              return;
+            suppressClick.current = false;
+            drag.current = { x: e.clientX, y: e.clientY };
+          }}
+          onPointerMove={(e) => {
+            const start = drag.current;
+            if (!start) return;
+            const dx = e.clientX - start.x,
+              dy = e.clientY - start.y;
+            if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+              suppressClick.current = true;
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+              setOffset(Math.max(-width * 0.3, Math.min(width * 0.3, dx)));
+            }
+          }}
+          onPointerUp={(e) => finishDrag(e.clientX, e.clientY)}
+          onPointerCancel={() => {
+            drag.current = undefined;
+            setOffset(0);
+          }}
+          onClickCapture={(e) => {
+            if (suppressClick.current) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+        >
+          {visible && (
+            <div
+              key={requestKey}
+              className={`cash-calendar-page ${direction < 0 ? "from-previous" : "from-next"}`}
+              style={{
+                transform: offset ? `translateX(${offset}px)` : undefined,
+              }}
+            >
+              {currencies.map((currency) => {
+                const total =
+                  visible.totals.find((r) => r.currency === currency) ||
+                  emptyTotal;
+                return (
+                  <div key={currency} className="cash-currency-page">
+                    {currencies.length > 1 && <h3>{currency}</h3>}
+                    <strong
+                      className="cash-net"
+                      aria-label={`${title} in ${currency}`}
+                    >
+                      {formatMoney(
+                        screen === "income"
+                          ? total.income
+                          : screen === "expense"
+                            ? total.expense
+                            : total.net,
+                        currency,
+                      )}
+                    </strong>
+                    {screen !== "cash" && (
+                      <div className="analytics-comparison">
+                        {total[`${screen}Change`] !== undefined && (
+                          <span
+                            className={
+                              (
+                                screen === "expense"
+                                  ? BigInt(total[`${screen}Change`]) <= 0n
+                                  : BigInt(total[`${screen}Change`]) >= 0n
+                              )
+                                ? "cash-money-in"
+                                : "cash-money-out"
+                            }
+                          >
+                            {BigInt(total[`${screen}Change`]) >= 0n ? "▲" : "▼"}{" "}
+                            {formatMoney(
+                              (BigInt(total[`${screen}Change`]) < 0n
+                                ? -BigInt(total[`${screen}Change`])
+                                : BigInt(total[`${screen}Change`])
+                              ).toString(),
+                              currency,
+                            )}{" "}
+                            vs previous period
+                          </span>
+                        )}
+                        {screen === "income" && total.incomeAverage && (
+                          <span>
+                            {formatMoney(total.incomeAverage, currency)} avg.
+                            per {visible.grouping}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {screen === "cash" && (
+                      <div className="cash-totals">
+                        <span
+                          className="cash-money-in"
+                          aria-label={`Money In total in ${currency}`}
+                        >
+                          ⊕ {formatMoney(total.income, currency)}
+                        </span>
+                        <span
+                          className="cash-money-out"
+                          aria-label={`Money Out total in ${currency}`}
+                        >
+                          ⊖ {formatMoney(total.expense, currency)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="cash-period-range" aria-live="polite">
+                      {rangeLabel(
+                        visible.selectedStart || visible.start,
+                        visible.selectedEnd || visible.end,
+                      )}
+                      {visible.end > today && <span> · Through today</span>}
+                    </div>
+                    {screen !== "cash" && chart === "line" ? (
+                      <AnalyticsLineChart
+                        buckets={visible.trendBuckets || visible.buckets}
+                        rows={visible.trendFlows || []}
+                        currency={currency}
+                        kind={screen}
+                        today={today}
+                        comparisonBuckets={visible.comparisonBuckets}
+                        comparisonRows={visible.comparisonFlows}
+                      />
+                    ) : screen !== "cash" && chart === "pie" ? (
+                      <CategoryDonut
+                        rows={(screen === "income"
+                          ? visible.incoming
+                          : visible.outgoing
+                        ).filter((r) => r.currency === currency)}
+                        total={
+                          screen === "income" ? total.income : total.expense
+                        }
+                        currency={currency}
+                        onCategory={setCategory}
+                      />
+                    ) : (
+                      <CalendarFlowChart
+                        selected={selected}
+                        focusSelection={focusSelection}
+                        onSelect={(start, series) => {
+                          setFocusSelection(`${currency}:${start}:${series}`);
+                          setEntryOffset(0);
+                          setSelected((old) => (old === start ? "" : start));
+                        }}
+                        mode={screen}
+                        rows={visible.flows}
+                        currency={currency}
+                        buckets={visible.buckets}
+                        grouping={visible.grouping}
+                        period={period}
+                        today={visible.today}
+                        width={width}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {selected && (
+          <button className="analytics-clear" onClick={() => setSelected("")}>
+            Show full period
+          </button>
+        )}
+        {controls}
+        {visible && period !== "all" && period !== "custom" && (
+          <div className="cash-page-navigation">
+            <button
+              disabled={!visible.previous}
+              onClick={() => navigate(visible.previous, -1)}
+              aria-label="Previous period"
+            >
+              ←
+            </button>
+            <span>
+              {period === "year"
+                ? visible.start.slice(0, 4)
+                : rangeLabel(visible.start, visible.end)}
+            </span>
+            <button
+              disabled={!visible.next}
+              onClick={() => navigate(visible.next, 1)}
+              aria-label="Next period"
+            >
+              →
+            </button>
+          </div>
+        )}
+      </section>
+      {visible && !category && onManage && (
+        <div className="analytics-category-tools">
+          <span>By Category</span>
+          <button onClick={onManage}>Manage</button>
+        </div>
+      )}
+      {visible && (
+        <div key={requestKey} className="money-breakdowns">
+          {currencies.map((currency) => {
+            const total =
+              visible.totals.find((r) => r.currency === currency) || emptyTotal;
+            return (
+              <div
+                key={currency}
+                className={`money-currency-breakdowns ${screen !== "cash" ? "single-breakdown" : ""}`}
+              >
+                {screen !== "expense" && (
+                  <MoneyBreakdown
+                    onCategory={setCategory}
+                    title={screen === "cash" ? "Money In" : "By Category"}
+                    kind="income"
+                    currency={currency}
+                    total={total.income}
+                    rows={visible.incoming.filter(
+                      (r) => r.currency === currency,
+                    )}
+                  />
+                )}
+                {screen !== "income" && (
+                  <MoneyBreakdown
+                    onCategory={setCategory}
+                    title={screen === "cash" ? "Money Out" : "By Category"}
+                    kind="expense"
+                    currency={currency}
+                    total={total.expense}
+                    rows={visible.outgoing.filter(
+                      (r) => r.currency === currency,
+                    )}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {visible && category && (
+        <section
+          className="analytics-transactions"
+          aria-label={`${category.name} transactions`}
+        >
+          <h2>Transactions</h2>
+          {(visible.entries || []).length === 0 ? (
+            <p>No transactions in this period.</p>
+          ) : (
+            [...new Set(visible.entries.map((e) => e.date))].map((date) => (
+              <div key={date}>
+                <h3>
+                  {new Intl.DateTimeFormat("en-IE", {
+                    dateStyle: "long",
+                    timeZone: "UTC",
+                  }).format(new Date(`${date}T00:00:00Z`))}
+                </h3>
+                <ul>
+                  {visible.entries
+                    .filter((e) => e.date === date)
+                    .map((entry) => (
+                      <li key={entry.id}>
+                        <span className="money-category-icon">
+                          <AnalyticsIcon name={category.name} />
+                        </span>
+                        <div>
+                          <strong>{entry.description || category.name}</strong>
+                          <small>{entry.account}</small>
+                        </div>
+                        <strong
+                          className={
+                            entry.kind === "INCOME" ? "cash-money-in" : ""
+                          }
+                        >
+                          {entry.kind === "INCOME" ? "+" : "−"}
+                          {formatMoney(entry.amount, entry.currency)}
+                        </strong>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ))
+          )}
+          <div className="cash-page-navigation">
+            {entryOffset > 0 && (
+              <button
+                onClick={() => setEntryOffset((v) => Math.max(0, v - 50))}
+              >
+                Newer transactions
+              </button>
+            )}
+            {!!visible.nextOffset && (
+              <button onClick={() => setEntryOffset(visible.nextOffset!)}>
+                Older transactions
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+function CategoryDonut({
+  rows,
+  total,
+  currency,
+  onCategory,
+}: {
+  rows: Row[];
+  total: string;
+  currency: string;
+  onCategory: (row: Row) => void;
+}) {
+  let cursor = 0;
+  const colors = ["#3478f6", "#1ac394", "#f4b85d", "#ad79dc", "#ff7484"];
+  const categoryColor = (row: Row, index: number) =>
+    /^#[0-9a-f]{6}$/i.test(row.color)
+      ? row.color
+      : colors[index % colors.length];
+  const gradient =
+    BigInt(total) > 0n
+      ? rows
+          .map((r, i) => {
+            const from = cursor;
+            cursor += Number((BigInt(r.amount) * 36000n) / BigInt(total)) / 100;
+            return `${categoryColor(r, i)} ${from}deg ${cursor}deg`;
+          })
+          .join(",")
+      : "#38423c 0deg 360deg";
+  return (
+    <div className="analytics-donut">
+      <div
+        className="analytics-pie"
+        role="img"
+        aria-label={`Categories in ${currency}`}
+        style={{ background: `conic-gradient(${gradient})` }}
+      >
+        <span>{formatMoney(total, currency)}</span>
       </div>
-      {loadingEarlier && <p role="status">Loading older history…</p>}
-    </>}
-    </section>
-    {viewHistory && selected && !currentBreakdown && !spendingError && <p role="status">Loading categories…</p>}
-    {spendingError && <p role="alert">{spendingError} <button onClick={() => setCategoryRetry(v => v + 1)}>Retry categories</button></p>}
-    {viewHistory && selected && currentBreakdown && <CategoryChart key={`${selected.start}:${selected.end}`} snapshot={{ ...snapshot, breakdown: currentBreakdown }} month={rangeLabel(selected.start, selected.end)} />}
-  </>;
+      <ul>
+        {rows.map((r, i) => (
+          <li key={r.categoryId}>
+            <button onClick={() => onCategory(r)}>
+              <i style={{ background: categoryColor(r, i) }} />
+              {r.name} · {r.percentage}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SummaryPlot({
+  rows,
+  currency,
+  field,
+  bars = false,
+}: {
+  rows: Row[];
+  currency: string;
+  field: string;
+  bars?: boolean;
+}) {
+  const values = rows
+    .filter((r) => r.currency === currency && r[field] !== undefined)
+    .map((r) => BigInt(r[field]));
+  const low = values.reduce((a, b) => (a < b ? a : b), 0n),
+    high = values.reduce((a, b) => (a > b ? a : b), 0n);
+  const y = (value: bigint) =>
+    high === low
+      ? 45
+      : 85 - Number(((value - low) * 7500n) / (high - low)) / 100;
+  return (
+    <svg viewBox="0 0 500 100" aria-hidden="true">
+      {bars ? (
+        values.map((value, i) => (
+          <rect
+            key={i}
+            x={10 + (i * 480) / Math.max(1, values.length)}
+            y={y(value)}
+            width={Math.max(1, Math.min(18, 400 / Math.max(1, values.length)))}
+            height={Math.max(1, 85 - y(value))}
+            rx="2"
+            fill="#4a88ff"
+          />
+        ))
+      ) : (
+        <polyline
+          points={values
+            .map(
+              (value, i) =>
+                `${10 + (i * 480) / Math.max(1, values.length - 1)},${y(value)}`,
+            )
+            .join(" ")}
+          stroke="currentColor"
+          fill="none"
+          strokeWidth="2"
+        />
+      )}
+    </svg>
+  );
 }

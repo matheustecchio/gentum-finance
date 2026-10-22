@@ -415,7 +415,7 @@ function Wallet({
         {tab === "Overview" && (
           <>
             {loaded && !error && (
-              <OverviewCharts snapshot={data} month={month} />
+              <OverviewCharts snapshot={data} month={month} onManage={() => setTab("Settings")} />
             )}
             {!data.accounts.length && (
               <section className="panel empty">

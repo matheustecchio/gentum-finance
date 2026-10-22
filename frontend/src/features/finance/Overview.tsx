@@ -1,6 +1,8 @@
+import { AnalyticsIcon } from "./AnalyticsIcon";
 import { CategoryRanking } from "./CategoryRanking";
 import { Analytics } from "./Analytics";
 import { FlowTooltip, type FlowSelection } from "./FlowTooltip";
+import { WealthCalendarPanel } from "./WealthCalendarPanel";
 import { WealthHistoryPanel } from "./WealthHistoryPanel";
 import { useEffect, useState, useId } from "react";
 import { formatMoney } from "../accounts/money";
@@ -61,7 +63,8 @@ export function position(
     : Number(((value - low) * BigInt(height * 100)) / (high - low)) / 100;
 }
 const amount = (value: string) => BigInt(value);
-export function WealthCard({ data }: { data: OverviewData }) {
+export function WealthCard({ data, calendar = false }: { data: OverviewData; calendar?: boolean }) {
+  const HistoryPanel = calendar ? WealthCalendarPanel : WealthHistoryPanel;
   const current = data.wealth.find((w) => w.date === data.today);
   const delta = data.change30 ? amount(data.change30) : undefined;
   const deltaText =
@@ -70,7 +73,7 @@ export function WealthCard({ data }: { data: OverviewData }) {
       : `${delta >= 0n ? "+" : ""}${formatMoney(delta.toString(), data.currency)}`;
   return (
     <section className="panel wealth-card" aria-labelledby="wealth-title">
-      <WealthHistoryPanel data={data}>
+      <HistoryPanel data={data}>
       <div className="wealth-value">
         <strong>
           {current ? formatMoney(current.amount, data.currency) : "Unavailable"}
@@ -88,7 +91,7 @@ export function WealthCard({ data }: { data: OverviewData }) {
       </div>
       {data.rateError && <p role="status">{data.rateError}</p>}
       {data.changeError && <p className="chart-note" role="status">{data.changeError}</p>}
-      </WealthHistoryPanel>
+      </HistoryPanel>
       {!!data.accounts?.length && (
         <div className="wealth-accounts" aria-label="Account balances and changes">
           <div className="wealth-account-head" aria-hidden="true">
@@ -104,6 +107,7 @@ export function WealthCard({ data }: { data: OverviewData }) {
               return (
                 <li className="wealth-account" key={account.id}>
                   <div className="wealth-account-name">
+                    {calendar && <span className="wealth-account-icon"><AnalyticsIcon name="cash" /></span>}
                     <strong>{account.name}</strong>
                     <small>{account.currency}</small>
                   </div>
@@ -298,11 +302,12 @@ export function CategoryChart({
 
 export function OverviewCharts({
   snapshot,
-  month,
+  month, onManage,
 }: {
   snapshot: Snapshot;
-  month: string;
+  month: string; onManage?: () => void;
 }) {
+  const [wealthOpen, setWealthOpen] = useState(false);
   const currentMonth = useCurrentMonth();
   const flowMonth = month < currentMonth ? month : currentMonth;
   const [data, setData] = useState<OverviewData>();
@@ -341,8 +346,7 @@ export function OverviewCharts({
           <button onClick={() => setRetry((r) => r + 1)}>Retry Overview</button>
         </p>
       )}
-      <Analytics snapshot={snapshot} month={flowMonth} />
-      {data && <WealthCard data={data} />}
+      {wealthOpen ? <div className="analytics-wealth-detail"><button className="analytics-return" onClick={()=>setWealthOpen(false)}>← Back to Analytics</button>{data && <WealthCard data={data} calendar />}</div> : <Analytics snapshot={snapshot} month={flowMonth} overview={data} onManage={onManage} onWealth={()=>setWealthOpen(true)} />}
     </>
   );
 }

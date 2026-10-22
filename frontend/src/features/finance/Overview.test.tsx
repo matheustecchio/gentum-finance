@@ -226,7 +226,7 @@ it("shows only the exact selected amount and exposes zero bars to keyboard and t
   expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
 });
 it("clamps a future reporting month before requesting wealth", async () => {
-  const fetcher = vi.fn(async () => new Response(JSON.stringify({ data: { overview: data, flowHistory: { buckets: [], flows: [], hasEarlier: false } } })));
+  const fetcher = vi.fn(async () => new Response(JSON.stringify({ data: { overview: data, cashFlowPage: { start: "2026-10-01", end: "2026-10-31", today: "2026-10-21", grouping:"month", previous:"2026-09-30", next:"", buckets:[{start:"2026-10-01",end:"2026-10-31"}], flows:[], totals:[], incoming:[], outgoing:[], entries:[], trendBuckets:[], trendFlows:[] }, flowHistory: { buckets: [], flows: [], hasEarlier: false } } })));
   vi.stubGlobal("fetch", fetcher);
   render(<OverviewCharts snapshot={snapshot} month="2027-12" />);
   await screen.findByRole("heading", { name: "Total Wealth" });
@@ -234,8 +234,8 @@ it("clamps a future reporting month before requesting wealth", async () => {
   expect(calls.find(call => call.query.includes("query Overview")).variables.month).toBe("2026-10");
 });
 
-it("places wealth after cash flow and categories and lists each account without a click", async () => {
-  vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: { flowHistory: { buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false }, categorySpending:{breakdown:snapshot.breakdown}, overview: {
+it("opens wealth from Analytics and lists account balances and changes", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: { cashFlowPage: { start: "2026-10-01", end: "2026-10-31", today: "2026-10-21", grouping:"month", previous:"2026-09-30", next:"", buckets:[{start:"2026-10-01",end:"2026-10-31"}], flows:[], totals:[], incoming:[], outgoing:[], entries:[], trendBuckets:[], trendFlows:[] }, flowHistory: { buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false }, categorySpending:{breakdown:snapshot.breakdown}, overview: {
     ...data,
     accounts: [
       { id: "1", name: "Main", currency: "EUR", amount: "9000", change30: "-1000" },
@@ -244,11 +244,8 @@ it("places wealth after cash flow and categories and lists each account without 
     ],
   } } }))));
   render(<OverviewCharts snapshot={snapshot} month="2026-10" />);
-  await screen.findByRole("heading", { name: "Categories" });
+  await userEvent.click(await screen.findByRole("button", { name: /Total Wealth/ }));
   await screen.findByRole("heading", { name: "Total Wealth" });
-  expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-    "Cash flow", "Categories", "Total Wealth",
-  ]);
   expect(screen.getByText("Main")).toBeVisible();
   expect(screen.getByText("£171.78")).toBeVisible();
   expect(screen.getByLabelText("Main change")).toHaveTextContent("-€10.00");

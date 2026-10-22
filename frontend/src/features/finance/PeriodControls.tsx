@@ -30,7 +30,7 @@ export function PeriodControls({ period, custom, today, onPeriod, onCustom, week
     {open && <CustomDates value={custom} today={today} onClose={close} onApply={range => { onCustom(range); close(); }} />}
   </div>;
 }
-function CustomDates({ value, today, onClose, onApply }: { value: DateRange; today: string; onClose: () => void; onApply: (range: DateRange) => void }) {
+export function CustomDates({ value, today, onClose, onApply }: { value: DateRange; today: string; onClose: () => void; onApply: (range: DateRange) => void }) {
   const [draft, setDraft] = useState(value);
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
