@@ -177,11 +177,14 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
       header +
         `${date},EXPENSE,${categoryId},1,=formula\n${date},EXPENSE,${categoryId},0,invalid\n`,
     );
-  await page.getByRole("button", { name: "Import CSV", exact: true }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByRole("button", { name: "Preview CSV", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("CSV record 3");
+  await expect(page.getByRole("button", { name: "Import CSV", exact: true })).toBeDisabled();
   await page
     .getByLabel("CSV content")
     .fill(header + `${date},EXPENSE,${categoryId},1,=formula\n`);
+  await page.getByRole("button", { name: "Preview CSV", exact: true }).click();
+  await expect(page.getByRole("region", { name: "CSV preview" })).toContainText("=formula");
   await page.getByRole("button", { name: "Import CSV", exact: true }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Imported 1 transactions" }),

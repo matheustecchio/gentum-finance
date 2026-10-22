@@ -196,6 +196,11 @@ function Wallet({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [csv, setCsv] = useState("");
+  const [preview, setPreview] = useState<{ csv: string; accountId: string; count: number; transactions: Row[]; errors: Row[] }>();
+  const [importBusy, setImportBusy] = useState(false);
+  const importPending = useRef(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const previewVersion = useRef(0);
   const [importAccount, setImportAccount] = useState("");
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -800,7 +805,8 @@ function Wallet({
               <select
                 aria-label="Import into account"
                 value={destination?.id ?? ""}
-                onChange={(e) => setImportAccount(e.target.value)}
+                disabled={importBusy}
+                onChange={(e) => { previewVersion.current++; setPreview(undefined); setImportAccount(e.target.value); }}
               >
                 <option value="">Choose an account…</option>
                 {eligibleAccounts.map((a) => (
@@ -830,14 +836,18 @@ function Wallet({
               <input
                 type="file"
                 accept=".csv,text/csv"
+                disabled={importBusy}
                 onChange={async (e) => {
+                  const version = ++previewVersion.current;
+                  setPreview(undefined);
                   const file = e.target.files?.[0];
                   if (file) {
                     if (file.size > 500000) {
                       setError("Use a CSV below 500 KB");
                       return;
                     }
-                    setCsv(await file.text());
+                    const text = await file.text();
+                    if (version === previewVersion.current) setCsv(text);
                   }
                 }}
               />
@@ -846,25 +856,53 @@ function Wallet({
               CSV content
               <textarea
                 value={csv}
-                onChange={(e) => setCsv(e.target.value)}
+                disabled={importBusy}
+                onChange={(e) => { previewVersion.current++; setPreview(undefined); setCsv(e.target.value); }}
                 rows={8}
               />
             </label>
+            {importBusy && <p role="status">Import in progress…</p>}
+            {preview && preview.csv === csv && preview.accountId === (destination?.id ?? "") && <section aria-label="CSV preview">
+              <h3>Import preview: {preview.count} transactions</h3>
+              {preview.errors.map((error, i) => <p role="alert" key={i}>CSV record {error.record}: {error.message}</p>)}
+              {!!preview.transactions.length && <div className="table-scroll"><table><thead><tr><th>CSV record</th><th>Date</th><th>Account</th><th>Category</th><th>Kind</th><th>Amount</th><th>Description</th></tr></thead><tbody>
+                {preview.transactions.map(row => <tr key={row.record}><td>{row.record}</td><td>{row.date}</td><td>{row.account}</td><td>{row.category}</td><td>{row.kind}</td><td>{formatMoney(row.amount, row.currency)} · {row.currency}</td><td>{row.description}</td></tr>)}
+              </tbody></table></div>}
+              <p>Review these records, then choose Import CSV to confirm. Confirmation validates all records again.</p>
+            </section>}
             <div className="actions">
               <button
                 disabled={
-                  !csv ||
+                  previewBusy || importBusy || !csv ||
                   (!destination &&
                     !csv.startsWith(
                       "date,account_id,category_id,kind,amount_cents,description",
                     ))
                 }
-                onClick={() =>
-                  void act("import", { csv, accountId: destination?.id ?? "" })
-                }
+                onClick={async () => {
+                  const version = ++previewVersion.current;
+                  setPreview(undefined); setPreviewBusy(true); setError("");
+                  const accountId = destination?.id ?? "";
+                  try {
+                    const result = await graphql<{ previewImport: { count: number; transactions: Row[]; errors: Row[] } }>("query PreviewImport($input:FinanceInput!){previewImport(input:$input)}", { input: { csv, accountId } });
+                    if (version === previewVersion.current) setPreview({ ...result.previewImport, csv, accountId });
+                  } catch (e) { if (version === previewVersion.current) setError(e instanceof Error ? e.message : "Unable to preview CSV"); }
+                  finally { setPreviewBusy(false); }
+                }}
               >
-                Import CSV
+                {previewBusy ? "Previewing…" : "Preview CSV"}
               </button>
+              <button disabled={importBusy || !preview || preview.errors.length > 0 || preview.csv !== csv || preview.accountId !== (destination?.id ?? "")}
+                onClick={async () => {
+                  if (importPending.current || !preview || preview.errors.length || preview.csv !== csv || preview.accountId !== (destination?.id ?? "")) return;
+                  importPending.current = true; setImportBusy(true); setError("");
+                  try {
+                    setNotice(await execute("import", { csv: preview.csv, accountId: preview.accountId }));
+                    setPreview(undefined);
+                    await load();
+                  } catch (e) { setError(e instanceof Error ? e.message : "Import failed"); }
+                  finally { importPending.current = false; setImportBusy(false); }
+                }}> {importBusy ? "Importing…" : "Import CSV"} </button>
               <button
                 className="secondary"
                 onClick={async () => {
@@ -890,9 +928,11 @@ function Wallet({
               </button>
               <button
                 className="secondary"
-                onClick={() =>
-                  setCsv("date,kind,category_id,amount_cents,description\n")
-                }
+                disabled={importBusy}
+                onClick={() => {
+                  previewVersion.current++; setPreview(undefined);
+                  setCsv("date,kind,category_id,amount_cents,description\n");
+                }}
               >
                 Use CSV template
               </button>

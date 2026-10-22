@@ -109,7 +109,7 @@ func parseCSV(raw string) ([]Row, error) {
 	r.FieldsPerRecord = -1
 	header, err := r.Read()
 	if err != nil || (strings.Join(header, ",") != strings.Join(csvHeader, ",") && strings.Join(header, ",") != strings.Join(legacyCSVHeader, ",")) {
-		return nil, invalid("Use the documented CSV header")
+		return nil, csvRecordError(1, invalid("Use the documented CSV header"))
 	}
 	r.FieldsPerRecord = len(header)
 	var rows []Row
@@ -119,10 +119,10 @@ func parseCSV(raw string) ([]Row, error) {
 			break
 		}
 		if err != nil {
-			return nil, invalid("Invalid CSV row")
+			return nil, csvRecordError(len(rows)+2, invalid("Malformed CSV record: "+err.Error()))
 		}
 		if len(rows) >= 1000 {
-			return nil, invalid("Import supports up to 1000 rows")
+			return nil, csvRecordError(len(rows)+2, invalid("Import supports up to 1000 rows"))
 		}
 		row := Row{}
 		for i, key := range header {

@@ -159,3 +159,11 @@ Category colors are persisted as `#RRGGBB` strings. Each existing or new categor
 ### Transaction corrections
 
 `editTransaction` updates an existing owned income or expense atomically. Transfers and recurring-generated entries are rejected. Account and kind are always taken from the stored entry. Invalid corrections, foreign references and financial overflow roll back without changes. Balances, monthly totals, budgets, cash flow and wealth history derive from the corrected entry. History includes `recurringId` so the UI can hide editing for generated entries. No deletion or audit history is provided.
+
+### Import preview and confirmation
+
+`previewImport(input: FinanceInput!): FinanceData` is an authenticated read-only query. Pass `csv` and the destination `accountId` using the same contract as `import`. It returns `{count, transactions, errors}`. Transactions contain CSV record number (header is record 1), date, kind, exact integer-string amount, currency, account ID/name, category ID/path and description. Semantic errors contain `record` and `message`; malformed CSV errors identify the record in the query error. Multiple physical lines inside a quoted field still form one CSV record.
+
+Preview writes nothing and checks the existing five-column and legacy six-column formats, supported dates, positive int64 cents, kind, owned eligible accounts, matching owned categories, the 1000-transaction limit and financial range limits. The UI blocks confirmation when errors exist and invalidates the preview after content or destination changes. `import` always validates again inside its serialized transaction, so changes after preview cannot authorize invalid writes. Any failure rolls back the full import.
+
+The UI immediately guards pending confirmation, including repeated clicks before React rerenders, and shows import progress. A failed import is never automatically retried. Success invalidates the preview; intentional reimports require preview and confirmation again and remain additive. Preview does not provide duplicate detection or backend idempotency.

@@ -10,7 +10,7 @@ A personal-finance app that runs on your computer. Track accounts, transactions 
 - Draggable Overview history grouped by week, month, quarter, four months, half-year, year or five years, plus All and Custom.
 - Select a period to see ranked category spending in its saved colors.
 - Wealth, cash-flow and category spending reports, with balances and changes by account.
-- CSV import and export.
+- CSV import previews with record errors and explicit confirmation, plus export.
 - Separate local PostgreSQL databases with independent optional PIN protection.
 - Create, rename and switch databases from Settings at the same local address.
 
