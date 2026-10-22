@@ -82,3 +82,31 @@ func TestGroupedHistoryAndSpendingGraphQLContract(t *testing.T) {
 		}
 	}
 }
+
+func (r *analyticsRepository) CashFlowPage(_ context.Context, user string, f finance.CashFlowFilter, today string) (finance.CashFlowPage, error) {
+	r.user, r.start, r.end = user, f.Period, f.Selected
+	return finance.CashFlowPage{Start: "2026-10-19", End: "2026-10-25", Today: today, Buckets: []finance.FlowBucket{{Start: "2026-10-19", End: "2026-10-19"}}, Flows: []finance.Row{}, Breakdown: []finance.Row{{"categoryId": "owned", "name": "Salary", "currency": "EUR", "kind": "INCOME", "amount": "9007199254740993", "count": "2"}}}, nil
+}
+func TestCalendarAnalyticsGraphQLContract(t *testing.T) {
+	repo := &analyticsRepository{}
+	svc := finance.Service{Repository: repo, CurrentUser: identity("owner"), Now: func() time.Time { return time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC) }}
+	h, err := NewHandler(account.Service{Repository: &memoryRepository{}, CurrentUser: identity("owner")}, "http://localhost:5173", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := execute(t, h, `{cashFlowPage(period:"week",weekStart:1,selected:"2026-10-19",categoryId:"owned")}`, nil)
+	if result["errors"] != nil || repo.user != "owner" || repo.end != "2026-10-19" {
+		t.Fatal(result, repo)
+	}
+	page := result["data"].(map[string]interface{})["cashFlowPage"].(map[string]interface{})
+	if page["totals"].([]interface{})[0].(map[string]interface{})["income"] != "9007199254740993" {
+		t.Fatal(page)
+	}
+	for _, q := range []string{`{cashFlowPage(period:"bad")}`, `{cashFlowPage(period:"week",weekStart:7)}`, `{cashFlowPage(period:"year",anchor:"2026-10-22")}`, `{cashFlowPage(period:"custom",start:"2026-10-22",end:"2026-10-21")}`, `{cashFlowPage(period:"week",selected:"2026-02-30")}`, `{wealthCalendar(period:"bad")}`, `{wealthCalendar(period:"week",weekStart:7)}`, `{wealthCalendar(period:"week",anchor:"2026-10-22")}`} {
+		repo.user = ""
+		result = execute(t, h, q, nil)
+		if result["errors"] == nil || repo.user != "" {
+			t.Fatal("invalid calendar request accepted", q, result)
+		}
+	}
+}

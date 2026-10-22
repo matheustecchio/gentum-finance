@@ -36,7 +36,7 @@ ties away from zero. Values outside signed int64 cents are unavailable.
 
 ## Grouped cash flow and selected category spending
 
-The Overview uses `flowHistory(grouping: String!, weekEnd: Int = 0, before: String,
+`flowHistory(grouping: String!, weekEnd: Int = 0, before: String,
 start: String, end: String): FinanceData`. Groupings are `week`, `month`, `quarter`,
 `fourMonths`, `halfYear`, `year`, `fiveYears`, `all`, and `custom`.
 
@@ -63,26 +63,82 @@ It supports the same date bounds without a five-year cap, allowing All to show
 complete spending. Each category's direct expenses are included once. Currencies
 are separate. This query never loads transaction history.
 
-Overview starts with the current configured week selected. Clicking any part of a
-period group selects its dates and fades all other groups. Dragging, native touch,
-trackpad and keyboard scroll loaded history; prepending preserves the viewport
-anchor and scrolling does not change selection. Group changes select the current
-bucket. Filters sit inside the Cash flow title row, aligned right with Custom last.
-The UI omits four-month grouping, calls half-years Semester (S1/S2), and labels
-quarters K1-K4. Custom opens a centered modal with a dimmed backdrop; Apply
-commits the dates, while Cancel or Escape leaves the prior selection unchanged.
-Focus returns to Custom after dismissal. The gear before Custom chooses the week-ending
-day for the current Overview visit. Custom keeps its explicit dates until a bucket
-is selected. Errors retain usable history; stale category responses are ignored.
-The old Previous/Next date strip is removed. Month names and interval labels stay
-readable because SVG width grows with the loaded groups instead of shrinking bars.
-
-Categories is a descending horizontal ranking, separately per currency, with
-persisted category colors. Exact amounts stay visible inside wide bars or outside
-short bars. Total Wealth has independent grouped history controls, described below.
+The legacy grouped endpoints remain available for existing consumers, including
+four-month grouping. New Overview screens use the calendar endpoints below.
 The original `overview(month:)` and bounded `analytics(start:, end:)` contracts
-remain available for existing consumers. The backend bundles IANA timezone rules
-so reporting dates also work in the minimal runtime container.
+also remain available. Reporting uses the bundled Europe/Dublin timezone rules.
+
+## Calendar Analytics
+
+`cashFlowPage(period: String!, weekStart: Int = 1, anchor: String, start: String,
+end: String, selected: String, categoryId: String, offset: Int = 0): FinanceData` returns one
+calendar page. Periods are `week`, `month`, `quarter`, `halfYear`, `year`,
+`fiveYears`, `all`, and `custom`. `anchor` defaults to today in Europe/Dublin
+and must be a real date from 1900-01-01 through today. Weeks start Monday (1)
+or Sunday (0). Custom uses ordered inclusive dates through today. All starts
+at the earliest owned income or expense, without a five-year cap.
+
+The response includes `start`, `end`, `today`, `grouping`, `previous`, `next`,
+`buckets`, `flows`, `totals`, `incoming`, `outgoing`, `selectedStart`,
+`selectedEnd`, `entries`, `trendBuckets`, `trendFlows`, `comparisonBuckets`,
+`comparisonFlows`, and `comparisonTotals`. Empty series are arrays. Previous
+and next are anchors, empty at the 1900 or current-period boundary. All and
+Custom have no adjacent-page navigation. Preset pages include empty future
+slots, but financial queries exclude future transactions.
+
+A week contains seven daily bars, a month one monthly bar, a quarter three
+monthly bars, a semester six, a year twelve, and five years five annual bars.
+All/Custom use days through 63 dates, months through approximately five years,
+then years. Trend series provide daily observations through 63 dates, monthly
+observations through approximately five years, then annual observations. Each flow contains its bucket start as
+`month`, native currency, income and expense integer-cent strings. Trend rows
+also contain backend-computed `cumulativeIncome` and `cumulativeExpense`.
+
+Each total has currency, income, expense, signed net, `incomeAverage` and
+`expenseAverage` per visible bar (nearest cent, half up). When a previous page
+is available, `incomeChange` and `expenseChange` compare the selected range
+with the corresponding previous range. An unrepresentable difference is
+omitted. If the previous series exceeds signed int64 cents,
+`comparisonUnavailable` is true and comparison arrays are empty; supported
+current-period values remain available. Comparison trend observations cover the preceding complete period.
+
+Incoming/outgoing category rows contain categoryId, path name, saved color,
+currency, kind, amount, count and percentage. Categories sort by amount,
+descending within each currency. Percentages round to whole numbers, with
+positive shares below one percent shown as `<1%`. Each direct category amount
+is counted once. `selected` must match an available visible bucket start;
+selecting one changes totals, category lists and entries, while the complete
+bar chart remains available. `categoryId` filters the chart and selected range
+to that exact owned category. Entries are returned only for a category detail,
+in descending date order, with id/date/description/amount/kind/currency/account.
+Category entries use 50-row pages. Pass `nextOffset` back as `offset` to read
+older entries; zero means the final page. Offset must be nonnegative and a
+multiple of 50. Totals and counts always cover the full selected range.
+
+The read uses a repeatable-read, read-only transaction and server-derived
+ownership. SQL sums remain numeric until checked against signed int64 cents.
+Currencies stay separate. Linked internal transfers, opening balances,
+unposted schedules and other owners never become income or expense.
+
+Overview opens a dark summary dashboard for the current month. Its cards open
+Spent, Income, Net cash flow and Total Wealth. Spent and Income offer line,
+bar and category charts; category rows open dated transactions. Money In and
+Money Out show amounts, counts and shares, with See all for longer rankings.
+The primary selector is 1W/1M/6M/1Y with a sliding indicator. Three dots open
+Quarter, five years, All, Custom and Monday/Sunday week settings. The week
+preference is saved locally when browser storage is available. Custom opens
+a centered modal with a dimmed backdrop; Cancel/Escape preserves the prior
+range and focus returns to the three-dot button. Reduced-motion settings
+disable animation. Failed requests offer retry, and stale responses are ignored.
+
+`wealthCalendar(period: String!, weekStart: Int = 1, anchor: String,
+start: String, end: String): FinanceData` shares these calendar-page controls.
+It returns the existing wealth history/conversion contract plus start/end and
+previous/next anchors. Observations sample days through 63 dates, then month
+ends, clipping the current observation range through today. Current wealth
+and the account list retain their existing balance and 30-day-change contracts.
+Unknown historical balances remain unavailable. The local rate cache and
+conversion rules above apply without changes.
 
 Wealth inspection is client-side and uses the exact supplied daily values.
 Horizontal position selects the nearest calendar day across the full plot height;
@@ -96,7 +152,7 @@ Amounts use integer-cent strings in each account's original currency. Changes
 include dated transfers and exclude future entries, using the same balance
 reconstruction as total wealth. An empty change means insufficient history or
 an unsupported difference. Account balances remain available when exchange rates
-are unavailable. The Overview displays Total Wealth after cash flow and categories,
+are unavailable. The Analytics dashboard opens Total Wealth from its asset summary,
 with the account breakdown always visible below the combined total and chart.
 
 ### Exchange-rate fallback
@@ -125,9 +181,8 @@ scoped to the authenticated owner in a repeatable-read transaction. Future entri
 and unposted schedules are excluded; owned linked transfers are included in
 balances and cancel when aggregated across accounts of the same currency.
 
-Total Wealth defaults to Week. Its controls and centered Custom modal match Cash
-flow, including Semester S1/S2 and quarter K1-K4 labels. Selections, week settings,
-loading, retries and late-response handling are independent of Cash flow and
-Categories. The total and account balances remain current, with their existing
+The legacy wealth-history component defaults to Week. The Analytics screen
+uses `wealthCalendar` and defaults to Month. Its loading, retries and
+late-response handling remain independent of the other Analytics details. The total and account balances remain current, with their existing
 30-day changes explicitly labeled; selecting chart history does not restate those
 figures. The original `overview(month:)` contract remains compatible.

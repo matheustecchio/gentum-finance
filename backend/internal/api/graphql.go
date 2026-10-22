@@ -101,6 +101,33 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			}
 			return result, nil
 		}}
+		financeFields["cashFlowPage"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"offset": {Type: graphql.Int, DefaultValue: 0}, "period": {Type: graphql.NewNonNull(graphql.String)}, "weekStart": {Type: graphql.Int, DefaultValue: 1}, "anchor": {Type: graphql.String}, "start": {Type: graphql.String}, "end": {Type: graphql.String}, "selected": {Type: graphql.String}, "categoryId": {Type: graphql.String}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			value := func(key string) string { v, _ := p.Args[key].(string); return v }
+			weekStart, _ := p.Args["weekStart"].(int)
+			offset, _ := p.Args["offset"].(int)
+			result, err := fs.CashFlowPage(p.Context, finance.CashFlowFilter{Offset: offset, Period: value("period"), WeekStart: weekStart, Anchor: value("anchor"), Start: value("start"), End: value("end"), Selected: value("selected"), CategoryID: value("categoryId")})
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load cash flow")
+			}
+			return result, nil
+		}}
+		financeFields["wealthCalendar"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"period": {Type: graphql.NewNonNull(graphql.String)}, "weekStart": {Type: graphql.Int, DefaultValue: 1}, "anchor": {Type: graphql.String}, "start": {Type: graphql.String}, "end": {Type: graphql.String}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			value := func(key string) string { v, _ := p.Args[key].(string); return v }
+			weekStart, _ := p.Args["weekStart"].(int)
+			result, err := fs.WealthCalendar(p.Context, finance.CashFlowFilter{Period: value("period"), WeekStart: weekStart, Anchor: value("anchor"), Start: value("start"), End: value("end")})
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load wealth history")
+			}
+			return result, nil
+		}}
 		financeFields["flowHistory"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"grouping": {Type: graphql.NewNonNull(graphql.String)}, "weekEnd": {Type: graphql.Int, DefaultValue: 0}, "before": {Type: graphql.String}, "start": {Type: graphql.String}, "end": {Type: graphql.String}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			value := func(key string) string { v, _ := p.Args[key].(string); return v }
 			weekEnd, _ := p.Args["weekEnd"].(int)
