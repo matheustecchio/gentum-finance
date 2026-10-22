@@ -83,3 +83,43 @@ it("ignores stale wealth pages and retries the selected year without changing cu
     ).toMatchObject({ period: "year", anchor: "2025-12-31" }),
   );
 });
+
+it("keeps current FX provenance when the selected historical range has no conversion", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              wealthCalendar: {
+                ...history,
+                converted: false,
+                rateDate: "",
+                rateCached: false,
+              },
+            },
+          }),
+        ),
+    ),
+  );
+  render(
+    <WealthCalendarPanel
+      data={{
+        ...data,
+        converted: true,
+        rateDate: "2026-10-20",
+        rateCached: true,
+      }}
+    >
+      <strong>Current converted total</strong>
+    </WealthCalendarPanel>,
+  );
+  await screen.findByRole("slider");
+  expect(
+    screen.getByText(
+      "Current total estimated · ECB rates 2026-10-20 · Cached rates (refresh unavailable)",
+    ),
+  ).toBeVisible();
+  expect(screen.queryByText(/Chart estimated/)).toBeNull();
+});
