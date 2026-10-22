@@ -35,6 +35,7 @@ async function setup(page: Page, change = "-7410", gap = false) {
       json: {
         data: {
           overview,
+          wealthHistory: { ...overview, buckets: Array.from({ length: 31 }, (_, i) => { const day = new Date("2026-09-18T00:00:00Z"); day.setUTCDate(day.getUTCDate() + i); const date = day.toISOString().slice(0, 10); return { start: date, end: date }; }), hasEarlier: false },
           flowHistory: { buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false },
           categorySpending: { breakdown: [] },
           financeSummary: {

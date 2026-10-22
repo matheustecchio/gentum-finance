@@ -8,6 +8,7 @@ for (const width of [1280, 390]) {
   await page.route("**/graphql",r=>{
    const body=r.request().postDataJSON();
    if(body.query.includes("flowHistory("))return r.fulfill({json:{data:{flowHistory:{buckets:[{start:"2026-10-12",end:"2026-10-18"},{start:"2026-10-19",end:"2026-10-21"}],flows:[{month:"2026-10-19",currency:"EUR",income:"9007199254740993",expense:"0",net:"9007199254740993"}],hasEarlier:false}}}});
+   if(body.query.includes("wealthHistory("))return r.fulfill({json:{data:{wealthHistory:{currency:"EUR",today:"2026-10-21",wealth:[],buckets:[{start:"2026-10-19",end:"2026-10-21"}],hasEarlier:false,rateError:""}}}});
    if(body.query.includes("categorySpending("))return r.fulfill({json:fail?{errors:[{message:"Categories offline"}]}:{data:{categorySpending:{breakdown:[]}}}});
    return r.fulfill({json:{data:{overview:{currency:"EUR",today:"2026-10-21",wealth:[],flows:[],change30:"",rateError:""},financeSummary:{accounts:[{currency:"EUR"}],categories:[],entries:[],totals:[],budgets:[],recurring:[]}}}});
   });

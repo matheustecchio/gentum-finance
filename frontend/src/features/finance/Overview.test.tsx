@@ -55,7 +55,10 @@ const data: OverviewData = {
   rateError: "",
   converted: true,
 };
+let historyFixture = data;
 beforeEach(() => {
+  historyFixture = data;
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: { wealthHistory: { ...historyFixture, buckets: Array.from({ length: 31 }, (_, i) => { const day = new Date("2026-09-18T00:00:00Z"); day.setUTCDate(day.getUTCDate() + i); const date = day.toISOString().slice(0, 10); return { start: date, end: date }; }), hasEarlier: false } } }))));
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-18T12:00:00Z"));
 });
@@ -63,28 +66,31 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-it("shows an exact signed 30-day delta and leaves missing observations disconnected", () => {
+it("shows an exact signed 30-day delta and leaves missing observations disconnected", async () => {
   render(<WealthCard data={data} />);
   expect(screen.getByText(/-€10.00/)).toBeVisible();
-  expect(screen.getByText(/2026-10-16/)).toBeVisible();
+  expect(await screen.findByText("Estimated · ECB rates 2026-10-16")).toBeVisible();
   expect(document.querySelectorAll("circle")).toHaveLength(2);
   expect(document.querySelectorAll("path[fill='none']")).toHaveLength(2);
 });
-it("does not invent wealth or a 30-day delta when data is unavailable", () => {
+it("does not invent wealth or a 30-day delta when data is unavailable", async () => {
+  historyFixture = { ...data, wealth: data.wealth.slice(1), change30: "" };
   const { rerender } = render(
     <WealthCard
       data={{ ...data, wealth: data.wealth.slice(1), change30: "" }}
     />,
   );
-  expect(screen.getByText(/One recorded balance/)).toBeVisible();
+  expect(await screen.findByText(/One recorded balance/)).toBeVisible();
   expect(document.querySelector(".wealth-card svg")).toBeNull();
+  historyFixture = { ...data, wealth: [], rateError: "Rates unavailable" };
   rerender(
     <WealthCard
       data={{ ...data, wealth: [], rateError: "Rates unavailable" }}
     />,
   );
   expect(screen.getByText("Unavailable")).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent("Rates unavailable");
+  await waitFor(() => expect(screen.queryByText(/Loading wealth history/)).toBeNull());
+  expect(screen.getAllByRole("status").some(node => node.textContent?.includes("Rates unavailable"))).toBe(true);
 });
 it("ranks exact direct category spending without counting child spending twice", () => {
   render(<CategoryChart snapshot={snapshot} month="2026-10" />);
@@ -122,7 +128,7 @@ it("keeps chart geometry bounded above Number precision and month navigation cro
   ).toBe(75);
   expect(shiftMonth("2026-01", -3)).toBe("2025-10");
 });
-it("explains a 30-day difference overflow while keeping supported current wealth visible", () => {
+it("explains a 30-day difference overflow while keeping supported current wealth visible", async () => {
   render(
     <WealthCard
       data={{
@@ -137,10 +143,9 @@ it("explains a 30-day difference overflow while keeping supported current wealth
       }}
     />,
   );
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "difference exceeds the supported amount",
-  );
+  expect(screen.getAllByRole("status").some(node => node.textContent?.includes("difference exceeds the supported amount"))).toBe(true);
   expect(screen.getAllByText(/92,233,720,368,547,758.07/)[0]).toBeVisible();
+  await screen.findByRole("slider");
 });
 it("saves the selected currency and reads it back after remount", async () => {
   let saved = "EUR";
@@ -174,9 +179,10 @@ it("saves the selected currency and reads it back after remount", async () => {
     expect(screen.getByLabelText("Primary currency")).toHaveValue("USD"),
   );
 });
-it("does not draw a plot or fictional curve with no recorded balances", () => {
+it("does not draw a plot or fictional curve with no recorded balances", async () => {
+  historyFixture = { ...data, wealth: [], change30: "" };
   render(<WealthCard data={{ ...data, wealth: [], change30: "" }} />);
-  expect(screen.getByText("No recorded balances yet.")).toBeVisible();
+  expect(await screen.findByText("No recorded balances yet.")).toBeVisible();
   expect(document.querySelector(".wealth-card svg")).toBeNull();
 });
 
@@ -248,11 +254,14 @@ it("places wealth after cash flow and categories and lists each account without 
   expect(screen.getByLabelText("Main change")).toHaveTextContent("-€10.00");
   expect(screen.getByLabelText("Savings change")).toHaveTextContent("+£0.00");
   expect(screen.getByLabelText("New account change")).toHaveTextContent("Unavailable");
-  expect(screen.queryByText(/over 30 days/i)).toBeNull();
+  expect(screen.getByText(/over 30 days/i)).toBeVisible();
 });
-it("labels locally cached fallback with its reference date", () => {
+it("labels locally cached fallback with its reference date", async () => {
+ historyFixture = { ...data, rateCached: true };
  const view=render(<WealthCard data={{...data,rateCached:true}} />);
- expect(screen.getByText("Estimated · ECB rates 2026-10-16 · Cached rates (refresh unavailable)")).toBeVisible();
+ expect(await screen.findByText("Estimated · ECB rates 2026-10-16 · Cached rates (refresh unavailable)")).toBeVisible();
+ historyFixture = { ...data, rateCached: false };
  view.rerender(<WealthCard data={{...data,rateCached:false}} />);
+ await waitFor(() => expect(screen.queryByText(/Loading wealth history/)).toBeNull());
  expect(screen.queryByText(/Cached rates/)).not.toBeInTheDocument();
 });

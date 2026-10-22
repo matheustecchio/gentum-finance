@@ -79,7 +79,7 @@ readable because SVG width grows with the loaded groups instead of shrinking bar
 
 Categories is a descending horizontal ranking, separately per currency, with
 persisted category colors. Exact amounts stay visible inside wide bars or outside
-short bars. Total Wealth retains its current 30-day behavior independently.
+short bars. Total Wealth has independent grouped history controls, described below.
 The original `overview(month:)` and bounded `analytics(start:, end:)` contracts
 remain available for existing consumers. The backend bundles IANA timezone rules
 so reporting dates also work in the minimal runtime container.
@@ -102,3 +102,32 @@ with the account breakdown always visible below the combined total and chart.
 ### Exchange-rate fallback
 
 Overview adds `rateCached` to its finance response. It is true when refresh fails and a previously validated local ECB quote set remains complete and at most seven days old. `rateDate` identifies that set. Missing, invalid, future-dated or expired sets leave converted wealth unavailable. Reference quotes persist locally across backend restarts; both wealth comparison dates use the same set and existing exact rounding rules. No ledger data is sent to the provider.
+
+## Grouped Total Wealth history
+
+`wealthHistory(grouping: String!, weekEnd: Int = 0, before: String, start: String,
+end: String): FinanceData` returns `buckets` (inclusive start/end), `wealth`
+(date/amount), `hasEarlier`, `currency`, `today` (Europe/Dublin), `historyNote`,
+and the Overview conversion/rate fields. Supported groupings are week, month,
+quarter, halfYear (Semester), year, fiveYears, all and custom. Presets return up to
+eight calendar groups ending today. Each value is the balance at that group's
+inclusive end, not the sum of daily balances. Older/Latest history buttons change
+the displayed page; `before` is exclusive and does not affect the current total.
+
+All starts at the earliest owned account creation or dated entry, without a
+five-year cap. All/Custom sample daily through 63 dates, then at clipped month
+ends. Custom validates real, ordered dates from 1900-01-01 through today.
+Unsupported endpoints remain gaps; the chart does not carry values backward or
+omit accounts to fabricate an earlier combined balance. No dated activity means
+only today's endpoint can be returned. The opening-date coverage rules and exact
+rational conversion from Overview apply to every sampled endpoint. Reads are
+scoped to the authenticated owner in a repeatable-read transaction. Future entries
+and unposted schedules are excluded; owned linked transfers are included in
+balances and cancel when aggregated across accounts of the same currency.
+
+Total Wealth defaults to Week. Its controls and centered Custom modal match Cash
+flow, including Semester S1/S2 and quarter K1-K4 labels. Selections, week settings,
+loading, retries and late-response handling are independent of Cash flow and
+Categories. The total and account balances remain current, with their existing
+30-day changes explicitly labeled; selecting chart history does not restate those
+figures. The original `overview(month:)` contract remains compatible.
