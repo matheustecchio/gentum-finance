@@ -1,0 +1,50 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { WealthCard, type OverviewData } from "./Overview";
+import { Analytics } from "./Analytics";
+import type { Snapshot } from "./client";
+const data: OverviewData = { today:"2026-10-21",currency:"EUR",wealth:[{date:"2026-10-21",amount:"10000"}],flows:[],rateDate:"",rateError:"",converted:false };
+const buckets=[{start:"2016-01-01",end:"2016-12-31"},{start:"2026-01-01",end:"2026-10-21"}];
+const history={...data,buckets,hasEarlier:true,wealth:[{date:"2016-12-31",amount:"9007199254740993"},{date:"2026-10-21",amount:"10000"}]};
+beforeEach(()=>{vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date("2026-10-21T12:00:00Z"));Object.defineProperty(HTMLDialogElement.prototype,"showModal",{configurable:true,value:function(this:HTMLDialogElement){this.setAttribute("open","");}});});
+afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();});
+it("loads all supported groupings, pages history and applies Custom independently of Cash flow",async()=>{
+ const calls:Record<string,unknown>[]=[];
+ vi.stubGlobal("fetch",vi.fn(async(_url:string,init?:RequestInit)=>{const body=JSON.parse(String(init?.body));calls.push(body);return new Response(JSON.stringify({data:body.query.includes("WealthHistory")?{wealthHistory:history}:body.query.includes("FlowHistory")?{flowHistory:{buckets:[buckets[1]],flows:[],hasEarlier:false}}:{categorySpending:{breakdown:[]}}}));}));
+ const snapshot:Snapshot={accounts:[],categories:[],entries:[],totals:[],budgets:[],recurring:[]};
+ render(<><Analytics snapshot={snapshot}/><WealthCard data={data}/></>);
+ await screen.findByRole("slider");
+ const card=screen.getByRole("region",{name:"Total Wealth"});const flow=document.querySelector(".cash-chart")!;
+ for(const [name,grouping] of [["Month","month"],["Quarter","quarter"],["Semester","halfYear"],["Year","year"],["5 years","fiveYears"],["All","all"]]){
+  fireEvent.click(within(card).getByRole("button",{name}));
+  await waitFor(()=>expect(calls.some(c=>(c.variables as Record<string,unknown>).grouping===grouping && String(c.query).includes("WealthHistory"))).toBe(true));
+  await screen.findByRole("slider");
+ }
+ expect(within(flow as HTMLElement).getByRole("button",{name:"Week"})).toHaveAttribute("aria-pressed","true");
+ expect(within(card).getByText("€100.00",{selector:".wealth-value > strong"})).toBeVisible();
+ fireEvent.click(within(card).getByRole("button",{name:"Older wealth history"}));
+ await waitFor(()=>expect((calls.at(-1)?.variables as Record<string,unknown>).before).toBe("2016-01-01"));
+ await screen.findByRole("slider");
+ fireEvent.click(within(card).getByRole("button",{name:"Latest wealth history"}));
+ await screen.findByRole("slider");
+ const count=calls.length;
+ fireEvent.click(within(card).getByRole("button",{name:"Custom"}));
+ fireEvent.change(screen.getByLabelText("Start date"),{target:{value:"2016-01-01"}});
+ expect(calls).toHaveLength(count);
+ fireEvent.click(screen.getByRole("button",{name:"Apply"}));
+ await waitFor(()=>expect((calls.at(-1)?.variables as Record<string,unknown>)).toMatchObject({grouping:"custom",start:"2016-01-01",end:"2026-10-21"}));
+ expect(screen.queryByRole("dialog")).toBeNull();
+ await screen.findByRole("slider");
+});
+it("ignores stale responses, exposes retry and keeps the selected grouping",async()=>{
+ let first:((response:Response)=>void)|undefined;let count=0;
+ vi.stubGlobal("fetch",vi.fn(async()=>{count++;if(count===1)return new Promise<Response>(resolve=>{first=resolve;});if(count===2)throw new Error("Offline");return new Response(JSON.stringify({data:{wealthHistory:history}}));}));
+ render(<WealthCard data={data}/>);
+ fireEvent.click(screen.getByRole("button",{name:"Year"}));
+ expect(await screen.findByRole("alert")).toHaveTextContent("Offline");
+ first?.(new Response(JSON.stringify({data:{wealthHistory:{...history,wealth:[]}}})));
+ fireEvent.click(screen.getByRole("button",{name:"Retry wealth history"}));
+ expect(await screen.findByRole("slider")).toBeVisible();
+ expect(screen.getByRole("button",{name:"Year"})).toHaveAttribute("aria-pressed","true");
+ expect(screen.queryByText("No recorded balances yet.")).toBeNull();
+});

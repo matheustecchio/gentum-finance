@@ -11,11 +11,11 @@ const dateLabel = (date: string) =>
   }).format(new Date(`${date}T00:00:00Z`));
 
 // Geometry uses numbers; all values and formatting retain exact integer cents.
-export function nearestWealthDay(clientX: number, left: number, width: number) {
-  if (width <= 0) return 30;
+export function nearestWealthDay(clientX: number, left: number, width: number, count = 31) {
+  if (width <= 0) return count - 1;
   return Math.max(
     0,
-    Math.min(30, Math.round((((clientX - left) / width) * 600 - 12) / 19.2)),
+    Math.min(count - 1, Math.round(((((clientX - left) / width) * 600 - 12) / 576) * (count - 1))),
   );
 }
 export function WealthHistoryChart({
@@ -23,14 +23,18 @@ export function WealthHistoryChart({
   today,
   currency,
   methodology,
+  dates,
+  labels,
 }: {
   wealth: Row[];
   today: string;
   currency: string;
   methodology?: string;
+  dates?: string[];
+  labels?: string[];
 }) {
   const id = useId();
-  const [selected, setSelected] = useState(30);
+  const [selected, setSelected] = useState((dates?.length || 31) - 1);
   const [active, setActive] = useState(false);
   const focused = useRef(false);
   const touching = useRef(false);
@@ -39,10 +43,13 @@ export function WealthHistoryChart({
   const values = wealth.map((w) => BigInt(w.amount));
   const low = values.reduce((a, b) => (a < b ? a : b), values[0] ?? 0n);
   const high = values.reduce((a, b) => (a > b ? a : b), values[0] ?? 0n);
-  const points = Array.from({ length: 31 }, (_, i) => {
-    const day = new Date(start);
-    day.setUTCDate(day.getUTCDate() + i);
-    const date = day.toISOString().slice(0, 10);
+  const calendar = dates || Array.from({ length: 31 }, (_, i) => {
+    const day = new Date(start); day.setUTCDate(day.getUTCDate() + i);
+    return day.toISOString().slice(0, 10);
+  });
+  const count = calendar.length;
+  const points = calendar.map((date, i) => {
+    const day = new Date(`${date}T00:00:00Z`);
     const row = wealth.find((w) => w.date === date);
     const height = row
       ? high === low
@@ -53,7 +60,7 @@ export function WealthHistoryChart({
       date,
       day: day.getUTCDate(),
       row,
-      x: 12 + i * 19.2,
+      x: count === 1 ? 300 : 12 + i * 576 / (count - 1),
       y: 125 - height,
       index: i,
     };
@@ -65,17 +72,17 @@ export function WealthHistoryChart({
     if (last && last[last.length - 1].index === p.index - 1) last.push(p);
     else segments.push([p]);
   }
-  const point = points[selected];
+  if (!points.length || !wealth.length)
+    return <p className="wealth-history-state">No recorded balances yet.</p>;
+  const point = points[Math.min(selected, count - 1)];
   const value = point.row
     ? formatMoney(point.row.amount, currency)
     : "Unavailable";
   const selectAt = (element: HTMLDivElement, x: number) => {
     const rect = element.getBoundingClientRect();
-    setSelected(nearestWealthDay(x, rect.left, rect.width));
+    setSelected(nearestWealthDay(x, rect.left, rect.width, count));
     setActive(true);
   };
-  if (!wealth.length)
-    return <p className="wealth-history-state">No recorded balances yet.</p>;
   if (wealth.length === 1)
     return (
       <p className="wealth-history-state">
@@ -93,7 +100,7 @@ export function WealthHistoryChart({
         aria-label="Wealth history day"
         aria-orientation="horizontal"
         aria-valuemin={0}
-        aria-valuemax={30}
+        aria-valuemax={count - 1}
         aria-valuenow={selected}
         aria-valuetext={`${dateLabel(point.date)}: ${value}`}
         aria-describedby={`${id}-method`}
@@ -133,11 +140,11 @@ export function WealthHistoryChart({
                 : 0;
           if (step) {
             e.preventDefault();
-            setSelected((i) => Math.max(0, Math.min(30, i + step)));
+            setSelected((i) => Math.max(0, Math.min(count - 1, i + step)));
             setActive(true);
           } else if (e.key === "Home" || e.key === "End") {
             e.preventDefault();
-            setSelected(e.key === "Home" ? 0 : 30);
+            setSelected(e.key === "Home" ? 0 : count - 1);
             setActive(true);
           } else if (e.key === "Escape") {
             e.preventDefault();
@@ -218,9 +225,9 @@ export function WealthHistoryChart({
       </div>
       <div className="wealth-day-labels" aria-hidden="true">
         {points
-          .filter((_, i) => i % 5 === 0)
+          .filter((_, i) => dates ? i % Math.max(1, Math.ceil(count / 6)) === 0 || i === count - 1 : i % 5 === 0)
           .map((p) => (
-            <span key={p.date}>{p.day}</span>
+            <span key={p.date}>{labels?.[p.index] || p.day}</span>
           ))}
       </div>
       <p id={`${id}-method`} className="wealth-methodology">

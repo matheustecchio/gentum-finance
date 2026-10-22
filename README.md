@@ -7,7 +7,7 @@ A personal-finance app that runs on your computer. Track accounts, transactions 
 - Accounts and categories for income and expenses.
 - Correct amounts, dates, descriptions and categories of non-recurring income and expenses in transaction history.
 - Transfers, monthly budgets and recurring transactions.
-- Draggable Overview history grouped by week, month, quarter (K1–K4), semester (S1/S2), year or five years, plus All and Custom. Filters sit inside the Cash flow card; Custom opens a centered date-range modal.
+- Draggable Overview history grouped by week, month, quarter (K1–K4), semester (S1/S2), year or five years, plus All and Custom. Filters sit inside the Cash flow and Total Wealth title rows; each chart has an independent selection and Custom opens a centered date-range modal. Total Wealth supports older grouped ledger history beyond 30 days.
 - Select a period to see ranked category spending in its saved colors.
 - Validated exchange rates saved locally for offline wealth estimates for up to seven days.
 - Wealth, cash-flow and category spending reports, with balances and changes by account.

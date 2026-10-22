@@ -1,7 +1,7 @@
 import { CategoryRanking } from "./CategoryRanking";
 import { Analytics } from "./Analytics";
 import { FlowTooltip, type FlowSelection } from "./FlowTooltip";
-import { WealthHistoryChart } from "./WealthHistoryChart";
+import { WealthHistoryPanel } from "./WealthHistoryPanel";
 import { useEffect, useState, useId } from "react";
 import { formatMoney } from "../accounts/money";
 import { execute, graphql, type Row, type Snapshot } from "./client";
@@ -70,7 +70,7 @@ export function WealthCard({ data }: { data: OverviewData }) {
       : `${delta >= 0n ? "+" : ""}${formatMoney(delta.toString(), data.currency)}`;
   return (
     <section className="panel wealth-card" aria-labelledby="wealth-title">
-      <h2 id="wealth-title">Total Wealth</h2>
+      <WealthHistoryPanel data={data}>
       <div className="wealth-value">
         <strong>
           {current ? formatMoney(current.amount, data.currency) : "Unavailable"}
@@ -86,26 +86,9 @@ export function WealthCard({ data }: { data: OverviewData }) {
           </span>
         )}
       </div>
-      {data.rateError ? (
-        <p role="status">{data.rateError}</p>
-      ) : (
-        <>
-          <WealthHistoryChart
-            wealth={data.wealth}
-            today={data.today}
-            currency={data.currency}
-            methodology={data.historyNote}
-          />
-          {data.converted && (
-            <p className="chart-note">Estimated · ECB rates {data.rateDate}{data.rateCached && " · Cached rates (refresh unavailable)"}</p>
-          )}
-          {data.changeError && (
-            <p className="chart-note" role="status">
-              {data.changeError}
-            </p>
-          )}
-        </>
-      )}
+      {data.rateError && <p role="status">{data.rateError}</p>}
+      {data.changeError && <p className="chart-note" role="status">{data.changeError}</p>}
+      </WealthHistoryPanel>
       {!!data.accounts?.length && (
         <div className="wealth-accounts" aria-label="Account balances and changes">
           <div className="wealth-account-head" aria-hidden="true">

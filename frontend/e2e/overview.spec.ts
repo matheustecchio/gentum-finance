@@ -29,7 +29,7 @@ for (const width of [1280, 390]) {
     for (let i = 1; i <= 15; i++) await execute("transaction", { accountId: account, categoryId: category("Groceries"), kind: "EXPENSE", amount: "1000", date: day(-i * 7), description: "Fictional previous-week expense" });
     await execute("transaction", { accountId: account, categoryId: category("Groceries"), kind: "EXPENSE", amount: "100", date: "2017-01-01", description: "Fictional old history" });
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".cash-chart").getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
     await expect(page.locator(".category-ranking li").first()).toContainText("Rent");
     await expect(page.getByRole("listitem", { name: "Dining out: €72.30", exact: true }).locator(".category-rank-amount")).toHaveClass(/outside/);
@@ -73,14 +73,14 @@ for (const width of [1280, 390]) {
       await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
       await cdp.detach();
     }
-    await page.getByRole("button", { name: "Week settings" }).click(); await page.getByLabel("Week ends on").selectOption("3");
+    await page.locator(".cash-chart").getByRole("button", { name: "Week settings" }).click(); await page.getByLabel("Week ends on").selectOption("3");
     await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
     for (const label of ["Month", "Quarter", "Semester", "Year", "5 years", "All"]) {
-      await page.getByRole("button", { name: label, exact: true }).click(); await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
+      await page.locator(".cash-chart").getByRole("button", { name: label, exact: true }).click(); await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
     await expect(page.locator(".category-chart .chart-note")).toContainText("2017");
-    const custom = page.getByRole("button", { name: "Custom", exact: true });
+    const custom = page.locator(".cash-chart").getByRole("button", { name: "Custom", exact: true });
     await custom.click();
     await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -93,9 +93,38 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Apply", exact: true }).click();
     await expect(custom).toBeFocused();
     await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Month", exact: true }).click();
+    await page.locator(".cash-chart").getByRole("button", { name: "Month", exact: true }).click();
     await expect(page.locator(".flow-period text").filter({ hasText: new Intl.DateTimeFormat("en-IE", { month: "long", timeZone: "Europe/Dublin" }).format(new Date()) }).last()).toBeVisible();
-    await page.getByRole("button", { name: "Week", exact: true }).click(); await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
+    await page.locator(".cash-chart").getByRole("button", { name: "Week", exact: true }).click(); await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
+    const wealth = page.getByRole("region", { name: "Total Wealth", exact: true });
+    await expect(wealth.getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
+    const currentWealth = await wealth.locator(".wealth-value > strong").innerText();
+    for (const [label, grouping] of [["Month", "month"], ["Quarter", "quarter"], ["Semester", "halfYear"], ["Year", "year"], ["5 years", "fiveYears"], ["All", "all"]]) {
+      const response = page.waitForResponse(r => r.url().endsWith("/graphql") && r.request().postDataJSON()?.query?.includes("query WealthHistory") && r.request().postDataJSON()?.variables.grouping === grouping);
+      await wealth.getByRole("button", { name: label, exact: true }).click();
+      const result = await (await response).json();
+      expect(result.errors).toBeUndefined();
+      expect(result.data.wealthHistory.wealth.length).toBeGreaterThan(1);
+      await expect(wealth.getByRole("slider")).toBeVisible();
+      await expect(wealth.locator(".wealth-value > strong")).toHaveText(currentWealth);
+      await expect(page.locator(".cash-chart").getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (label === "All") expect(result.data.wealthHistory.wealth[0].date).toContain("2017");
+    }
+    const wealthCustom = wealth.getByRole("button", { name: "Custom", exact: true });
+    await wealthCustom.click();
+    await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(wealthCustom).toBeFocused();
+    await wealthCustom.click();
+    await page.getByLabel("Start date", { exact: true }).fill("2017-01-01");
+    await page.getByLabel("End date", { exact: true }).fill(today);
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(wealthCustom).toBeFocused();
+    await expect(wealth.getByRole("slider")).toBeVisible();
+    await wealth.getByRole("slider").focus();
+    await page.keyboard.press("Home");
+    await expect(wealth.getByRole("slider")).toHaveAttribute("aria-valuetext", /2017/);
     await page.screenshot({ path: `/tmp/gentum-grouped-${width}.png`, fullPage: true });
   });
 }

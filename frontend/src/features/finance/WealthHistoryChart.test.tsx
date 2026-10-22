@@ -90,3 +90,13 @@ it("maps resized plot coordinates and clamps to the first/last day", () => {
   expect(nearestWealthDay(-100, 100, 300)).toBe(0);
   expect(nearestWealthDay(10000, 100, 300)).toBe(30);
 });
+it("inspects supplied historical endpoints and leaves missing periods unavailable", () => {
+  render(<WealthHistoryChart wealth={[{date:"2016-12-31",amount:"9007199254740993"},{date:"2026-10-21",amount:"100"}]} today="2026-10-21" currency="EUR" dates={["2016-12-31","2020-12-31","2026-10-21"]} labels={["2016","2020","2026"]} />);
+  const slider=screen.getByRole("slider");
+  expect(slider).toHaveAttribute("aria-valuemax","2");
+  fireEvent.keyDown(slider,{key:"Home"});
+  expect(slider).toHaveAttribute("aria-valuetext",expect.stringContaining("€90,071,992,547,409.93"));
+  fireEvent.keyDown(slider,{key:"ArrowRight"});
+  expect(slider).toHaveAttribute("aria-valuetext",expect.stringContaining("Unavailable"));
+  expect(screen.getByText("2020")).toBeVisible();
+});
