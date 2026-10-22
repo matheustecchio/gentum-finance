@@ -394,3 +394,15 @@
 .category-rank-track.is-stacked { margin-right: 0; height: auto; min-height: 42px; }
 .category-rank-track.is-stacked .category-rank-fill { height: 32px; }
 .category-rank-track.is-stacked .category-rank-amount { position: static; display: block; transform: none; padding: 6px 0 0; white-space: normal; overflow-wrap: anywhere; }
+
+.chart-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.chart-header h2 { flex: 0 0 auto; margin: 0; }
+.chart-header .analytics-toolbar { margin-left: auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; }
+.chart-header .period-options { justify-content: flex-end; }
+.period-dialog { position: fixed; inset: 0; margin: auto; width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; box-sizing: border-box; border: 1px solid #c5d6cd; border-radius: 16px; padding: 24px; background: #fff; color: #153e33; box-shadow: 0 24px 80px #102a2440; }
+.period-dialog::backdrop { background: rgb(12 30 25 / 48%); }
+.period-dialog h2 { margin: 0 0 20px; }
+.period-dialog .period-dates { align-items: stretch; }
+.period-dialog .period-dates label { flex: 1; min-width: 0; }
+.period-dialog input { width: 100%; min-width: 0; box-sizing: border-box; }
+@media (max-width: 760px) { .chart-header { flex-wrap: wrap; } .chart-header .analytics-toolbar { flex-basis: 100%; } }

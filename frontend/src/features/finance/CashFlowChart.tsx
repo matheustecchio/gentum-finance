@@ -15,7 +15,8 @@ export function bucketLabel(bucket: Bucket, grouping: string, today: string) {
   let label = grouping === "month" ? f({ month: "long", year: "numeric" })
     : grouping === "year" ? f({ year: "numeric" })
     : grouping === "week" ? new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${bucket.end}T00:00:00Z`))
-    : grouping === "quarter" ? `Q${Math.floor(start.getUTCMonth() / 3) + 1} ${start.getUTCFullYear()}`
+    : grouping === "quarter" ? `K${Math.floor(start.getUTCMonth() / 3) + 1} ${start.getUTCFullYear()}`
+    : grouping === "halfYear" ? `S${Math.floor(start.getUTCMonth() / 6) + 1} ${start.getUTCFullYear()}`
     : grouping === "all" ? "All history"
     : grouping === "custom" && bucket.start === bucket.end ? f({ day: "numeric", month: "short" })
     : rangeLabel(bucket.start, bucket.end);
