@@ -524,8 +524,6 @@ button.analytics-return { background: #303934; color: #fff; border: 0; border-ra
 .analytics-summary-card > svg { stroke-width: 2; }
 .analytics-comparison { display: flex; flex-wrap: wrap; gap: 10px 20px; color: #86adff; margin: 10px 0 20px; font-size: .9rem; }
 .analytics-line-legend { display: block; text-align: right; color: #bbc6be; }
-.analytics-category-tools { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 0; }
-.analytics-category-tools button { color: #9bbcff; background: transparent; border: 0; padding: 8px; }
 .panel.money-breakdown { background: transparent; padding: 0; }
 .money-category-card { background: #1b201d; border-radius: 28px; padding: 26px; margin-top: 20px; }
 .money-category-card .money-category-list { margin: 0; }
@@ -537,3 +535,6 @@ button.analytics-return { background: #303934; color: #fff; border: 0; border-ra
 .wealth-account-icon { grid-column: 1; grid-row: 1/3; display: grid; place-items: center; background: #447cf2; color: #fff; border-radius: 50%; width: 32px; height: 32px; }
 .wealth-account-icon svg { width: 21px; height: 21px; }
 .analytics-wealth-detail .period-dialog h2 { color: #153e33; }
+
+.wealth-estimate { display: block; font-weight: 400; }
+button.money-manage { color: #9bbcff; background: transparent; border: 0; padding: 8px 0; }

@@ -381,3 +381,30 @@ it("shows exact category counts, percentages and all categories on demand", asyn
   fireEvent.click(screen.getByRole("button", { name: "See all" }));
   expect(within(list).getAllByRole("listitem")).toHaveLength(4);
 });
+
+it("labels the dashboard current wealth with its FX date and cached quote status", async () => {
+  vi.stubGlobal("fetch", fixture());
+  const overview = {
+    currency: "EUR",
+    today: "2026-10-21",
+    wealth: [{ date: "2026-10-21", amount: "100" }],
+    flows: [],
+    rateDate: "2026-10-20",
+    rateCached: true,
+    rateError: "",
+    converted: true,
+  };
+  const view = render(<Analytics snapshot={snapshot} overview={overview} />);
+  expect(
+    screen.getByText(
+      "Current total estimated · ECB rates 2026-10-20 · Cached rates (refresh unavailable)",
+    ),
+  ).toBeVisible();
+  view.rerender(
+    <Analytics
+      snapshot={snapshot}
+      overview={{ ...overview, converted: false }}
+    />,
+  );
+  expect(screen.queryByText(/Current total estimated/)).toBeNull();
+});

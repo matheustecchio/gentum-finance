@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { WealthEstimateNote } from "./WealthEstimateNote";
 import { graphql } from "./client";
 import type { OverviewData } from "./Overview";
 import { calendarDay } from "./Analytics";
@@ -79,6 +80,7 @@ export function WealthCalendarPanel({
         <h2 id="wealth-title">Total Wealth</h2>
       </div>
       {children}
+      <WealthEstimateNote data={data} />
       {error && (
         <p role="alert">
           {error}{" "}
@@ -124,7 +126,7 @@ export function WealthCalendarPanel({
           )}
           {history.converted && (
             <p className="chart-note">
-              Estimated · ECB rates {history.rateDate}
+              Chart estimated · ECB rates {history.rateDate}
               {history.rateCached && " · Cached rates (refresh unavailable)"}
             </p>
           )}
