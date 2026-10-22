@@ -138,6 +138,19 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			return result, nil
 		}}
 
+		financeFields["wealthHistory"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"grouping": {Type: graphql.NewNonNull(graphql.String)}, "weekEnd": {Type: graphql.Int, DefaultValue: 0}, "before": {Type: graphql.String}, "start": {Type: graphql.String}, "end": {Type: graphql.String}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			value := func(key string) string { v, _ := p.Args[key].(string); return v }
+			weekEnd, _ := p.Args["weekEnd"].(int)
+			result, err := fs.WealthHistory(p.Context, finance.FlowFilter{Grouping: value("grouping"), WeekEnd: weekEnd, Before: value("before"), Start: value("start"), End: value("end")})
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to load wealth history")
+			}
+			return result, nil
+		}}
 		financeFields["overview"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"month": {Type: graphql.NewNonNull(graphql.String)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			result, err := fs.Overview(p.Context, p.Args["month"].(string))
 			if err != nil {

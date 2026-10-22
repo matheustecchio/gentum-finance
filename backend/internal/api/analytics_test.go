@@ -74,7 +74,7 @@ func TestGroupedHistoryAndSpendingGraphQLContract(t *testing.T) {
 	if result["errors"] != nil || repo.start != "2010-01-01" {
 		t.Fatal(result, repo)
 	}
-	for _, query := range []string{`{flowHistory(grouping:"bad")}`, `{flowHistory(grouping:"week",weekEnd:7)}`, `{flowHistory(grouping:"week",before:"2026-10-22")}`, `{categorySpending(start:"2026-10-22",end:"2026-10-21")}`} {
+	for _, query := range []string{`{wealthHistory(grouping:"bad")}`, `{wealthHistory(grouping:"week",weekEnd:7)}`, `{wealthHistory(grouping:"week",before:"2026-10-22")}`, `{wealthHistory(grouping:"custom",start:"2026-10-22",end:"2026-10-21")}`, `{flowHistory(grouping:"bad")}`, `{flowHistory(grouping:"week",weekEnd:7)}`, `{flowHistory(grouping:"week",before:"2026-10-22")}`, `{categorySpending(start:"2026-10-22",end:"2026-10-21")}`} {
 		repo.user = ""
 		result = execute(t, h, query, nil)
 		if result["errors"] == nil || repo.user != "" {

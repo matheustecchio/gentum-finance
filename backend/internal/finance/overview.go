@@ -208,6 +208,10 @@ func (s Service) Overview(ctx context.Context, month string) (Overview, error) {
 	if err != nil {
 		return Overview{}, err
 	}
+	return s.convertOverview(ctx, d, now)
+}
+
+func (s Service) convertOverview(ctx context.Context, d overviewData, now time.Time) (Overview, error) {
 	out := Overview{HistoryNote: d.HistoryNote, Currency: d.Currency, Today: now.Format("2006-01-02"), Wealth: []Row{}, Flows: d.Flows, Accounts: d.Accounts}
 	needsRates := false
 	for _, o := range d.Observations {
