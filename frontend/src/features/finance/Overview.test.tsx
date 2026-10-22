@@ -250,3 +250,9 @@ it("places wealth after cash flow and categories and lists each account without 
   expect(screen.getByLabelText("New account change")).toHaveTextContent("Unavailable");
   expect(screen.queryByText(/over 30 days/i)).toBeNull();
 });
+it("labels locally cached fallback with its reference date", () => {
+ const view=render(<WealthCard data={{...data,rateCached:true}} />);
+ expect(screen.getByText("Estimated · ECB rates 2026-10-16 · Cached rates (refresh unavailable)")).toBeVisible();
+ view.rerender(<WealthCard data={{...data,rateCached:false}} />);
+ expect(screen.queryByText(/Cached rates/)).not.toBeInTheDocument();
+});

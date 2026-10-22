@@ -28,9 +28,7 @@ Both endpoints use the same latest reference rates, excluding exchange-rate move
 A 30-day delta is available only when the complete baseline is supported.
 
 Converted totals use ECB reference rates from Frankfurter's public HTTPS API,
-cached in memory for one hour, accepted only when all supported quotes share a
-date within the last seven days. Weekends and publication delays are visible in
-the rate date. On failure or stale/missing rates, no partial wealth total is shown.
+refreshed after one hour and saved in the local ledger database. All supported quotes must share a date within the last seven days. Weekends and publication delays are visible in the rate date. If refresh fails, the last saved set is used only while it still passes these checks; `rateCached` marks fallback. Missing, invalid, future-dated or expired sets leave converted wealth unavailable.
 Only currency codes leave the local backend. No account data is sent. This service
 is needed only for conversion; native-currency wealth remains available offline.
 Conversion uses rational arithmetic and rounds the combined total once to cents,
@@ -96,3 +94,7 @@ reconstruction as total wealth. An empty change means insufficient history or
 an unsupported difference. Account balances remain available when exchange rates
 are unavailable. The Overview displays Total Wealth after cash flow and categories,
 with the account breakdown always visible below the combined total and chart.
+
+### Exchange-rate fallback
+
+Overview adds `rateCached` to its finance response. It is true when refresh fails and a previously validated local ECB quote set remains complete and at most seven days old. `rateDate` identifies that set. Missing, invalid, future-dated or expired sets leave converted wealth unavailable. Reference quotes persist locally across backend restarts; both wealth comparison dates use the same set and existing exact rounding rules. No ledger data is sent to the provider.

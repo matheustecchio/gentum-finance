@@ -8,9 +8,8 @@ are EUR, GBP, USD and BRL, all covered by ECB reference rates.
 
 The local backend fetches ECB rates through Frankfurter's public HTTPS endpoint.
 Only currency codes leave the machine. The optional request has a five-second
-timeout, bounded response and one-hour in-memory cache. All quotes must have the
-same publication date within seven days. Failed or stale rates hide the converted
-total instead of showing a misleading partial sum. There are no embedded rates.
+timeout, bounded response and one-hour in-memory refresh interval. Validated quote sets are persisted in each local ledger database and survive restarts. All quotes must have the
+same publication date within seven days. If refresh fails, the last saved set is reused only while it still passes all currency, completeness, date and seven-day validity checks. The card marks cached fallback and shows its reference date. Missing, invalid, future-dated or expired sets hide converted wealth. There are no embedded rates.
 The card names the source and publication date and labels conversion an estimate.
 
 Conversion uses rational arithmetic, sums before rounding and rounds to integer

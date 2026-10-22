@@ -26,6 +26,7 @@ type Overview struct {
 	RateDate    string `json:"rateDate"`
 	RateError   string `json:"rateError"`
 	Converted   bool   `json:"converted"`
+	RateCached  bool   `json:"rateCached"`
 }
 type overviewData struct {
 	Accounts     []Row
@@ -51,6 +52,8 @@ type RateSource interface {
 // ECB reference rates are estimates, not executable bank quotes. Only currency
 // codes are requested; no ledger balances, names, or user IDs leave this process.
 type ECBRates struct {
+	Store   RateStore
+	loaded  bool
 	mu      sync.Mutex
 	rates   []Rate
 	fetched time.Time
@@ -59,11 +62,42 @@ type ECBRates struct {
 }
 
 func (e *ECBRates) Rates(ctx context.Context, now time.Time) ([]Rate, error) {
+	rates, _, err := e.RatesWithStatus(ctx, now)
+	return rates, err
+}
+
+// RatesWithStatus reports fallback per request, without shared mutable UI state.
+func (e *ECBRates) RatesWithStatus(ctx context.Context, now time.Time) ([]Rate, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if len(e.rates) > 0 && now.Sub(e.fetched) < time.Hour {
-		return e.rates, nil
+	if !e.loaded {
+		e.loaded = true
+		if e.Store != nil {
+			if saved, err := e.Store.LoadRates(ctx); err == nil {
+				if _, _, err = rateTable(saved, now); err == nil {
+					e.rates = saved
+				}
+			}
+		}
 	}
+	if _, _, err := rateTable(e.rates, now); err == nil && !e.fetched.IsZero() && now.Sub(e.fetched) >= 0 && now.Sub(e.fetched) < time.Hour {
+		return append([]Rate(nil), e.rates...), false, nil
+	}
+	rates, err := e.fetch(ctx, now)
+	if err == nil && e.Store != nil {
+		err = e.Store.SaveRates(ctx, rates)
+	}
+	if err == nil {
+		e.rates = rates
+		e.fetched = now
+		return append([]Rate(nil), rates...), false, nil
+	}
+	if _, _, valid := rateTable(e.rates, now); valid == nil {
+		return append([]Rate(nil), e.rates...), true, nil
+	}
+	return nil, false, err
+}
+func (e *ECBRates) fetch(ctx context.Context, now time.Time) ([]Rate, error) {
 	client := e.Client
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
@@ -93,8 +127,6 @@ func (e *ECBRates) Rates(ctx context.Context, now time.Time) ([]Rate, error) {
 	if _, _, err = rateTable(rates, now); err != nil {
 		return nil, err
 	}
-	e.rates = rates
-	e.fetched = now
 	return rates, nil
 }
 func rateTable(rates []Rate, now time.Time) (map[string]*big.Rat, string, error) {
@@ -192,7 +224,15 @@ func (s Service) Overview(ctx context.Context, month string) (Overview, error) {
 			out.RateError = "Exchange rates unavailable"
 			return out, nil
 		}
-		rates, e := s.Rates.Rates(ctx, now)
+		var rates []Rate
+		var e error
+		if source, ok := s.Rates.(interface {
+			RatesWithStatus(context.Context, time.Time) ([]Rate, bool, error)
+		}); ok {
+			rates, out.RateCached, e = source.RatesWithStatus(ctx, now)
+		} else {
+			rates, e = s.Rates.Rates(ctx, now)
+		}
 		if e == nil {
 			table, out.RateDate, e = rateTable(rates, now)
 		}
