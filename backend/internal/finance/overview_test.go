@@ -87,8 +87,11 @@ func TestECBRequestCacheAndFailure(t *testing.T) {
 	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(503) }))
 	defer bad.Close()
 	source.URL = bad.URL
-	if _, err := source.Rates(context.Background(), referenceDay); err == nil {
-		t.Fatal("silently used expired cache")
+	if _, cached, err := source.RatesWithStatus(context.Background(), referenceDay); err != nil || !cached {
+		t.Fatal("valid fallback unavailable", err)
+	}
+	if _, _, err := source.RatesWithStatus(context.Background(), referenceDay.AddDate(0, 0, 8)); err == nil {
+		t.Fatal("accepted expired fallback")
 	}
 }
 

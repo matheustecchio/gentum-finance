@@ -55,7 +55,7 @@ func run() error {
 	}
 	origin := env("GENTUM_FRONTEND_ORIGIN", "http://localhost:5173")
 	build := func(pool *pgxpool.Pool) (http.Handler, error) {
-		return api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, origin, finance.Service{Rates: &finance.ECBRates{}, Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
+		return api.NewHandler(account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}}, origin, finance.Service{Rates: &finance.ECBRates{Store: finance.PostgresRateStore{Pool: pool}}, Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: security.SessionUser{}})
 	}
 	var provision *pgxpool.Pool
 	if url := os.Getenv("GENTUM_PROVISION_DATABASE_URL"); url != "" {

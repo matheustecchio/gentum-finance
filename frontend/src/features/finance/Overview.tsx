@@ -17,6 +17,7 @@ export interface OverviewData {
   wealth: Row[];
   flows: Row[];
   rateDate: string;
+  rateCached?: boolean;
   rateError: string;
   converted: boolean;
 }
@@ -96,7 +97,7 @@ export function WealthCard({ data }: { data: OverviewData }) {
             methodology={data.historyNote}
           />
           {data.converted && (
-            <p className="chart-note">Estimated · ECB rates {data.rateDate}</p>
+            <p className="chart-note">Estimated · ECB rates {data.rateDate}{data.rateCached && " · Cached rates (refresh unavailable)"}</p>
           )}
           {data.changeError && (
             <p className="chart-note" role="status">
