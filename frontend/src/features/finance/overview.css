@@ -5,11 +5,11 @@
   border-radius: 28px;
   padding: 24px 28px;
 }
-.wealth-card h2 {
+.wealth-card > .chart-header > h2 {
   color: #c1c8c6;
   font-size: 1.1rem;
   font-weight: 500;
-  margin: 0 0 8px;
+  margin: 0;
 }
 .wealth-value {
   container-type: inline-size;

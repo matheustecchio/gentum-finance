@@ -83,6 +83,7 @@ for (const width of [1280, 390]) {
     const custom = page.locator(".cash-chart").getByRole("button", { name: "Custom", exact: true });
     await custom.click();
     await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "Custom date range" })).toHaveCSS("color", "rgb(21, 62, 51)");
     await page.keyboard.press("Escape");
     await expect(custom).toBeFocused();
     await custom.click();
@@ -114,6 +115,7 @@ for (const width of [1280, 390]) {
     const wealthCustom = wealth.getByRole("button", { name: "Custom", exact: true });
     await wealthCustom.click();
     await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "Custom date range" })).toHaveCSS("color", "rgb(21, 62, 51)");
     await page.keyboard.press("Escape");
     await expect(wealthCustom).toBeFocused();
     await wealthCustom.click();
