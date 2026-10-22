@@ -3,23 +3,18 @@ import { graphql, type Row, type Snapshot } from "./client";
 import { CategoryChart } from "./Overview";
 import { CashFlowChart, rangeLabel, type Bucket } from "./CashFlowChart";
 
-export type Period = "week" | "month" | "quarter" | "fourMonths" | "halfYear" | "year" | "fiveYears" | "all" | "custom";
+import { PeriodControls, validRange, type Period } from "./PeriodControls";
+export { validRange } from "./PeriodControls";
 export function calendarDay(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   return ["year", "month", "day"].map(key => parts.find(p => p.type === key)!.value).join("-");
 }
-export function validRange(start: string, end: string, today: string) {
-  const real = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
-  return real(start) && real(end) && start >= "1900-01-01" && start <= end && end <= today;
-}
 interface HistoryData { buckets: Bucket[]; flows: Row[]; hasEarlier: boolean }
 const historyQuery = "query FlowHistory($grouping:String!,$weekEnd:Int!,$before:String,$start:String,$end:String){flowHistory(grouping:$grouping,weekEnd:$weekEnd,before:$before,start:$start,end:$end)}";
-const options = [["week", "Week"], ["month", "Month"], ["quarter", "Quarter"], ["fourMonths", "4 months"], ["halfYear", "Half-year"], ["year", "Year"], ["fiveYears", "5 years"], ["all", "All"], ["custom", "Custom"]] as const;
 export function Analytics({ snapshot }: { snapshot: Snapshot; month?: string }) {
   const [today, setToday] = useState(calendarDay);
   const [period, setPeriod] = useState<Period>("week");
   const [weekEnd, setWeekEnd] = useState(0);
-  const [settings, setSettings] = useState(false);
   const [custom, setCustom] = useState({ start: `${today.slice(0, 7)}-01`, end: today });
   const [history, setHistory] = useState<HistoryData>();
   const [historyKey, setHistoryKey] = useState("");
@@ -101,16 +96,14 @@ export function Analytics({ snapshot }: { snapshot: Snapshot; month?: string }) 
   const width = Math.max(viewportWidth, (viewHistory?.buckets.length || 1) * 150);
   const currencies = [...new Set([...snapshot.accounts.map(a => a.currency), ...(viewHistory?.flows.map(f => f.currency) || [])])].sort();
   return <>
-    <section className="analytics-period" aria-label="Analytics period">
-      <div className="analytics-toolbar"><div className="period-options" role="group" aria-label="Grouping">{options.map(([value, label]) => <button key={value} aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</button>)}</div>
-        <button className="week-settings" aria-label="Week settings" aria-expanded={settings} onClick={() => setSettings(v => !v)} title="Week settings">⚙</button></div>
-      {settings && <div className="week-settings-panel"><label>Week ends on<select value={weekEnd} onChange={e => setWeekEnd(Number(e.target.value))}>{["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, i) => <option key={day} value={i}>{day}</option>)}</select></label></div>}
-      {period === "custom" && <div className="period-dates"><label>Start date<input type="date" min="1900-01-01" max={custom.end || today} value={custom.start} onChange={e => setCustom({ ...custom, start: e.target.value })} /></label><label>End date<input type="date" min={custom.start || "1900-01-01"} max={today} value={custom.end} onChange={e => setCustom({ ...custom, end: e.target.value })} /></label></div>}
-    </section>
+    <section className="panel cash-chart" aria-labelledby="cash-flow-title">
+      <div className="chart-header"><h2 id="cash-flow-title">Cash flow</h2>
+        <PeriodControls period={period} custom={custom} today={today} weekEnd={weekEnd} onWeekEnd={setWeekEnd} onPeriod={setPeriod} onCustom={range => { setCustom(range); setPeriod("custom"); }} />
+      </div>
     {!valid && <p role="alert">Choose valid dates, ending today or earlier.</p>}
     {valid && !viewHistory && !historyError && <p role="status">Loading cash flow…</p>}
     {historyError && <p role="alert">{historyError} <button onClick={() => { if (history) { setHistoryError(""); void earlier(true); } else setRetry(v => v + 1); }}>Retry cash flow</button>{history && <button onClick={() => { setHistoryError(""); setRetry(v => v + 1); }}>Reload history</button>}</p>}
-    {viewHistory && <section className="panel cash-chart"><h2>Cash flow</h2><p className="chart-legend"><span className="income-key">Income</span><span className="expense-key">Expenses</span><span className="net-key">Net flow</span></p>
+    {viewHistory && <><p className="chart-legend"><span className="income-key">Income</span><span className="expense-key">Expenses</span><span className="net-key">Net flow</span></p>
       <div ref={viewport} className="flow-viewport grouped-timeline" role="group" aria-label="Cash flow history navigation" tabIndex={0}
         onScroll={inspectEdge} onWheel={() => { interacted.current = true; }}
         onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); interacted.current = true; e.currentTarget.scrollLeft += e.key === "ArrowLeft" ? -150 : 150; inspectEdge(); } }}
@@ -121,7 +114,8 @@ export function Analytics({ snapshot }: { snapshot: Snapshot; month?: string }) 
         <div className="history-track" style={{ width }}>{(currencies.length ? currencies : ["EUR"]).map(currency => <CashFlowChart key={currency} rows={viewHistory.flows} currency={currency} buckets={viewHistory.buckets} width={width} selected={selected?.start || ""} grouping={period} today={today} onSelect={setSelected} />)}</div>
       </div>
       {loadingEarlier && <p role="status">Loading older history…</p>}
-    </section>}
+    </>}
+    </section>
     {viewHistory && selected && !currentBreakdown && !spendingError && <p role="status">Loading categories…</p>}
     {spendingError && <p role="alert">{spendingError} <button onClick={() => setCategoryRetry(v => v + 1)}>Retry categories</button></p>}
     {viewHistory && selected && currentBreakdown && <CategoryChart key={`${selected.start}:${selected.end}`} snapshot={{ ...snapshot, breakdown: currentBreakdown }} month={rangeLabel(selected.start, selected.end)} />}
