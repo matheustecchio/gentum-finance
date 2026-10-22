@@ -35,8 +35,8 @@ async function setup(page: Page, change = "-7410", gap = false) {
       json: {
         data: {
           overview,
-          wealthHistory: { ...overview, buckets: Array.from({ length: 31 }, (_, i) => { const day = new Date("2026-09-18T00:00:00Z"); day.setUTCDate(day.getUTCDate() + i); const date = day.toISOString().slice(0, 10); return { start: date, end: date }; }), hasEarlier: false },
-          flowHistory: { buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false },
+          wealthCalendar: { ...overview, start:"2026-09-18",end:"2026-10-18",previous:"2026-09-17",next:"", buckets: Array.from({ length: 31 }, (_, i) => { const day = new Date("2026-09-18T00:00:00Z"); day.setUTCDate(day.getUTCDate() + i); const date = day.toISOString().slice(0, 10); return { start: date, end: date }; }), hasEarlier: false },
+          cashFlowPage: {start:"2026-10-01",end:"2026-10-31",today:"2026-10-18",grouping:"month",totals:[],incoming:[],outgoing:[],entries:[],trendBuckets:[],trendFlows:[], buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false },
           categorySpending: { breakdown: [] },
           financeSummary: {
             accounts: [{ id: "a", currency: "EUR" }],
@@ -51,6 +51,7 @@ async function setup(page: Page, change = "-7410", gap = false) {
     }),
   );
   await page.goto("/");
+  await page.getByRole("button",{name:/Total Wealth/}).click();
   await page.getByRole("slider", { name: "Wealth history day" }).waitFor();
   return overview;
 }
@@ -158,7 +159,7 @@ test("Keyboard exposes dates and values, includes missing days and dismisses the
 test("Native touch tap/drag selects days and a vertical swipe still scrolls the page", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 900 });
+  await page.setViewportSize({ width: 390, height: 500 });
   await setup(page);
   const slider = page.getByRole("slider", { name: "Wealth history day" });
   await slider.scrollIntoViewIfNeeded();
@@ -196,6 +197,9 @@ test("Native touch tap/drag selects days and a vertical swipe still scrolls the 
     touchPoints: [],
   });
   await expect(page.getByRole("tooltip")).toContainText("12 Oct 2026");
+  await slider.scrollIntoViewIfNeeded();
+  box = (await slider.boundingBox())!;
+  await page.evaluate(() => window.scrollTo(0, 150));
   await slider.scrollIntoViewIfNeeded();
   box = (await slider.boundingBox())!;
   const scrollBefore = await page.evaluate(() => scrollY),

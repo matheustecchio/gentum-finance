@@ -26,7 +26,7 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
               : {
                   data: {
                     previewImport: { count: 1, errors: [], transactions: [{ record: "2", account: "Wallet", category: "Home / Repairs", currency: "EUR", date: "2026-10-17", kind: "EXPENSE", amount: "29", description: "Test" }] },
-                    flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                    cashFlowPage: { start: "2026-10-01", end: "2026-10-31", today: "2026-10-21", grouping:"month", previous:"2026-09-30", next:"", buckets:[{start:"2026-10-01",end:"2026-10-31"}], flows:[], totals:[], incoming:[], outgoing:[], entries:[], trendBuckets:[], trendFlows:[] }, flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
                     categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                       currency: "EUR",
@@ -142,7 +142,7 @@ function mockLedger(
                 ? { executeFinance: "Saved" }
                 : {
                     previewImport: { count: 1, errors: [], transactions: [{ record: "2", account: "Wallet", category: "Home / Repairs", currency: "EUR", date: "2026-10-17", kind: "EXPENSE", amount: "29", description: "Test" }] },
-                    flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                    cashFlowPage: { start: "2026-10-01", end: "2026-10-31", today: "2026-10-21", grouping:"month", previous:"2026-09-30", next:"", buckets:[{start:"2026-10-01",end:"2026-10-31"}], flows:[], totals:[], incoming:[], outgoing:[{categoryId:"root",name:"Home",currency:"EUR",amount:"29",count:"1",percentage:"22%"},{categoryId:"child",name:"Home / Repairs",currency:"EUR",amount:"100",count:"1",percentage:"78%"}], entries:[], trendBuckets:[], trendFlows:[] }, flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
                     categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                       currency: "EUR",
@@ -222,10 +222,11 @@ it("filters transaction and recurring category paths by kind and shows direct sp
   mockLedger();
   render(<FinanceApp />);
   await screen.findByRole("heading", { name: "Total Wealth" });
-  const rootSpending = await screen.findByRole("listitem", { name: "Home: €0.29" });
-  expect(within(rootSpending).getByText("€0.29", { exact: true })).toBeVisible();
-  const childSpending = screen.getByRole("listitem", { name: "Home / Repairs: €1.00" });
-  expect(within(childSpending).getByText("€1.00", { exact: true })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", {name:/Spent · EUR/}));
+  const rootSpending = await screen.findByRole("listitem", { name: /Home: −€0.29/ });
+  expect(within(rootSpending).getByText("−€0.29", { exact: true })).toBeVisible();
+  const childSpending = screen.getByRole("listitem", { name: /Home \/ Repairs: −€1.00/ });
+  expect(within(childSpending).getByText("−€1.00", { exact: true })).toBeVisible();
   for (const tab of ["Add transaction", "Recurring"]) {
     await userEvent.click(screen.getByRole("button", { name: tab }));
     await userEvent.selectOptions(
@@ -592,7 +593,7 @@ for (const pinEnabled of [false, true]) {
                 : {
                     data: {
                       previewImport: { count: 1, errors: [], transactions: [{ record: "2", account: "Wallet", category: "Home / Repairs", currency: "EUR", date: "2026-10-17", kind: "EXPENSE", amount: "29", description: "Test" }] },
-                    flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                    cashFlowPage: { start: "2026-10-01", end: "2026-10-31", today: "2026-10-21", grouping:"month", previous:"2026-09-30", next:"", buckets:[{start:"2026-10-01",end:"2026-10-31"}], flows:[], totals:[], incoming:[], outgoing:[], entries:[], trendBuckets:[], trendFlows:[] }, flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
                     categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                         currency: "EUR",

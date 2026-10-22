@@ -7,7 +7,7 @@ A personal-finance app that runs on your computer. Track accounts, transactions 
 - Accounts and categories for income and expenses.
 - Correct amounts, dates, descriptions and categories of non-recurring income and expenses in transaction history.
 - Transfers, monthly budgets and recurring transactions.
-- Draggable Overview history grouped by week, month, quarter (K1–K4), semester (S1/S2), year or five years, plus All and Custom. Filters sit inside the Cash flow and Total Wealth title rows; each chart has an independent selection and Custom opens a centered date-range modal. Total Wealth supports older grouped ledger history beyond 30 days.
+- Revolut-style financial Analytics: summary cards open Spent, Income, Net cash flow and Total Wealth. Browse whole calendar periods by drag, swipe, keyboard or buttons. Weeks show seven days, semesters and years show months, and charts support exact-value inspection, category totals and dated transaction drill-down. The animated 1W/1M/6M/1Y selector keeps extra periods and the centered Custom modal in its three-dot menu.
 - Select a period to see ranked category spending in its saved colors.
 - Validated exchange rates saved locally for offline wealth estimates for up to seven days.
 - Wealth, cash-flow and category spending reports, with balances and changes by account.

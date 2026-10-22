@@ -84,10 +84,10 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await page.getByLabel("I have saved my recovery code").check();
   await page.getByRole("button", { name: "Continue to wallet" }).click();
   await expect(
-    page.getByRole("heading", { name: "Overview", exact: true }),
+    page.getByRole("heading", { name: "Overview", exact: true, level: 1 }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Cash flow", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Categories", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Analytics", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Net cash flow · EUR/ })).toBeVisible();
   await expect(page.getByText("Unable to load analytics", { exact: true })).toHaveCount(0);
   await createAccount(page, "Daily wallet", "100.00");
   await createAccount(page, "Rainy day");
@@ -310,7 +310,7 @@ test("bounded history, separate recording and category deletion work with keyboa
   );
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Overview", exact: true }),
+    page.getByRole("heading", { name: "Overview", exact: true, level: 1 }),
   ).toBeVisible();
   await createAccount(page, "History wallet");
   await createCategory(page, "History root", "EXPENSE");
@@ -364,7 +364,7 @@ test("bounded history, separate recording and category deletion work with keyboa
     });
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Overview", exact: true }),
+    page.getByRole("heading", { name: "Overview", exact: true, level: 1 }),
   ).toBeVisible();
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 850 });
