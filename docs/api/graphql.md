@@ -138,7 +138,9 @@ previous/next anchors. Observations sample days through 63 dates, then month
 ends, clipping the current observation range through today. Current wealth
 and the account list retain their existing balance and 30-day-change contracts.
 Unknown historical balances remain unavailable. The local rate cache and
-conversion rules above apply without changes.
+conversion rules above apply without changes. The dashboard and wealth detail
+always label a converted current total as estimated with its own rate date and
+cache status, independently of the selected history range.
 
 Wealth inspection is client-side and uses the exact supplied daily values.
 Horizontal position selects the nearest calendar day across the full plot height;

@@ -23,8 +23,18 @@ function fixture(change = "-7410", gap = false) {
     historyNote: "Reconstructed ledger history. Missing days are unavailable.",
   };
 }
-async function setup(page: Page, change = "-7410", gap = false) {
-  const overview = fixture(change, gap);
+async function setup(
+  page: Page,
+  change = "-7410",
+  gap = false,
+  currentFx = false,
+) {
+  const overview = {
+    ...fixture(change, gap),
+    ...(currentFx
+      ? { converted: true, rateDate: "2026-10-20", rateCached: true }
+      : {}),
+  };
   await page.route("**/auth/status", (route) =>
     route.fulfill({
       json: { setupRequired: false, unlocked: true, pinEnabled: false },
@@ -35,8 +45,38 @@ async function setup(page: Page, change = "-7410", gap = false) {
       json: {
         data: {
           overview,
-          wealthCalendar: { ...overview, start:"2026-09-18",end:"2026-10-18",previous:"2026-09-17",next:"", buckets: Array.from({ length: 31 }, (_, i) => { const day = new Date("2026-09-18T00:00:00Z"); day.setUTCDate(day.getUTCDate() + i); const date = day.toISOString().slice(0, 10); return { start: date, end: date }; }), hasEarlier: false },
-          cashFlowPage: {start:"2026-10-01",end:"2026-10-31",today:"2026-10-18",grouping:"month",totals:[],incoming:[],outgoing:[],entries:[],trendBuckets:[],trendFlows:[], buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false },
+          wealthCalendar: {
+            ...overview,
+            ...(currentFx
+              ? { converted: false, rateDate: "", rateCached: false }
+              : {}),
+            start: "2026-09-18",
+            end: "2026-10-18",
+            previous: "2026-09-17",
+            next: "",
+            buckets: Array.from({ length: 31 }, (_, i) => {
+              const day = new Date("2026-09-18T00:00:00Z");
+              day.setUTCDate(day.getUTCDate() + i);
+              const date = day.toISOString().slice(0, 10);
+              return { start: date, end: date };
+            }),
+            hasEarlier: false,
+          },
+          cashFlowPage: {
+            start: "2026-10-01",
+            end: "2026-10-31",
+            today: "2026-10-18",
+            grouping: "month",
+            totals: [],
+            incoming: [],
+            outgoing: [],
+            entries: [],
+            trendBuckets: [],
+            trendFlows: [],
+            buckets: [{ start: "2026-10-19", end: "2026-10-21" }],
+            flows: [],
+            hasEarlier: false,
+          },
           categorySpending: { breakdown: [] },
           financeSummary: {
             accounts: [{ id: "a", currency: "EUR" }],
@@ -51,7 +91,13 @@ async function setup(page: Page, change = "-7410", gap = false) {
     }),
   );
   await page.goto("/");
-  await page.getByRole("button",{name:/Total Wealth/}).click();
+  if (currentFx)
+    await expect(
+      page.getByText(
+        "Current total estimated · ECB rates 2026-10-20 · Cached rates (refresh unavailable)",
+      ),
+    ).toBeVisible();
+  await page.getByRole("button", { name: /Total Wealth/ }).click();
   await page.getByRole("slider", { name: "Wealth history day" }).waitFor();
   return overview;
 }
@@ -86,7 +132,9 @@ for (const width of [1280, 390])
           container = (await group.boundingBox())!;
         expect(a.width).toBeGreaterThan(0);
         expect(a.x).toBeGreaterThanOrEqual(container.x);
-        expect(a.x + a.width).toBeLessThanOrEqual(container.x + container.width + 1);
+        expect(a.x + a.width).toBeLessThanOrEqual(
+          container.x + container.width + 1,
+        );
         await expect(group.locator("small")).toHaveCount(0);
         expect(
           await page.evaluate(
@@ -226,3 +274,17 @@ test("Native touch tap/drag selects days and a vertical swipe still scrolls the 
   await cdp.detach();
   await page.screenshot({ path: "/tmp/issue21-touch.png", fullPage: true });
 });
+
+for (const width of [1280, 390])
+  test(`Current FX provenance survives native history at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await setup(page, "-7410", false, true);
+    await expect(
+      page.getByText(
+        "Current total estimated · ECB rates 2026-10-20 · Cached rates (refresh unavailable)",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/Chart estimated/)).toHaveCount(0);
+  });

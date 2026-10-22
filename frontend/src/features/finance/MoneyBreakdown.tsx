@@ -9,6 +9,7 @@ export function MoneyBreakdown({
   total,
   kind,
   onCategory,
+  onManage,
 }: {
   title: string;
   currency: string;
@@ -16,6 +17,7 @@ export function MoneyBreakdown({
   total: string;
   kind: "income" | "expense";
   onCategory?: (row: Row) => void;
+  onManage?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const id = useId();
@@ -27,10 +29,18 @@ export function MoneyBreakdown({
           {title}
           {currency !== "EUR" && <small> · {currency}</small>}
         </h2>
-        <strong>
-          {sign}
-          {formatMoney(total, currency)}
-        </strong>
+        {onManage ? (
+          <button className="money-manage" onClick={onManage}>
+            Manage
+          </button>
+        ) : (
+          <>
+            <strong>
+              {sign}
+              {formatMoney(total, currency)}
+            </strong>
+          </>
+        )}
       </div>
       <div className="money-category-card">
         {rows.length === 0 ? (

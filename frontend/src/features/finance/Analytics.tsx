@@ -4,6 +4,7 @@ import { rangeLabel, type Bucket } from "./CashFlowChart";
 import { CashPeriodControls } from "./CashPeriodControls";
 import { CalendarFlowChart } from "./CalendarFlowChart";
 import { MoneyBreakdown } from "./MoneyBreakdown";
+import { WealthEstimateNote } from "./WealthEstimateNote";
 import { AnalyticsIcon } from "./AnalyticsIcon";
 import { AnalyticsLineChart } from "./AnalyticsLineChart";
 import { formatMoney } from "../accounts/money";
@@ -342,6 +343,7 @@ export function Analytics({
                     )
                   : "Unavailable"}
               </strong>
+              <WealthEstimateNote data={overview} />
               <SummaryPlot
                 rows={overview.wealth.map((w) => ({
                   ...w,
@@ -638,12 +640,6 @@ export function Analytics({
           </div>
         )}
       </section>
-      {visible && !category && onManage && (
-        <div className="analytics-category-tools">
-          <span>By Category</span>
-          <button onClick={onManage}>Manage</button>
-        </div>
-      )}
       {visible && (
         <div key={requestKey} className="money-breakdowns">
           {currencies.map((currency) => {
@@ -657,6 +653,9 @@ export function Analytics({
                 {screen !== "expense" && (
                   <MoneyBreakdown
                     onCategory={setCategory}
+                    onManage={
+                      screen !== "cash" && !category ? onManage : undefined
+                    }
                     title={screen === "cash" ? "Money In" : "By Category"}
                     kind="income"
                     currency={currency}
@@ -669,6 +668,9 @@ export function Analytics({
                 {screen !== "income" && (
                   <MoneyBreakdown
                     onCategory={setCategory}
+                    onManage={
+                      screen !== "cash" && !category ? onManage : undefined
+                    }
                     title={screen === "cash" ? "Money Out" : "By Category"}
                     kind="expense"
                     currency={currency}
