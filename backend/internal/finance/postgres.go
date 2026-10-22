@@ -139,8 +139,8 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 		err = deleteCategory(ctx, tx, user, in["id"])
 	case "category":
 		err = createCategory(ctx, tx, user, in)
-	case "starterCategories":
-		err = AddStarterCategories(ctx, tx, user)
+	case "renameCategory":
+		err = renameCategory(ctx, tx, user, in)
 	case "transaction":
 		err = insertEntry(ctx, tx, user, in, "", "")
 	case "transfer":

@@ -41,6 +41,12 @@ test("separate databases, protected switching, rename, tabs and reload", async (
   await expect(page.locator(".active-database")).toContainText(name);
   await expect(secondTab.locator(".active-database")).toContainText(name);
   await settings(page);
+  await expect(page.locator(".category-list li")).toHaveCount(32);
+  await expect(page.getByText("Miscellaneous", { exact: true })).toBeVisible();
+  await expect(page.getByText("Wages", { exact: true })).toBeVisible();
+  await expect(page.getByText("Income / Wages", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Vacations", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add categories", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: `Rename ${name}`, exact: true }).click();
   const renamed = `Holiday ${suffix}`;
   await page.getByLabel("Database name", { exact: true }).fill(renamed);

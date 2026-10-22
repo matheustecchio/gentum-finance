@@ -94,9 +94,12 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await createCategory(page, "Food", "EXPENSE");
   await createCategory(page, "Salary", "INCOME");
   await nav(page, "Settings");
-  await expect(
-    page.getByText("Vacations / Food", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add categories", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Vacations", { exact: true })).toBeVisible();
+  await expect(page.getByText("Miscellaneous", { exact: true })).toBeVisible();
+  await expect(page.getByText("Vacations / Food", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Wages", { exact: true })).toBeVisible();
+  await expect(page.getByText("Income / Wages", { exact: true })).toHaveCount(0);
   await page
     .getByRole("button", { name: "Create category", exact: true })
     .click();
@@ -196,6 +199,39 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   expect(exported).not.toContain("invalid");
   await nav(page, "Budgets");
   await expect(page.getByText("31% used")).toBeVisible();
+  // Rename linked categories through the same dialog used by Settings.
+  await nav(page, "Settings");
+  const childRename = page.getByRole("button", { name: "Edit Food / Coffee shop", exact: true });
+  await childRename.click();
+  const renameDialog = page.getByRole("dialog", { name: "Edit category", exact: true });
+  await expect(renameDialog.getByLabel("Category name")).toHaveValue("Coffee shop");
+  await expect(renameDialog.getByLabel("Category name")).toBeFocused();
+  await renameDialog.getByLabel("Category name").fill("Morning coffee");
+  await renameDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(childRename).toBeFocused();
+  await childRename.click();
+  await renameDialog.getByLabel("Category name").fill("Morning coffee");
+  await renameDialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(renameDialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit Food / Morning coffee", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Edit Food", exact: true }).click();
+  await renameDialog.getByLabel("Category name").fill("Meals");
+  await renameDialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByText("Meals / Morning coffee", { exact: true })).toBeVisible();
+  await page.reload();
+  await nav(page, "Transactions");
+  const coffeeHistory = page.getByRole("row").filter({ has: page.getByRole("cell", { name: "Coffee", exact: true }) });
+  await expect(coffeeHistory).toContainText("Meals / Morning coffee");
+  await expect(coffeeHistory).toContainText("€0.29");
+  await nav(page, "Budgets");
+  await expect(page.getByRole("heading", { name: "Meals", exact: true })).toBeVisible();
+  await expect(page.getByText("31% used")).toBeVisible();
+  await nav(page, "Recurring");
+  await expect(page.locator(".item-list li").filter({ hasText: "Monthly coffee" })).toContainText("Daily wallet · Meals · EXPENSE");
+  await nav(page, "Add transaction");
+  await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
+  const renamedCategoryId = await choose(page, "Category (must match kind)", "Meals / Morning coffee");
+  expect(renamedCategoryId).toBe(categoryId);
   const other = await browser.newContext();
   const isolated = await other.newPage();
   await isolated.goto(new URL("/", page.url()).toString());

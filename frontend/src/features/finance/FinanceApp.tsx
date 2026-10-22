@@ -27,6 +27,7 @@ type Field = {
   value?: string;
   options?: { value: string; label: string; kind?: string }[];
   optional?: boolean;
+  autoFocus?: boolean;
 };
 const currencies = ["EUR", "GBP", "USD", "BRL"].map((value) => ({
   value,
@@ -112,6 +113,7 @@ function Form({
               </select>
             ) : (
               <input
+                autoFocus={field.autoFocus}
                 name={field.name}
                 type={field.type ?? "text"}
                 defaultValue={field.value}
@@ -198,6 +200,9 @@ function Wallet({
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState<"account" | "category">();
+  const [renaming, setRenaming] = useState<Row>();
+  const renameTrigger = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { if (!renaming) renameTrigger.current?.focus(); }, [renaming]);
   const [createBusy, setCreateBusy] = useState(false);
   const createTrigger = useRef<HTMLButtonElement | null>(null);
   const openCreation = (
@@ -411,7 +416,7 @@ function Wallet({
               <section className="panel empty">
                 <h2>A fresh start</h2>
                 <p>
-                  Create an account, add categories, then record your first
+                  Create an account, then record your first
                   transaction.
                 </p>
                 <button onClick={() => setTab("Settings")}>
@@ -514,6 +519,19 @@ function Wallet({
                 />
               </CreationDialog>
             )}
+            {renaming && (
+              <CreationDialog title="Edit category" busy={createBusy} onClose={() => setRenaming(undefined)}>
+                <Form title="Edit category" submit="Save changes" onBusy={setCreateBusy}
+                  fields={[{ name: "name", label: "Category name", value: renaming.name, autoFocus: true }]}
+                  onSubmit={async (values) => {
+                    const name = values.name.trim();
+                    if ([...name].length < 1 || [...name].length > 100) throw new Error("Category name must contain 1–100 characters");
+                    if (data.categories.some(c => c.id !== renaming.id && c.kind === renaming.kind && (c.parentId || "") === (renaming.parentId || "") && c.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) throw new Error("A category with this name already exists in this group");
+                    await save("renameCategory", { id: renaming.id, name });
+                    setRenaming(undefined);
+                  }} />
+              </CreationDialog>
+            )}
             <section className="panel">
               <div className="section-heading">
                 <h2>Your categories</h2>
@@ -523,9 +541,6 @@ function Wallet({
                   Create category
                 </button>
               </div>
-              <button onClick={() => void act("starterCategories")}>
-                Add categories
-              </button>
               <ul className="item-list category-list">
                 {data.categories.map((c) => (
                   <li key={c.id}>
@@ -536,6 +551,10 @@ function Wallet({
                         {c.kind === "INCOME" ? "Income" : "Expense"}
                       </span>
                     </div>
+                    <div className="category-actions">
+                    <button className="edit-category" aria-label={`Edit ${c.path || c.name}`} onClick={(e) => { renameTrigger.current = e.currentTarget; setRenaming(c); }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5Z"/><path d="m14 5 5 5"/></svg>
+                    </button>
                     <button
                       className="delete-category"
                       aria-label={`Delete ${c.path || c.name}`}
@@ -547,6 +566,7 @@ function Wallet({
                     >
                       <img src={trashIcon} alt="" />
                     </button>
+                    </div>
                   </li>
                 ))}
               </ul>

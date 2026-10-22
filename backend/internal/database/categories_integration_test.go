@@ -5,6 +5,8 @@ package database
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 
 	"gentum.finance/backend/internal/account"
@@ -79,32 +81,10 @@ func TestHierarchyStarterAggregationAndCSV(t *testing.T) {
 	if _, err := foreign.Execute(ctx, "category", finance.Row{"name": "Foreign", "kind": "EXPENSE", "parentId": root}); err == nil {
 		t.Fatal("foreign parent")
 	}
-	must("starterCategories", finance.Row{})
+	fail("starterCategories", finance.Row{})
 	snap, err = svc.Snapshot(ctx, "2026-10")
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := len(snap.Categories)
-	if count != 39 {
-		t.Fatalf("catalog plus custom child: %d", count)
-	}
-	must("starterCategories", finance.Row{})
-	snap, _ = svc.Snapshot(ctx, "2026-10")
-	if len(snap.Categories) != count {
-		t.Fatal("duplicates")
-	}
-	education := ""
-	for _, c := range snap.Categories {
-		if c["name"] == "Education" {
-			education = c["id"]
-		}
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM category WHERE id=$1`, education); err != nil {
-		t.Fatal(err)
-	}
-	snap, _ = svc.Snapshot(ctx, "2026-10")
-	if len(snap.Categories) != count-1 {
-		t.Fatal("recreated default")
+	if err != nil || len(snap.Categories) != 2 {
+		t.Fatal("existing hierarchy changed", snap.Categories, err)
 	}
 	accounts := account.Service{Repository: account.PostgresRepository{Pool: pool}, CurrentUser: owner(user)}
 	a, err := accounts.Create(ctx, account.Input{Name: "Main", Type: "CASH", Currency: "EUR"})
@@ -137,6 +117,39 @@ func TestHierarchyStarterAggregationAndCSV(t *testing.T) {
 	for _, v := range snap.Breakdown {
 		if v["categoryId"] == root && v["currency"] == "EUR" && (v["total"] != "9007199254741022" || v["direct"] != "29") {
 			t.Fatal(v)
+		}
+	}
+	// Renaming preserves every linked record and the existing hierarchy, kind and color.
+	must("recurring", finance.Row{"accountId": a.ID, "categoryId": child, "kind": "EXPENSE", "amount": "19", "date": "2027-01-17"})
+	beforeRename, _ := svc.Snapshot(ctx, "2026-10")
+	must("category", finance.Row{"name": "Other", "kind": "EXPENSE", "parentId": root})
+	fail("renameCategory", finance.Row{"id": child, "name": " OTHER "})
+	for _, name := range []string{"", "   ", strings.Repeat("界", 101)} {
+		fail("renameCategory", finance.Row{"id": child, "name": name})
+	}
+	fail("renameCategory", finance.Row{"id": security.ID(), "name": "Missing"})
+	if _, err := foreign.Execute(ctx, "renameCategory", finance.Row{"id": child, "name": "Stolen"}); err == nil {
+		t.Fatal("foreign rename")
+	}
+	must("renameCategory", finance.Row{"id": root, "name": " Housing "})
+	must("category", finance.Row{"name": "Maintenance", "kind": "EXPENSE"})
+	must("category", finance.Row{"name": "Maintenance", "kind": "INCOME"})
+	must("renameCategory", finance.Row{"id": child, "name": strings.Repeat("界", 100)})
+	must("renameCategory", finance.Row{"id": child, "name": " Maintenance "})
+	must("renameCategory", finance.Row{"id": child, "name": "Maintenance"})
+	renamed, err := svc.Snapshot(ctx, "2026-10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(beforeRename.Accounts, renamed.Accounts) || !reflect.DeepEqual(beforeRename.Entries, renamed.Entries) || !reflect.DeepEqual(beforeRename.Recurring, renamed.Recurring) || !reflect.DeepEqual(beforeRename.Budgets, renamed.Budgets) {
+		t.Fatal("rename changed financial records")
+	}
+	for _, c := range renamed.Categories {
+		if c["id"] == child && (c["name"] != "Maintenance" || c["parentId"] != root || c["path"] != "Housing / Maintenance" || c["kind"] != "EXPENSE") {
+			t.Fatal(c)
+		}
+		if c["id"] == root && (c["name"] != "Housing" || c["color"] != "#a1b2c3") {
+			t.Fatal(c)
 		}
 	}
 	csv := fmt.Sprintf("date,kind,category_id,amount_cents,description\n2026-10-17,EXPENSE,%s,1,Selected\n", child)

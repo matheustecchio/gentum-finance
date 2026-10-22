@@ -274,14 +274,22 @@ func TestNewWalletDoesNotRequireOrExposeExistingProfiles(t *testing.T) {
 				t.Fatal("new wallet claimed an old identity")
 			}
 			var categories int
-			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1`, configured).Scan(&categories); err != nil || categories != 38 {
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1`, configured).Scan(&categories); err != nil || categories != 32 {
 				t.Fatal("incomplete starter catalog", categories, err)
+			}
+			var children int
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1 AND parent_id IS NOT NULL`, configured).Scan(&children); err != nil || children != 0 {
+				t.Fatal("starter categories must be flat", children, err)
+			}
+			var miscellaneous int
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1 AND name='Miscellaneous' AND kind='INCOME'`, configured).Scan(&miscellaneous); err != nil || miscellaneous != 1 {
+				t.Fatal("missing income default", miscellaneous, err)
 			}
 			if _, err := c.pool.Exec(ctx, `DELETE FROM category WHERE user_id=$1 AND name='Education'`, configured); err != nil {
 				t.Fatal(err)
 			}
 			c.expect("/graphql", `{"query":"{finance(month:\"2026-10\")}"}`, 200)
-			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1`, configured).Scan(&categories); err != nil || categories != 37 {
+			if err := c.pool.QueryRow(ctx, `SELECT count(*) FROM category WHERE user_id=$1`, configured).Scan(&categories); err != nil || categories != 31 {
 				t.Fatal("deleted default recreated", categories, err)
 			}
 			var owners, accounts int

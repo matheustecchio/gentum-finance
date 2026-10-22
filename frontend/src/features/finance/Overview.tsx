@@ -1,3 +1,4 @@
+import { CategoryRanking } from "./CategoryRanking";
 import { Analytics } from "./Analytics";
 import { FlowTooltip, type FlowSelection } from "./FlowTooltip";
 import { WealthHistoryChart } from "./WealthHistoryChart";
@@ -308,75 +309,9 @@ export function CategoryChart({
   snapshot: Snapshot;
   month: string;
 }) {
-  const [selected, setSelected] = useState("");
-  const bars: Row[] = (snapshot.breakdown ?? []).flatMap((b) => {
-    const category = snapshot.categories.find(
-      (c) => c.id === b.categoryId && c.kind === "EXPENSE",
-    );
-    // Direct amounts keep parent and child bars from double-counting spending.
-    return category && amount(b.direct) > 0n
-      ? [{ ...b, name: category.path || category.name }]
-      : [];
-  });
-  const currencies = [...new Set(bars.map((b) => b.currency))];
-  return (
-    <section className="panel category-chart">
-      <h2>Categories</h2>
-      <p className="chart-note">{month}</p>
-      {!bars.length && <p>No spending in this period.</p>}
-      {currencies.map((currency) => {
-        const rows = bars.filter((b) => b.currency === currency);
-        const max = rows.reduce(
-          (m, b) => (amount(b.direct) > m ? amount(b.direct) : m),
-          1n,
-        );
-        return (
-          <div key={currency}>
-            <h3>{currency}</h3>
-            <div className="category-bars">
-              {rows.map((b) => {
-                const label = `${b.name}: ${formatMoney(b.direct, currency)}`;
-                return (
-                  <button
-                    className="category-column"
-                    key={b.categoryId}
-                    aria-label={label}
-                    title={label}
-                    onMouseEnter={() => setSelected(label)}
-                    onFocus={() => setSelected(label)}
-                    onClick={() => setSelected(label)}
-                  >
-                    <span className="category-track">
-                      <span
-                        style={{
-                          height: `${position(amount(b.direct), 0n, max, 100)}%`,
-                        }}
-                      />
-                    </span>
-                    <span>{b.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      <p className="bar-inspection" role="status">
-        {selected || "Hover, tap or focus a bar to see spending."}
-      </p>
-      {!!bars.length && (
-        <details>
-          <summary>View category spending</summary>
-          {bars.map((b) => (
-            <p key={`${b.categoryId}-${b.currency}`}>
-              {b.name} · {formatMoney(b.direct, b.currency)}
-            </p>
-          ))}
-        </details>
-      )}
-    </section>
-  );
+  return <CategoryRanking snapshot={snapshot} period={month} />;
 }
+
 export function OverviewCharts({
   snapshot,
   month,

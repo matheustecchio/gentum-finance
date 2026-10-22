@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { FinanceApp } from "./FinanceApp";
@@ -25,7 +25,8 @@ it("shows authenticated balances and monthly budgets with exact cents", async ()
                 }
               : {
                   data: {
-                    analytics: { flows: [], breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
+                    flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                    categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                       currency: "EUR",
                       today: "2026-10-18",
@@ -139,7 +140,8 @@ function mockLedger(
               data: body.variables?.action
                 ? { executeFinance: "Saved" }
                 : {
-                    analytics: { flows: [], breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
+                    flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                    categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                       currency: "EUR",
                       today: "2026-10-18",
@@ -182,7 +184,7 @@ function mockLedger(
   return fetcher;
 }
 
-it("creates a child with same-kind roots and adds starter categories explicitly", async () => {
+it("creates a child with same-kind roots without offering manual defaults", async () => {
   const fetcher = mockLedger();
   render(<FinanceApp />);
   await screen.findByRole("heading", { name: "Total Wealth" });
@@ -211,25 +213,17 @@ it("creates a child with same-kind roots and adds starter categories explicitly"
       String(init?.body).includes('"parentId":"root"'),
     ),
   ).toBe(true);
-  await userEvent.click(
-    screen.getByRole("button", { name: "Add categories" }),
-  );
-  expect(
-    fetcher.mock.calls.some(([, init]) =>
-      String(init?.body).includes('"action":"starterCategories"'),
-    ),
-  ).toBe(true);
+  expect(screen.queryByRole("button", { name: "Add categories" })).not.toBeInTheDocument();
 });
 
-it("filters transaction and recurring category paths by kind and expands direct root spending", async () => {
+it("filters transaction and recurring category paths by kind and shows direct spending amounts", async () => {
   mockLedger();
   render(<FinanceApp />);
   await screen.findByRole("heading", { name: "Total Wealth" });
-  await userEvent.click(await screen.findByRole("button", { name: "Home: €0.29" }));
-  expect(screen.getByRole("status")).toHaveTextContent("Home: €0.29");
-  expect(
-    screen.getByRole("button", { name: "Home / Repairs: €1.00" }),
-  ).toBeVisible();
+  const rootSpending = await screen.findByRole("listitem", { name: "Home: €0.29" });
+  expect(within(rootSpending).getByText("€0.29", { exact: true })).toBeVisible();
+  const childSpending = screen.getByRole("listitem", { name: "Home / Repairs: €1.00" });
+  expect(within(childSpending).getByText("€1.00", { exact: true })).toBeVisible();
   for (const tab of ["Add transaction", "Recurring"]) {
     await userEvent.click(screen.getByRole("button", { name: tab }));
     await userEvent.selectOptions(
@@ -592,7 +586,8 @@ for (const pinEnabled of [false, true]) {
                 ? { setupRequired: false, pinEnabled, unlocked: true }
                 : {
                     data: {
-                      analytics: { flows: [], breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
+                      flowHistory: { buckets: [{ start: "2026-10-19", end: "2026-10-21" }], flows: [], hasEarlier: false },
+                    categorySpending: { breakdown: [{ categoryId: "root", currency: "EUR", direct: "29" }, { categoryId: "child", currency: "EUR", direct: "100" }] },
                     overview: {
                         currency: "EUR",
                         today: "2026-10-18",
@@ -627,3 +622,49 @@ for (const pinEnabled of [false, true]) {
     );
   });
 }
+
+
+it("renames a category with a prefilled dialog and restores focus on cancel and save", async () => {
+ const fetcher = mockLedger();
+ render(<FinanceApp />);
+ await screen.findByRole("heading", { name: "Total Wealth" });
+ await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+ const trigger = screen.getByRole("button", { name: "Edit Home / Repairs" });
+ await userEvent.click(trigger);
+ const input = screen.getByLabelText("Category name");
+ expect(input).toHaveValue("Repairs");
+ expect(input).toHaveFocus();
+ await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+ expect(trigger).toHaveFocus();
+ await userEvent.click(trigger);
+ await userEvent.clear(screen.getByLabelText("Category name"));
+ await userEvent.type(screen.getByLabelText("Category name"), "Maintenance");
+ await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+ await screen.findByText("Saved");
+ expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+ expect(trigger).toHaveFocus();
+ expect(fetcher.mock.calls.some(([,init]) => { const body = JSON.parse(String(init?.body || "{}")); return body.variables?.action === "renameCategory" && body.variables.input.id === "child" && body.variables.input.name === "Maintenance"; })).toBe(true);
+});
+
+
+it("retains the rename text after a server error and closes with Escape", async () => {
+ const fetcher = mockLedger();
+ const original = fetcher.getMockImplementation()!;
+ fetcher.mockImplementation(async (url, init) => {
+  if (String(init?.body).includes('"action":"renameCategory"')) return new Response(JSON.stringify({ errors: [{ message: "A category with this name already exists in this group" }] }));
+  return original(url, init);
+ });
+ render(<FinanceApp />);
+ await screen.findByRole("heading", { name: "Total Wealth" });
+ await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+ const trigger = screen.getByRole("button", { name: "Edit Home" });
+ await userEvent.click(trigger);
+ await userEvent.clear(screen.getByLabelText("Category name"));
+ await userEvent.type(screen.getByLabelText("Category name"), "Duplicate");
+ await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+ expect(await screen.findByRole("alert")).toHaveTextContent("already exists");
+ expect(screen.getByLabelText("Category name")).toHaveValue("Duplicate");
+ fireEvent(screen.getByRole("dialog"), new Event("cancel", { bubbles: true, cancelable: true }));
+ expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+ expect(trigger).toHaveFocus();
+});

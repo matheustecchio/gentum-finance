@@ -86,15 +86,11 @@ it("does not invent wealth or a 30-day delta when data is unavailable", () => {
   expect(screen.getByText("Unavailable")).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Rates unavailable");
 });
-it("shows category names and exact direct spending on focus and touch/click without counting child spending twice", async () => {
+it("ranks exact direct category spending without counting child spending twice", () => {
   render(<CategoryChart snapshot={snapshot} month="2026-10" />);
-  const parent = screen.getByRole("button", { name: "Food: €0.29" });
-  fireEvent.focus(parent);
-  expect(screen.getByRole("status")).toHaveTextContent("Food: €0.29");
-  await userEvent.click(
-    screen.getByRole("button", { name: "Food / Coffee: €1.00" }),
-  );
-  expect(screen.getByRole("status")).toHaveTextContent("Food / Coffee: €1.00");
+  const rows = screen.getAllByRole("listitem");
+  expect(rows.map(r => r.getAttribute("aria-label"))).toEqual(["Food / Coffee: €1.00", "Food: €0.29"]);
+  expect(screen.getByText("€0.29")).toBeVisible();
 });
 it("persists primary currency and keeps the previous selection on save failure", async () => {
   const fetcher = vi.fn(
@@ -224,17 +220,16 @@ it("shows only the exact selected amount and exposes zero bars to keyboard and t
   expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
 });
 it("clamps a future reporting month before requesting wealth", async () => {
-  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: String(init?.body).includes("query Analytics") ? { analytics: { flows: data.flows, breakdown: snapshot.breakdown } } : { overview: data } })));
+  const fetcher = vi.fn(async () => new Response(JSON.stringify({ data: { overview: data, flowHistory: { buckets: [], flows: [], hasEarlier: false } } })));
   vi.stubGlobal("fetch", fetcher);
   render(<OverviewCharts snapshot={snapshot} month="2027-12" />);
   await screen.findByRole("heading", { name: "Total Wealth" });
-  const calls = fetcher.mock.calls.map(call => JSON.parse(String(call[1]?.body)));
+  const calls = fetcher.mock.calls.map(call => JSON.parse(String((call as unknown as [string, RequestInit])[1]?.body)));
   expect(calls.find(call => call.query.includes("query Overview")).variables.month).toBe("2026-10");
-  expect(calls.find(call => call.query.includes("query Analytics")).variables).toEqual({start: "2026-10-01", end: "2026-10-18"});
 });
 
 it("places wealth after cash flow and categories and lists each account without a click", async () => {
-  vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: { analytics: { flows: data.flows, breakdown: snapshot.breakdown }, overview: {
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({ data: { flowHistory: { buckets: [{start:"2026-10-19",end:"2026-10-21"}], flows: [],hasEarlier:false }, categorySpending:{breakdown:snapshot.breakdown}, overview: {
     ...data,
     accounts: [
       { id: "1", name: "Main", currency: "EUR", amount: "9000", change30: "-1000" },

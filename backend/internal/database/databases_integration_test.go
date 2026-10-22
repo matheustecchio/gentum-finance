@@ -68,6 +68,24 @@ func TestPhysicalDatabaseSelectionAndIsolation(t *testing.T) {
 			admin.Exec(ctx, `DROP DATABASE `+pgx.Identifier{n}.Sanitize()+` WITH (FORCE)`)
 		}
 	}()
+	assertFlatCatalog := func(name string) {
+		t.Helper()
+		var physicalName string
+		if err := pool.QueryRow(ctx, `SELECT physical_name FROM local_database WHERE name=$1`, name).Scan(&physicalName); err != nil {
+			t.Fatal(err)
+		}
+		catalogConfig := cfg.Copy()
+		catalogConfig.ConnConfig.Database = physicalName
+		catalogPool, err := pgxpool.NewWithConfig(ctx, catalogConfig)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer catalogPool.Close()
+		var count, children int
+		if err := catalogPool.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE parent_id IS NOT NULL) FROM category WHERE user_id=(SELECT user_id FROM local_access)`).Scan(&count, &children); err != nil || count != 32 || children != 0 {
+			t.Fatal("additional database starter catalog", count, children, err)
+		}
+	}
 	jar := map[string]*http.Cookie{}
 	active := ""
 	call := func(path, body string) *httptest.ResponseRecorder {
@@ -101,6 +119,7 @@ func TestPhysicalDatabaseSelectionAndIsolation(t *testing.T) {
 	if r.Code != 200 {
 		t.Fatal(r.Code, r.Body.String())
 	}
+	assertFlatCatalog("Second")
 	var created map[string]string
 	json.Unmarshal(r.Body.Bytes(), &created)
 	if created["recoveryCode"] == "" {
@@ -211,6 +230,7 @@ func TestPhysicalDatabaseSelectionAndIsolation(t *testing.T) {
 	if r = call("/databases/create", `{"name":"Third","mode":"open"}`); r.Code != 200 {
 		t.Fatal(r.Code, r.Body.String())
 	}
+	assertFlatCatalog("Third")
 	if r = call("/databases/select", `{"id":"`+target+`","pin":"0123"}`); r.Code != 429 {
 		t.Fatal("create reset throttle", r.Code, r.Body.String())
 	}

@@ -52,7 +52,7 @@ All input fields are strings. Successful commands return a status string; export
 | action | input fields |
 | --- | --- |
 | category | name (1–100 characters), kind (`INCOME` or `EXPENSE`), parentId (optional owned root of the same kind) |
-| starterCategories | no fields; explicitly add missing starter paths |
+| renameCategory | id (owned category), name (trimmed, 1–100 characters; unique within kind and parent) |
 | transaction | accountId, categoryId, kind, amount (positive cents), date, description (optional; up to 200 characters) |
 | transfer | fromId, toId, amount, date, description (optional) |
 | budget | categoryId (expense), currency, month (`YYYY-MM`), amount; upserts the same category/currency/month |
@@ -68,20 +68,16 @@ Writes are serialized per user. PostgreSQL numeric aggregates are checked agains
 
 ## Category hierarchy and starter catalog
 
-Categories have two levels. Transactions and schedules reference one root or child ID; `path` is the readable `Parent / Child` label. Names are unique after trimming and case normalization within kind and parent. Existing flat categories retain their IDs as roots, including any legacy case variants; new conflicting siblings are rejected. Foreign parents, mismatched kinds, self references and third levels are rejected. Editing/reparenting is not offered.
+Categories have two levels. Transactions and schedules reference one root or child ID; `path` is the readable `Parent / Child` label. Names are unique after trimming and case normalization within kind and parent. Existing flat categories retain their IDs as roots, including any legacy case variants; new conflicting siblings are rejected. Foreign parents, mismatched kinds, self references and third levels are rejected. Renaming retains the category ID, kind, parent and color. Reparenting is not offered.
 
-New local wallets receive the starter catalog during creation in the same transaction. Existing profiles use **Add starter categories**. The action reuses normalized path/kind matches and adds only missing paths; it never reparents or reclassifies existing records. Reads and restarts never reinstall deleted defaults.
+New local wallets receive 32 independent root categories during creation in the same transaction, in both access modes and additional databases. Existing categories and hierarchies are unchanged. Reads and restarts never install defaults or restore deleted defaults. The obsolete `starterCategories` action is rejected.
 
-| Kind | Category | Children |
-| --- | --- | --- |
-| Income | Income | Wages; Interest/dividends; Miscellaneous |
-| Expense | Daily Living | Groceries; Dining out; Well-being; Clothes; Recreation; Gifts |
-| Expense | Medical Expenses | Health dues; Medicines |
-| Expense | Bills & Subscriptions | Phone plan; Digital subscriptions |
-| Expense | Education | None |
-| Expense | Home | Rent; Tools & Equipment; Furniture & Repairs; Services; Utilities |
-| Expense | Transportation | Public transportation; Gas & Fuel; Insurance; Repairs; Car Wash & Services; Parking & Tolls |
-| Expense | Vacations | Transport; Accommodations; Food; Shopping; Pet boarding; Rental car |
+| Kind | Root categories |
+| --- | --- |
+| Income | Income; Wages; Interest/dividends; Miscellaneous |
+| Expense | Daily Living; Groceries; Dining out; Well-being; Clothes; Recreation; Gifts; Medical Expenses; Health dues; Medicines; Bills & Subscriptions; Phone plan; Digital subscriptions; Education; Home; Rent; Tools & Equipment; Furniture & Repairs; Services; Utilities; Transportation; Public transportation; Gas & Fuel; Insurance; Repairs; Car Wash & Services; Parking & Tolls; Vacations |
+
+`renameCategory` changes only the name under the owner write lock. Duplicate normalized siblings and foreign IDs are rejected. Transactions, budgets and recurring schedules retain their category IDs; refreshed paths include renamed parents. Settings offers a prefilled **Edit category** dialog with **Save changes** and **Cancel**. Each pencil button is named **Edit <category>** for assistive technology.
 
 Monthly `breakdown` separates currencies and reports `direct` entries and `total` including immediate children exactly once. The Overview uses the inclusive date-range `analytics` query documented in [graphql.md](graphql.md). Its spending bars show direct expense amounts for each root and child path, without double-counting child amounts. Income, expense and net exclude opening balances and transfers. A root expense budget includes its direct spending and children; a child budget includes only that child. Overlapping budgets are independent limits and are never summed into a combined budget total. All sums retain exact integer cents.
 
@@ -150,8 +146,7 @@ recurring schedules, including stopped schedules. The owner write lock serialize
 reference checks and deletion with other application writes; foreign keys also
 prevent concurrent database writes from leaving dangling references. No financial
 record is cascaded or reassigned. The app requires confirmation naming the category.
-Deletion is allowed for starter categories. Reads and restarts never restore them;
-only the explicit **Add starter categories** action may restore missing defaults.
+Deletion is allowed for starter categories. Reads and restarts never restore them.
 
 The dedicated **Add transaction** screen preserves income/expense entry behavior.
 **Transactions** contains only history, filters and pages; visiting it after saving

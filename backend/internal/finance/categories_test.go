@@ -90,3 +90,27 @@ func TestAccountExportPreservesAssociationWithoutIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestFlatStarterCatalog(t *testing.T) {
+	income := "Income;Wages;Interest/dividends;Miscellaneous"
+	expense := "Daily Living;Groceries;Dining out;Well-being;Clothes;Recreation;Gifts;Medical Expenses;Health dues;Medicines;Bills & Subscriptions;Phone plan;Digital subscriptions;Education;Home;Rent;Tools & Equipment;Furniture & Repairs;Services;Utilities;Transportation;Public transportation;Gas & Fuel;Insurance;Repairs;Car Wash & Services;Parking & Tolls;Vacations"
+	expected := map[string]bool{}
+	for kind, names := range map[string]string{"INCOME": income, "EXPENSE": expense} {
+		for _, name := range strings.Split(names, ";") {
+			expected[kind+":"+name] = true
+		}
+	}
+	if len(starterCatalog) != len(expected) {
+		t.Fatalf("starter count %d, want %d", len(starterCatalog), len(expected))
+	}
+	for _, category := range starterCatalog {
+		key := category.kind + ":" + category.name
+		if !expected[key] {
+			t.Fatalf("unexpected or repeated starter %s", key)
+		}
+		delete(expected, key)
+	}
+	if len(expected) != 0 {
+		t.Fatal("missing starter categories", expected)
+	}
+}
