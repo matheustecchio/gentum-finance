@@ -67,7 +67,11 @@ Overview starts with the current configured week selected. Clicking any part of 
 period group selects its dates and fades all other groups. Dragging, native touch,
 trackpad and keyboard scroll loaded history; prepending preserves the viewport
 anchor and scrolling does not change selection. Group changes select the current
-bucket. The gear at the right of the grouping controls chooses the week-ending
+bucket. Filters sit inside the Cash flow title row, aligned right with Custom last.
+The UI omits four-month grouping, calls half-years Semester (S1/S2), and labels
+quarters K1-K4. Custom opens a centered modal with a dimmed backdrop; Apply
+commits the dates, while Cancel or Escape leaves the prior selection unchanged.
+Focus returns to Custom after dismissal. The gear before Custom chooses the week-ending
 day for the current Overview visit. Custom keeps its explicit dates until a bucket
 is selected. Errors retain usable history; stale category responses are ignored.
 The old Previous/Next date strip is removed. Month names and interval labels stay

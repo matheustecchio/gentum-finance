@@ -80,9 +80,18 @@ for (const width of [1280, 390]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
     await expect(page.locator(".category-chart .chart-note")).toContainText("2017");
-    await page.getByRole("button", { name: "Custom", exact: true }).click(); await page.getByLabel("Start date", { exact: true }).fill(day(-1));
+    const custom = page.getByRole("button", { name: "Custom", exact: true });
+    await custom.click();
+    await expect(page.getByRole("dialog", { name: "Custom date range" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(custom).toBeFocused();
+    await custom.click();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(custom).toBeFocused();
+    await custom.click(); await page.getByLabel("Start date", { exact: true }).fill(day(-1));
     await page.getByLabel("End date", { exact: true }).fill(today);
     await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(custom).toBeFocused();
     await expect(page.getByRole("listitem", { name: "Rent: €1,200.00", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Month", exact: true }).click();
     await expect(page.locator(".flow-period text").filter({ hasText: new Intl.DateTimeFormat("en-IE", { month: "long", timeZone: "Europe/Dublin" }).format(new Date()) }).last()).toBeVisible();

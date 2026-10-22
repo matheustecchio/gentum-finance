@@ -14,7 +14,12 @@ export function PeriodControls({ period, custom, today, onPeriod, onCustom, week
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const close = () => { setOpen(false); trigger.current?.focus(); };
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (!open && wasOpen.current) trigger.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
+  const close = () => setOpen(false);
   return <div className="analytics-toolbar">
     <div className="period-options" role="group" aria-label="Grouping">
       {options.map(([value, label]) => <button key={value} aria-pressed={period === value} onClick={() => onPeriod(value)}>{label}</button>)}
