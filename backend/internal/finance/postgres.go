@@ -141,6 +141,8 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 		err = createCategory(ctx, tx, user, in)
 	case "renameCategory":
 		err = renameCategory(ctx, tx, user, in)
+	case "editTransaction":
+		err = editEntry(ctx, tx, user, in)
 	case "transaction":
 		err = insertEntry(ctx, tx, user, in, "", "")
 	case "transfer":

@@ -53,6 +53,7 @@ All input fields are strings. Successful commands return a status string; export
 | --- | --- |
 | category | name (1–100 characters), kind (`INCOME` or `EXPENSE`), parentId (optional owned root of the same kind) |
 | renameCategory | id (owned category), name (trimmed, 1–100 characters; unique within kind and parent) |
+| editTransaction | id, categoryId, amount (positive cents), date, description (optional); stored account and kind stay fixed |
 | transaction | accountId, categoryId, kind, amount (positive cents), date, description (optional; up to 200 characters) |
 | transfer | fromId, toId, amount, date, description (optional) |
 | budget | categoryId (expense), currency, month (`YYYY-MM`), amount; upserts the same category/currency/month |
@@ -154,3 +155,7 @@ requests fresh history while retaining filters. The distinct plus action keeps i
 text, selected state and keyboard focus on desktop and narrow navigation.
 
 Category colors are persisted as `#RRGGBB` strings. Each existing or new category receives an initial color. Use `executeFinance(action: "categoryColor", input: {id: "...", color: "#336699"})` to update an owned category. Invalid colors and missing or foreign category IDs are rejected.
+
+### Transaction corrections
+
+`editTransaction` updates an existing owned income or expense atomically. Transfers and recurring-generated entries are rejected. Account and kind are always taken from the stored entry. Invalid corrections, foreign references and financial overflow roll back without changes. Balances, monthly totals, budgets, cash flow and wealth history derive from the corrected entry. History includes `recurringId` so the UI can hide editing for generated entries. No deletion or audit history is provided.

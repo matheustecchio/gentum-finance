@@ -118,7 +118,7 @@ func (r PostgresRepository) History(ctx context.Context, user string, f HistoryF
 		return page, err
 	}
 	// All sort keys descend so a tuple comparison provides deterministic keyset pagination.
-	page.Entries, err = rows(ctx, tx, `SELECT e.id::text,e.account_id::text,e.category_id::text,e.kind,e.amount::text,e.description,to_char(e.entry_date,'YYYY-MM-DD'),a.currency,e.transfer_id::text,e.created_at::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id LEFT JOIN category c ON c.id=e.category_id AND c.user_id=e.user_id WHERE e.user_id=$1 AND ($2='' OR e.entry_date>=NULLIF($2,'')::date) AND ($3='' OR e.entry_date<=NULLIF($3,'')::date) AND ($4='' OR c.id::text=$4 OR c.parent_id::text=$4) AND ($5='' OR c.id::text=$5) AND ($6='' OR (e.entry_date,e.created_at,e.id::text)<(NULLIF($7,'')::date,$8::timestamptz,$6)) ORDER BY e.entry_date DESC,e.created_at DESC,e.id DESC LIMIT 11`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "date", "currency", "transferId", "createdAt"}, user, f.Start, f.End, f.CategoryID, f.SubcategoryID, cursor.ID, cursor.Date, cursor.Created)
+	page.Entries, err = rows(ctx, tx, `SELECT e.id::text,e.account_id::text,e.category_id::text,e.kind,e.amount::text,e.description,to_char(e.entry_date,'YYYY-MM-DD'),a.currency,e.transfer_id::text,e.recurring_id::text,e.created_at::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id LEFT JOIN category c ON c.id=e.category_id AND c.user_id=e.user_id WHERE e.user_id=$1 AND ($2='' OR e.entry_date>=NULLIF($2,'')::date) AND ($3='' OR e.entry_date<=NULLIF($3,'')::date) AND ($4='' OR c.id::text=$4 OR c.parent_id::text=$4) AND ($5='' OR c.id::text=$5) AND ($6='' OR (e.entry_date,e.created_at,e.id::text)<(NULLIF($7,'')::date,$8::timestamptz,$6)) ORDER BY e.entry_date DESC,e.created_at DESC,e.id DESC LIMIT 11`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "date", "currency", "transferId", "recurringId", "createdAt"}, user, f.Start, f.End, f.CategoryID, f.SubcategoryID, cursor.ID, cursor.Date, cursor.Created)
 	if err != nil {
 		return page, err
 	}
@@ -155,5 +155,29 @@ func deleteCategory(ctx context.Context, tx pgx.Tx, user, id string) error {
 		return invalid("Category is used by transactions, budgets or schedules (including stopped schedules)")
 	}
 	_, err = tx.Exec(ctx, `DELETE FROM category WHERE user_id=$1 AND id::text=$2`, user, id)
+	return err
+}
+
+// editEntry preserves the stored account and kind, regardless of client input.
+// Execute holds the owner lock and checks financial ranges before committing.
+func editEntry(ctx context.Context, tx pgx.Tx, user string, input Row) error {
+	var account, kind string
+	err := tx.QueryRow(ctx, `SELECT account_id::text,kind FROM entry WHERE user_id=$1 AND id::text=$2 AND kind IN ('INCOME','EXPENSE') AND transfer_id IS NULL AND recurring_id IS NULL FOR UPDATE`, user, input["id"]).Scan(&account, &kind)
+	if err == pgx.ErrNoRows {
+		return invalid("Only non-transfer, non-recurring income and expenses can be edited")
+	}
+	if err != nil {
+		return err
+	}
+	in := Row{"accountId": account, "kind": kind, "categoryId": input["categoryId"], "amount": input["amount"], "date": input["date"], "description": input["description"]}
+	amount, err := validateEntry(ctx, tx, user, in)
+	if err != nil {
+		return err
+	}
+	text, err := description(in["description"])
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE entry SET category_id=$3,amount=$4,entry_date=$5,description=$6 WHERE user_id=$1 AND id::text=$2`, user, input["id"], in["categoryId"], amount, in["date"], text)
 	return err
 }
