@@ -186,8 +186,9 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(page.getByRole("region", { name: "CSV preview" })).toContainText("=formula");
   await page.getByRole("button", { name: "Import CSV", exact: true }).click();
   await expect(
-    page.getByRole("status").filter({ hasText: "Imported 1 transactions" }),
+    page.getByRole("dialog").getByRole("status").filter({ hasText: "Imported 1 transactions" }),
   ).toBeVisible();
+  await page.getByRole("dialog", { name: "Import complete" }).getByRole("button", { name: "Close", exact: true }).click();
   const downloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export CSV" }).click();
   const download = await downloadEvent;

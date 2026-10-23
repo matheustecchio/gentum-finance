@@ -1,0 +1,15 @@
+.csv-import-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 1.5rem;
+  border: 1px solid var(--border, #d6d6d6);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #202020);
+}
+.csv-import-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.csv-import-dialog h2 { margin-top: 0; }
+.csv-import-dialog progress { width: 100%; height: 1rem; accent-color: var(--accent, #355b46); }
+.csv-import-dialog .actions { margin-top: 1.5rem; }

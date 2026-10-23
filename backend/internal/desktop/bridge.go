@@ -19,7 +19,7 @@ import (
 )
 
 const Origin = "http://gentum.internal"
-const MaxMessage = 4 * 1024 * 1024
+const MaxMessage = 128 * 1024 * 1024
 
 type Request struct {
 	ID      uint64            `json:"id"`
@@ -131,8 +131,8 @@ func (b *Bridge) Do(ctx context.Context, in Request) Response {
 			out.Headers[name] = value
 		}
 	}
-	body, err := io.ReadAll(io.LimitReader(result.Body, 16*MaxMessage+1))
-	if err != nil || len(body) > 16*MaxMessage {
+	body, err := io.ReadAll(io.LimitReader(result.Body, 64*1024*1024+1))
+	if err != nil || len(body) > 64*1024*1024 {
 		return fail(503, "Desktop response unavailable")
 	}
 	out.Status = result.StatusCode

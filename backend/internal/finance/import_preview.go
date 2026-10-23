@@ -13,6 +13,7 @@ type ImportPreview struct {
 	Transactions []Row `json:"transactions"`
 	Errors       []Row `json:"errors"`
 	Count        int   `json:"count"`
+	ErrorCount   int   `json:"errorCount"`
 }
 type importPreviewRepository interface {
 	PreviewImport(context.Context, string, Row) (ImportPreview, error)
@@ -73,7 +74,11 @@ func (r PostgresRepository) PreviewImport(ctx context.Context, user string, inpu
 		monthly[t["currency"]+t["month"]+t["kind"]], _ = new(big.Int).SetString(t["amount"], 10)
 	}
 	preview.Count = len(data)
+	lastRecords := map[string]string{}
 	for i, raw := range data {
+		if err := ctx.Err(); err != nil {
+			return preview, err
+		}
 		row := importRow(raw, input["accountId"])
 		record := strconv.Itoa(i + 2)
 		amount, e := validateEntryValues(row)
@@ -89,6 +94,7 @@ func (r PostgresRepository) PreviewImport(ctx context.Context, user string, inpu
 		if row["kind"] == "EXPENSE" {
 			delta.Neg(delta)
 		}
+		lastRecords[a["id"]] = record
 		balance := balances[a["id"]]
 		balance.Add(balance, delta)
 		key := a["currency"] + row["date"][:7] + row["kind"]
@@ -99,12 +105,18 @@ func (r PostgresRepository) PreviewImport(ctx context.Context, user string, inpu
 		if !monthly[key].IsInt64() {
 			preview.Errors = append(preview.Errors, Row{"record": record, "message": "Import exceeds integer cents range"})
 		}
-		preview.Transactions = append(preview.Transactions, Row{"record": record, "accountId": a["id"], "account": a["name"], "categoryId": c["id"], "category": c["path"], "currency": a["currency"], "date": row["date"], "kind": row["kind"], "amount": row["amount"], "description": row["description"]})
+		if len(preview.Transactions) < 50 {
+			preview.Transactions = append(preview.Transactions, Row{"record": record, "accountId": a["id"], "account": a["name"], "categoryId": c["id"], "category": c["path"], "currency": a["currency"], "date": row["date"], "kind": row["kind"], "amount": row["amount"], "description": row["description"]})
+		}
 	}
 	for id, balance := range balances {
 		if !balance.IsInt64() {
-			preview.Errors = append(preview.Errors, Row{"record": lastAccountRecord(preview.Transactions, id), "message": "Import exceeds account balance range"})
+			preview.Errors = append(preview.Errors, Row{"record": lastRecords[id], "message": "Import exceeds account balance range"})
 		}
+	}
+	preview.ErrorCount = len(preview.Errors)
+	if len(preview.Errors) > 50 {
+		preview.Errors = preview.Errors[:50]
 	}
 	return preview, tx.Commit(ctx)
 }
