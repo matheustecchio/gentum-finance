@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { SvgIcon } from "./SvgIcon";
+import pencilIcon from "../../assets/icons/pencil.svg";
+import plusIcon from "../../assets/icons/plus.svg";
+import "./history.css";
 import { execute, graphql, type Row } from "./client";
 import { formatMoney, toCents } from "../accounts/money";
 export type Filters = {
@@ -13,41 +17,58 @@ export const clearFilters: Filters = {
   categoryId: "",
   subcategoryId: "",
 };
-type Page = { entries: Row[]; nextCursor: string; hasEntries: boolean };
+type Page = { entries: Row[]; totalCount: number; hasEntries: boolean };
+export function historyPages(current: number, total: number): (number | string)[] {
+ const pages: (number | string)[] = [];
+ let last = 0;
+ const candidates = total <= 7 ? Array.from({length: total}, (_, i) => i + 1) : [...new Set([1, current - 1, current, current + 1, total])].filter(n => n >= 1 && n <= total).sort((a,b) => a-b);
+ for (const n of candidates) {
+  if (last && n - last > 1) pages.push(`gap-${last}`);
+  pages.push(n); last = n;
+ }
+ return pages;
+}
 export function History({
   categories,
   accounts,
   filters,
   onFilters,
   onSaved,
+  onAdd,
 }: {
   categories: Row[];
   accounts: Row[];
   filters: Filters;
   onFilters: (f: Filters) => void;
   onSaved?: () => Promise<void>;
+  onAdd?: () => void;
 }) {
   const [editing, setEditing] = useState<Row>();
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [editError, setEditError] = useState("");
-  const [cursors, setCursors] = useState([""]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState<Page>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const after = cursors[cursors.length - 1];
+  const totalPages = Math.max(1, Math.ceil((page?.totalCount ?? 0) / pageSize));
   useEffect(() => {
     let current = true;
     setLoading(true);
     setError("");
     setPage(undefined);
     void graphql<{ entryHistory: Page }>(
-      "query History($start:String,$end:String,$categoryId:String,$subcategoryId:String,$after:String){entryHistory(start:$start,end:$end,categoryId:$categoryId,subcategoryId:$subcategoryId,after:$after)}",
-      { ...filters, after },
+      "query History($start:String,$end:String,$categoryId:String,$limit:Int,$page:Int){entryHistory(start:$start,end:$end,categoryId:$categoryId,limit:$limit,page:$page)}",
+      { start: filters.start, end: filters.end, categoryId: filters.categoryId, limit: pageSize, page: pageNumber },
     )
       .then((result) => {
-        if (current) setPage(result.entryHistory);
+        if (current) {
+          const lastPage = Math.max(1, Math.ceil(result.entryHistory.totalCount / pageSize));
+          if (pageNumber > lastPage) setPageNumber(lastPage);
+          else setPage(result.entryHistory);
+        }
       })
       .catch((e) => {
         if (current)
@@ -59,16 +80,13 @@ export function History({
     return () => {
       current = false;
     };
-  }, [filters, after, retry]);
+  }, [filters, pageNumber, pageSize, retry]);
   const change = (values: Partial<Filters>) => {
-    setCursors([""]);
+    setPageNumber(1);
     onFilters({ ...filters, ...values });
   };
-  const children = categories.filter(
-    (c) => c.parentId === filters.categoryId && filters.categoryId,
-  );
   return (
-    <section className="panel">
+    <section className="panel transaction-history">
       <h2>Transaction history</h2>
       {editing && <form key={editing.id} aria-label="Edit transaction" onSubmit={async (event) => {
         event.preventDefault();
@@ -79,7 +97,7 @@ export function History({
           const amount = toCents(values.amount);
           if (BigInt(amount) <= 0n) throw new Error("Amount must be positive");
           await execute("editTransaction", { ...values, id: editing.id, amount });
-          setEditing(undefined); setCursors([""]); setRetry(v => v + 1);
+          setEditing(undefined); setPageNumber(1); setRetry(v => v + 1);
           await onSaved?.();
         } catch (e) { setEditError(e instanceof Error ? e.message : "Unable to save correction"); }
         finally { savingRef.current = false; setSaving(false); }
@@ -139,32 +157,18 @@ export function History({
             ))}
           </select>
         </label>
-        <label>
-          Subcategory
-          <select
-            aria-label="Subcategory"
-            disabled={!children.length}
-            value={filters.subcategoryId}
-            onChange={(e) => change({ subcategoryId: e.target.value })}
-          >
-            <option value="">All subcategories</option>
-            {children.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
-      <button
-        className="secondary"
-        onClick={() => {
-          setCursors([""]);
-          onFilters({ ...clearFilters });
-        }}
-      >
-        Clear filters
-      </button>
+      <div className="history-toolbar">
+        <div className="history-filter-actions">
+          <button className="secondary" onClick={() => { setPageNumber(1); onFilters({ ...clearFilters }); }}>Clear filters</button>
+          <label className="history-page-size">Rows per page
+            <select value={pageSize} onChange={e => { setPageNumber(1); setPageSize(Number(e.target.value)); }}>
+              {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
+        </div>
+        {onAdd && <button onClick={onAdd}><SvgIcon className="button-icon" src={plusIcon} />Add transaction</button>}
+      </div>
       {loading && <p role="status">Loading history…</p>}
       {error && (
         <div role="alert">
@@ -188,9 +192,9 @@ export function History({
                   <tr>
                     <th>Date</th>
                     <th>Account / category</th>
-                    <th>Description</th>
                     <th>Kind</th>
-                    <th>Amount</th>
+                    <th className="history-description">Description</th>
+                    <th className="history-amount">Amount</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -209,13 +213,13 @@ export function History({
                             "Transfer"}
                         </small>
                       </td>
-                      <td>{e.description || "—"}</td>
-                      <td>{e.kind.replace("_", " ")}</td>
-                      <td className="money">
+                      <td className={`history-kind kind-${e.kind.toLowerCase()}`}>{e.kind === "INCOME" ? "Income" : e.kind === "EXPENSE" ? "Expense" : e.kind.replace("_", " ")}</td>
+                      <td className="history-description">{e.description || "—"}</td>
+                      <td className={`money history-amount kind-${e.kind.toLowerCase()}`}>
                         {formatMoney(e.amount, e.currency)}{" "}
                         <small>{e.currency}</small>
                       </td>
-                      <td>{["INCOME", "EXPENSE"].includes(e.kind) && !e.transferId && !e.recurringId && <button disabled={saving} onClick={() => { setEditing({ ...e }); setEditError(""); }}>Edit transaction</button>}</td>
+                      <td>{["INCOME", "EXPENSE"].includes(e.kind) && !e.transferId && !e.recurringId && <button className="history-edit" aria-label="Edit transaction" title="Edit transaction" disabled={saving} onClick={() => { setEditing({ ...e }); setEditError(""); }}><SvgIcon className="button-icon" src={pencilIcon} /></button>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -224,25 +228,16 @@ export function History({
           )}
         </>
       )}
-      <div className="actions" aria-label="History pages">
-        <button
-          disabled={loading || cursors.length === 1}
-          onClick={() => setCursors((v) => v.slice(0, -1))}
-        >
-          Newer
-        </button>
-        <span>Page {cursors.length}</span>
-        <button
-          disabled={loading || !page?.nextCursor}
-          onClick={() => setCursors((v) => [...v, page!.nextCursor])}
-        >
-          Older
-        </button>
-      </div>
-      <p className="muted">
-        Latest 10 entries per page, across all dates. Transfers appear as linked
-        outgoing and incoming entries.
-      </p>
+      {page && page.totalCount > 0 && <nav className="history-pagination" aria-label="History pages">
+        <span className="muted">{page.totalCount} transactions · {totalPages} {totalPages === 1 ? "page" : "pages"}</span>
+        <div className="history-page-buttons">
+          <button aria-label="Previous page" disabled={loading || pageNumber === 1} onClick={() => setPageNumber(n => n - 1)}>Previous</button>
+          {historyPages(pageNumber, totalPages).map(n => typeof n === "number"
+            ? <button key={n} aria-label={`Page ${n}`} aria-current={n === pageNumber ? "page" : undefined} disabled={loading} onClick={() => setPageNumber(n)}>{n}</button>
+            : <span key={n} aria-hidden="true">…</span>)}
+          <button aria-label="Next page" disabled={loading || pageNumber >= totalPages} onClick={() => setPageNumber(n => n + 1)}>Next</button>
+        </div>
+      </nav>}
     </section>
   );
 }

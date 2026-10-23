@@ -122,14 +122,14 @@ CSV exports continue to use all owned history, independently of these queries.
 
 ```graphql
 query History($start: String, $end: String, $categoryId: String,
-              $subcategoryId: String, $after: String) {
+              $subcategoryId: String, $after: String, $limit: Int, $page: Int) {
   entryHistory(start: $start, end: $end, categoryId: $categoryId,
-               subcategoryId: $subcategoryId, after: $after)
+               subcategoryId: $subcategoryId, after: $after, limit: $limit, page: $page)
 }
 ```
 
-`entryHistory` returns `{entries, nextCursor, hasEntries}` through the existing
-`FinanceData` scalar. Pages contain at most 10 entries, ordered by financial date,
+`entryHistory` returns `{entries, nextCursor, hasEntries, totalCount}` through the existing
+`FinanceData` scalar. `limit` accepts 10 (default), 25, 50 or 100 entries. `page` selects a one-based numbered page, up to 1,000,000, and cannot be combined with `after`. Omit `page` to retain cursor pagination. `totalCount` counts matching owned entries before pagination, in the same read snapshot as the rows. Entries are ordered by financial date,
 creation timestamp and ID, all descending. An empty `nextCursor` marks the last
 page. Pass the opaque cursor as `after` for older entries; clients retain earlier
 cursors for newer pages. Cursors are bound to the active filters; reset them after

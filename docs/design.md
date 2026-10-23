@@ -43,3 +43,5 @@ Frontend unit tests cover calendar labels, missing months, future buckets and un
 Analytics line charts keep the previous period in grey and use the same calendar labels as bars. Pointer and range inspection show exact selected and previous amounts with their dates. Each horizontal grid line shows its scale value, including zero. Total Wealth inspection includes horizontal and vertical dashed guides.
 
 The custom date dialog separates its actions from the fields by 24 px. Cancel aligns left below Start date and Apply aligns right below End date. Date fields stack on narrow screens.
+
+Transactions uses date and category filters without a separate subcategory selector. The toolbar places Clear filters and the 10/25/50/100 rows selector on the left and Add transaction on the right. Successful transaction creation returns to Transactions. Kind appears before Description, which receives the most table width; income and expense kinds and amounts use the same semantic colors as Analytics. Row editing uses the existing pencil icon. Numbered pagination shows the total page count with compact links and ellipses. The shared page header no longer shows Reporting month.

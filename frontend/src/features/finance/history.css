@@ -1,0 +1,23 @@
+.history-toolbar, .history-filter-actions, .history-page-size, .history-pagination, .history-page-buttons { display: flex; align-items: center; gap: 12px; }
+.history-toolbar { justify-content: space-between; flex-wrap: wrap; margin: 20px 0 24px; }
+.history-filter-actions { flex-wrap: wrap; }
+.history-page-size { color: var(--muted); font-size: .85rem; }
+.history-page-size select { width: auto; min-width: 72px; }
+.transaction-history table { width: 100%; min-width: 780px; }
+.transaction-history .history-description { width: 44%; min-width: 240px; white-space: normal; overflow-wrap: anywhere; }
+.transaction-history .history-kind { white-space: nowrap; }
+.transaction-history .history-amount { text-align: right; white-space: nowrap; }
+.transaction-history .kind-expense, .transaction-history .kind-expense small { color: var(--expense); }
+.transaction-history .kind-income, .transaction-history .kind-income small { color: var(--income); }
+.history-edit { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 10px; background: transparent; color: var(--muted); }
+.history-edit:hover, .history-edit:focus-visible { color: var(--accent-text); background: var(--accent-surface); }
+.history-edit .button-icon { margin: 0; }
+.history-pagination { justify-content: space-between; flex-wrap: wrap; margin-top: 24px; }
+.history-page-buttons { gap: 6px; flex-wrap: wrap; }
+.history-page-buttons button { min-width: 40px; min-height: 40px; padding: 8px; }
+.history-page-buttons [aria-current="page"] { color: var(--accent-text); background: var(--accent-surface); border-color: var(--accent-border); }
+@media (max-width: 600px) {
+  .history-toolbar { align-items: flex-start; gap: 16px; }
+  .history-page-buttons { gap: 4px; }
+  .history-page-buttons button { min-width: 36px; padding: 6px; }
+}

@@ -408,8 +408,8 @@ test("bounded history, separate recording and category deletion work with keyboa
       page.getByRole("cell", { name: "2020-01-01", exact: true }),
     ).toHaveCount(10);
     const first = await page.locator("tbody tr").allTextContents();
-    await page.getByRole("button", { name: "Older", exact: true }).click();
-    await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(page.getByRole("button", {name:"Page 2",exact:true})).toBeVisible();
     await expect(page.locator("tbody tr")).toHaveCount(10);
     await expect
       .poll(async () => {
@@ -419,20 +419,20 @@ test("bounded history, separate recording and category deletion work with keyboa
         );
       })
       .toBe(true);
-    await page.getByRole("button", { name: "Older", exact: true }).click();
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
     await expect(page.locator("tbody tr")).toHaveCount(3);
     await expect(
-      page.getByRole("button", { name: "Older", exact: true }),
+      page.getByRole("button", { name: "Next page", exact: true }),
     ).toBeDisabled();
-    await page.getByLabel("Subcategory").selectOption(child);
-    await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
+    await page.getByRole("button", {name:"Page 1",exact:true}).click();
+    await expect(page.getByRole("button", {name:"Page 1",exact:true})).toBeVisible();
     await expect(page.locator("tbody tr")).toHaveCount(10);
     await page.getByLabel("Start date").fill("2021-01-01");
     await expect(
       page.getByText("No transactions match these filters."),
     ).toBeVisible();
     await page.getByRole("button", { name: "Clear filters" }).click();
-    await expect(page.getByLabel("Subcategory")).toBeDisabled();
+    await expect(page.getByLabel("Subcategory")).toHaveCount(0);
     await page.screenshot({
       path: `test-results/history-${width}.png`,
       fullPage: true,

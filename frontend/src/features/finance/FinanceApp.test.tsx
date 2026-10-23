@@ -340,10 +340,10 @@ it("separates recording from history, preserves exact cents, resets and refreshe
   expect(
     screen.queryByRole("button", { name: "Save transaction" }),
   ).not.toBeInTheDocument();
-  const add = screen.getByRole("button", { name: "Add transaction" });
+  const add = within(screen.getByRole("navigation")).getByRole("button", { name: "Add transaction" });
   expect(
     screen.getAllByRole("button", { name: "Add transaction" }),
-  ).toHaveLength(1);
+  ).toHaveLength(2);
   expect(
     within(screen.getByRole("navigation"))
       .getAllByRole("button")
@@ -407,7 +407,10 @@ it("separates recording from history, preserves exact cents, resets and refreshe
     screen.getByRole("button", { name: "Save transaction" }),
   );
   await screen.findByText("Saved");
-  expect(screen.getByLabelText("Description")).toHaveValue("");
+  expect(screen.getByRole("heading", {name: "Transactions"})).toBeVisible();
+  expect(screen.queryByRole("button", {name:"Save transaction"})).not.toBeInTheDocument();
+  await userEvent.click(within(screen.getByRole("main")).getByRole("button", {name:"Add transaction"}));
+  expect(screen.getByRole("heading", {name:"Record a transaction"})).toBeVisible();
   expect(
     fetcher.mock.calls.some(([, init]) =>
       String(init?.body).includes('"amount":"29"'),
@@ -419,7 +422,7 @@ it("separates recording from history, preserves exact cents, resets and refreshe
     fetcher.mock.calls.filter(([, init]) =>
       String(init?.body).includes("entryHistory"),
     ),
-  ).toHaveLength(2);
+  ).toHaveLength(3);
   expect(
     fetcher.mock.calls.some(([, init]) =>
       String(init?.body).includes("{finance(month"),
@@ -558,7 +561,6 @@ it("removes deleted categories from history filters and clears the active child"
     screen.getByLabelText("Category", { exact: true }),
     "root",
   );
-  await userEvent.selectOptions(screen.getByLabelText("Subcategory"), "child");
   await userEvent.click(screen.getByRole("button", { name: "Settings" }));
   await userEvent.click(
     screen.getByRole("button", { name: "Delete Home / Repairs" }),
@@ -572,12 +574,11 @@ it("removes deleted categories from history filters and clears the active child"
   expect(screen.getByLabelText("Category", { exact: true })).toHaveValue(
     "root",
   );
-  expect(screen.getByLabelText("Subcategory")).toHaveValue("");
-  expect(screen.getByLabelText("Subcategory")).toBeDisabled();
+  expect(screen.queryByLabelText("Subcategory")).not.toBeInTheDocument();
   expect(requests.at(-1)).toMatchObject({
     categoryId: "root",
-    subcategoryId: "",
-    after: "",
+    limit: 10,
+    page: 1,
   });
 });
 
