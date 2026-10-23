@@ -355,7 +355,7 @@ it("separates recording from history, preserves exact cents, resets and refreshe
     "Recurring",
     "Import & export",
     "Settings",
-    "+ Add transaction",
+    "Add transaction",
   ]);
   expect(
     add.compareDocumentPosition(screen.getByText(/Local database:/)) &

@@ -535,7 +535,7 @@ input:focus-visible {
   width: 22px;
   height: 22px;
   background: currentColor;
-  mask: url("../assets/icons/trash.svg") center / contain no-repeat;
+  mask: url("../assets/icons/bin.svg") center / contain no-repeat;
 }
 .delete-category:hover,
 .delete-category:focus-visible {
@@ -627,3 +627,20 @@ summary:hover { color: var(--text); }
 
 .profile .active-database { display: block; }
 .profile .app-version { margin-top: 6px; }
+
+/* SVG masks inherit the surrounding theme and interaction colors. */
+.asset-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  background: currentColor;
+  mask: var(--icon-url) center / contain no-repeat;
+}
+.button-icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.edit-category .button-icon { display: block; width: 22px; height: 22px; margin-right: 0; }

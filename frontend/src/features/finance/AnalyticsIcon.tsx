@@ -1,3 +1,9 @@
+import { SvgIcon } from "./SvgIcon";
+import plusIcon from "../../assets/icons/plus.svg";
+import lineIcon from "../../assets/icons/chart-line.svg";
+import barIcon from "../../assets/icons/chart-bar.svg";
+import pieIcon from "../../assets/icons/chart-pie.svg";
+import transferIcon from "../../assets/icons/transfer.svg";
 export function AnalyticsIcon({
   name,
   className = "",
@@ -6,33 +12,14 @@ export function AnalyticsIcon({
   className?: string;
 }) {
   const value = name.toLowerCase();
-  let shape = (
-    <>
-      <path d="M12 5v14M5 12h14" />
-    </>
-  );
-  if (/spent|line|wealth/.test(value))
-    shape = <path d="m3 17 5-7 4 4 4-9 5 3" />;
-  else if (/income|bar/.test(value))
-    shape = (
-      <>
-        <path d="M5 20v-6h3v6M11 20V8h3v12M17 20V3h3v17" />
-      </>
-    );
-  else if (/cash flow|transfer/.test(value))
-    shape = (
-      <>
-        <path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4" />
-      </>
-    );
-  else if (/pie/.test(value))
-    shape = (
-      <>
-        <path d="M12 3v9h9A9 9 0 0 0 12 3Z" />
-        <path d="M8 4a9 9 0 1 0 12 12H8Z" />
-      </>
-    );
-  else if (/salary|interest|refund|cash|account/.test(value))
+  const icon = /spent|line|wealth/.test(value) ? lineIcon
+    : /income|bar/.test(value) ? barIcon
+    : /cash flow|transfer/.test(value) ? transferIcon
+    : /pie/.test(value) ? pieIcon
+    : null;
+  if (icon) return <SvgIcon src={icon} className={className} />;
+  let shape = null;
+  if (/salary|interest|refund|cash|account/.test(value))
     shape = (
       <>
         <ellipse cx="9" cy="6" rx="5" ry="3" />
@@ -85,6 +72,7 @@ export function AnalyticsIcon({
     );
   else if (/bill|utility/.test(value))
     shape = <path d="m14 2-9 12h6l-1 8 9-13h-6Z" />;
+  if (!shape) return <SvgIcon src={plusIcon} className={className} />;
   return (
     <svg
       className={className}

@@ -1,9 +1,13 @@
+import { SvgIcon } from "./SvgIcon";
 import { Databases } from "../security/Databases";
 import { CategoryColor } from "./CategoryColor";
 import "./categories.css";
 import { OverviewCharts, PrimaryCurrency, dublinMonth } from "./Overview";
 import { History, clearFilters, type Filters } from "./History";
-import trashIcon from "../../assets/icons/trash.svg";
+import binIcon from "../../assets/icons/bin.svg";
+import pencilIcon from "../../assets/icons/pencil.svg";
+import plusIcon from "../../assets/icons/plus.svg";
+import exitIcon from "../../assets/icons/exit.svg";
 import {
   useCallback,
   useEffect,
@@ -317,7 +321,7 @@ function Wallet({
               setNotice("");
             }}
           >
-            <span aria-hidden="true">+ </span>Add transaction
+            <SvgIcon className="button-icon" src={plusIcon} />Add transaction
           </button>
         </nav>
         <div className="profile">
@@ -341,7 +345,7 @@ function Wallet({
                 }
               }}
             >
-              Lock now
+              <SvgIcon className="button-icon" src={exitIcon} />Lock now
             </button>
           )}
         </div>
@@ -557,7 +561,7 @@ function Wallet({
                     </div>
                     <div className="category-actions">
                     <button className="edit-category" aria-label={`Edit ${c.path || c.name}`} onClick={(e) => { renameTrigger.current = e.currentTarget; setRenaming(c); }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5Z"/><path d="m14 5 5 5"/></svg>
+                      <SvgIcon className="button-icon" src={pencilIcon} />
                     </button>
                     <button
                       className="delete-category"
@@ -568,7 +572,7 @@ function Wallet({
                         setDeleteError("");
                       }}
                     >
-                      <img src={trashIcon} alt="" />
+                      <img src={binIcon} alt="" />
                     </button>
                     </div>
                   </li>
