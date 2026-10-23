@@ -882,10 +882,13 @@ function SummaryPlot({
             fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         ))}
         {!bars && points.map((point, index) => point.value === undefined ? null : (
-          <circle key={point.bucket.start} cx={x(index)} cy={y(point.value)}
-            r={values.length === 1 ? "3" : "2"} fill="currentColor">
+          // A round, zero-length stroke stays circular when the SVG stretches.
+          <path key={point.bucket.start} className="summary-point"
+            d={`M${x(index)},${y(point.value)}l0,0`}
+            fill="none" stroke="currentColor" strokeWidth="8"
+            strokeLinecap="round" vectorEffect="non-scaling-stroke">
             <title>{rangeLabel(point.bucket.start, point.bucket.end)}: {point.formatted}</title>
-          </circle>
+          </path>
         ))}
       </svg>
       <div className="summary-axis" aria-hidden="true"
