@@ -377,7 +377,8 @@ test("bounded history, separate recording and category deletion work with keyboa
       page.getByRole("heading", { name: "Record a transaction" }),
     ).toBeVisible();
     await expect(add).toHaveAttribute("aria-current", "page");
-    await expect(add).toContainText("+");
+    await expect(add.locator(".asset-icon")).toBeVisible();
+    await expect(add.locator(".asset-icon")).not.toHaveCSS("mask-image", "none");
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width);

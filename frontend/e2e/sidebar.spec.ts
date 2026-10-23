@@ -28,8 +28,10 @@ for (const viewport of [
       await expect(add).toHaveCount(1);
       await expect(nav.getByRole("button")).toHaveText([
         "Analytics", "Transactions", "Transfers",
-        "Budgets", "Recurring", "Import & export", "Settings", "+ Add transaction",
+        "Budgets", "Recurring", "Import & export", "Settings", "Add transaction",
       ]);
+      await expect(add.locator(".asset-icon")).toBeVisible();
+      await expect(add.locator(".asset-icon")).not.toHaveCSS("mask-image", "none");
       await expect(add).toHaveCSS("background-color", "rgb(41, 41, 41)");
       await sidebar.getByRole("link").focus();
       for (const button of await nav.getByRole("button").all()) {
