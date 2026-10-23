@@ -2,17 +2,18 @@
 // Real packaged Tauri/WebKit smoke test. Requires tauri-driver, WebKitWebDriver and Xvfb on Linux.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, mkdtemp, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { delimiter, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../',import.meta.url));
+const nativeDriver = await resolveExecutable(process.env.WEBKIT_WEBDRIVER ?? 'WebKitWebDriver');
 const temporary = await mkdtemp(resolve(tmpdir(),'gentum-native-smoke-'));
 const screenshot = resolve(process.env.GENTUM_NATIVE_SCREENSHOT ?? resolve(root,'desktop/target/native-smoke.png'));
 const deb = process.env.GENTUM_DESKTOP_DEB ?? resolve(root,'desktop/target/release/bundle/deb/Gentum Finance_0.0.1_amd64.deb');
 const driverBinary = process.env.TAURI_DRIVER ?? 'tauri-driver';
-const nativeDriver = process.env.WEBKIT_WEBDRIVER ?? 'WebKitWebDriver';
 const xvfbBinary = process.env.XVFB ?? 'Xvfb';
 const port = Number(process.env.GENTUM_NATIVE_DRIVER_PORT ?? '4444');
 const display = process.env.GENTUM_NATIVE_DISPLAY ?? ':97';
@@ -23,6 +24,18 @@ let driver;
 let xvfb;
 const children = [];
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve,milliseconds));
+async function resolveExecutable(binary) {
+  const candidates = isAbsolute(binary) || binary.includes('/')
+    ? [resolve(binary)]
+    : (process.env.PATH ?? '').split(delimiter).map(directory => resolve(directory || '.', binary));
+  for (const candidate of candidates) {
+    try {
+      await access(candidate, constants.X_OK);
+      if ((await stat(candidate)).isFile()) return candidate;
+    } catch { /* Continue searching PATH entries that do not contain the executable. */ }
+  }
+  throw new Error(`Cannot find executable ${binary}. Install WebKitWebDriver or set WEBKIT_WEBDRIVER to its absolute path.`);
+}
 function launch(binary,args,env) {
   const process = spawn(binary,args,{env,stdio:['ignore','pipe','pipe']});
   process.on('error',error => { logs += String(error)+'\n'; });
