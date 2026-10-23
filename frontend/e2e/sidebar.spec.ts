@@ -43,6 +43,10 @@ for (const viewport of [
       await expect(add).toHaveCSS("outline-width", "2px");
       await page.keyboard.press("Enter");
       await expect(add).toHaveAttribute("aria-current", "page");
+      const inactiveBackground = await nav.getByRole("button", { name: "Transactions", exact: true })
+        .evaluate((el) => getComputedStyle(el).backgroundColor);
+      await expect.poll(() => add.evaluate((el) => getComputedStyle(el).backgroundColor))
+        .not.toEqual(inactiveBackground);
       await expect(page.getByRole("heading", { name: "Record a transaction" })).toBeVisible();
       const addBox = (await add.boundingBox())!;
       await expect(sidebar.locator(".app-version")).toHaveText(`v${version}`);

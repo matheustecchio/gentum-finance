@@ -384,13 +384,11 @@ test("bounded history, separate recording and category deletion work with keyboa
     ).toBeLessThanOrEqual(width);
     const actionBounds = await add.boundingBox();
     expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(width);
-    expect(
-      await add.evaluate((el) => getComputedStyle(el).backgroundColor),
-    ).not.toEqual(
-      await page
-        .getByRole("button", { name: "Transactions", exact: true })
-        .evaluate((el) => getComputedStyle(el).backgroundColor),
-    );
+    const inactiveBackground = await page
+      .getByRole("button", { name: "Transactions", exact: true })
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    await expect.poll(() => add.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toEqual(inactiveBackground);
     await page.getByRole("button", { name: "Analytics", exact: true }).focus();
     await page.keyboard.press("Tab");
     await expect(
