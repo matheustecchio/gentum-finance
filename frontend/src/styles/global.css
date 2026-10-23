@@ -134,15 +134,10 @@ small {
   font-size: 0.9rem;
 }
 .brand-mark {
-  background: var(--accent-surface);
-  color: var(--accent);
-  display: grid;
-  place-items: center;
+  display: block;
   width: 32px;
   height: 32px;
-  border-radius: 6px;
-  border: 1px solid var(--accent-border);
-  font-size: 1rem;
+  flex: 0 0 32px;
 }
 .eyebrow {
   font-size: 0.65rem;

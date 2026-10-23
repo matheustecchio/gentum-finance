@@ -10,6 +10,7 @@ import binIcon from "../../assets/icons/bin.svg";
 import pencilIcon from "../../assets/icons/pencil.svg";
 import plusIcon from "../../assets/icons/plus.svg";
 import exitIcon from "../../assets/icons/exit.svg";
+import appIcon from "../../assets/icons/gentum-app.svg";
 import {
   useCallback,
   useEffect,
@@ -298,7 +299,7 @@ function Wallet({
       {importer.popup}
       <aside className="sidebar">
         <a href="/" className="brand">
-          <span className="brand-mark">G</span>Gentum Finance
+          <img className="brand-mark" src={appIcon} alt="" />Gentum Finance
         </a>
         <p className="eyebrow">YOUR LOCAL WALLET</p>
         <nav aria-label="Main navigation">
