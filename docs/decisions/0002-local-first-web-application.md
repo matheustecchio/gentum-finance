@@ -1,6 +1,6 @@
 # ADR 0002: Keep Gentum Finance web-based and local-first
 
-- Status: accepted; backend technology and money representation superseded by ADR 0003
+- Status: superseded for current delivery by [ADR 0009](0009-tauri-desktop-application.md); retained as historical context
 - Date: 2026-10-04
 
 ## Context
@@ -47,3 +47,7 @@ The accepted MVP now uses `./gentum start` to build and start nginx/React, Go an
 ## Multiple database update
 
 [ADR 0008](0008-multiple-local-databases.md) adds independent physical databases under the same local endpoint. Compose bootstraps financial and provisioning roles before the backend starts, including on existing volumes. All databases and the original registry persist in the existing named PostgreSQL volume. The original configured database remains the registry and default; it is never replaced or automatically adopted into a different owner.
+
+## Desktop delivery update
+
+[ADR 0009](0009-tauri-desktop-application.md) replaces browser and Docker delivery with Tauri, private process IPC and bundled PostgreSQL. The old launcher and deployment stack are retired. Local financial ownership and Go domain rules remain. Historical commands above describe earlier releases.

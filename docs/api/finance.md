@@ -1,5 +1,8 @@
 # Finance MVP API and CSV contract
 
+> Desktop transport: these operation paths and GraphQL contracts are dispatched in memory through private Tauri-to-Go IPC. They are not public HTTP endpoints. HTTP is available only in the explicitly gated acceptance-test fixture.
+
+
 Financial routes require a verified session in both direct-access and PIN modes. All POSTs require `Origin` equal to the configured frontend origin and `Content-Type: application/json`. Access request bodies are limited to 4 KiB and reject unknown fields. Responses use `Cache-Control: no-store`.
 
 | Route | Request and behavior |

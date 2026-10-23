@@ -1,122 +1,64 @@
-# Development
+# Development and verification
 
-## Full stack
+## Source layout
 
-Docker Engine and Compose v2 with `up --wait` are sufficient:
+- `frontend/`: React interface, shown only inside the desktop application in production.
+- `backend/`: Go application/domain code, PostgreSQL persistence and private desktop transport.
+- `desktop/`: Tauri shell, capabilities, resources and native package configuration.
+- `website/`: independent static product/download page.
+- `docs/`: decisions and development/API documentation.
+
+Use Go 1.26.9+, Node.js 20.19+, Python 3.12+, Rust stable, a C compiler, make, Perl, Bison, Flex, patchelf and the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/). The initial packaging target is Linux x86_64 on Ubuntu 24.04-compatible systems. Build and validate separately for distributions with older system libraries. Other platforms fail preparation explicitly until verified binaries and native validation exist.
 
 ```bash
-./gentum start
-./gentum status
-./gentum stop
-./gentum logs
+npm --prefix frontend ci
+./gentum dev
+./gentum build
 ```
 
-Open http://localhost:5173 and choose **Use without a PIN** or **Protect with a PIN**. No email or online account is needed. Save the recovery code before continuing with a PIN. If old profiles exist, **Create a new wallet** leaves their data stored separately; **Use an existing profile** requires its old email/password once.
+Both desktop commands prepare the sidecar and bundled PostgreSQL before starting Tauri. Preparation downloads the official source archive at build time, verifies SHA-256 and builds a minimal local PostgreSQL runtime. A verified build is cached for later runs. An existing verified archive can be supplied with `GENTUM_POSTGRES_SOURCE_ARCHIVE=/absolute/path/to/postgresql-17.11.tar.bz2`. `GO` can select a Go executable and `GOCACHE` can select a writable cache. Rust uses the checked-in Cargo lockfile.
 
-`status` shows container health and the published address. `stop` preserves data; `start` rebuilds, starts services and waits for health checks. `logs` shows recent service logs. The launcher does not open a browser automatically. Only the frontend publishes a loopback port; Go and PostgreSQL stay on the internal Compose network. Use the printed `localhost` address: a different origin, including `127.0.0.1`, is rejected by the default configuration.
+The development Vite server binds only to loopback and serves UI assets; it has no wallet API proxy. Financial requests still use native IPC. A production bundle opened in an ordinary browser displays a desktop-only message.
 
-### Configuration and data
+## Local storage
 
-Copy [`.env.example`](../.env.example) to `.env` to override the port, database settings or volume name. For example, `GENTUM_PORT=5180 ./gentum start` uses http://localhost:5180. The PostgreSQL administrator defaults remain `gentum`, `gentum_dev_only` and `gentum_finance`. A startup service creates `gentum_runtime` (financial queries, without SUPERUSER or CREATEDB) and `gentum_provision` (CREATEDB and membership in the runtime role). The runtime uses the configured local database password; the provisioner uses `GENTUM_PROVISION_PASSWORD` (default `gentum_provision_dev_only`). Existing public application tables and the original database transfer to the runtime role without changing records or access settings. Credentials must match an initialized volume; changing `.env` does not change an existing PostgreSQL role password.
+Tauri selects the platform application data directory. On Linux it is normally `~/.local/share/com.gentum.finance` (or under `$XDG_DATA_HOME`). It contains PostgreSQL 17 data, generated credentials, a selection token, a lock file and a private log. Never commit or share this directory. Normal application exit stops its managed processes and preserves data. PIN-protected wallets require a fresh unlock on restart.
 
-All physical databases, the registry, browser selections and access settings live in the persistent `gentum-finance_gentum-postgres-data` volume unless configured otherwise. Stopping, restarting, rebuilding and ordinary container recreation preserve it. Removing the volume or running `docker compose down -v` deletes data. Back up important data before upgrades. CSV export covers transaction interchange, not a complete database backup.
+No code adopts or deletes the old Docker volume. There is no automatic full-ledger migration from the retired browser application. Backups and any full-database transfer need an explicit offline procedure; CSV transaction files do not include the complete ledger state.
 
-### Wallet workflow and limits
-
-- **Settings** lets you create, rename and select independent databases. Creation keeps the current selection. Names are trimmed, unique without case sensitivity, and limited to 100 characters. There is no app count limit beyond PostgreSQL/storage capacity. Protected targets require their own PIN or recovery code. Database deletion and cloning are not included.
-- **Settings** holds the primary currency, accounts, categories, PIN and recovery controls. Account and category creation use dismissible modals. An incomplete wallet offers setup guidance that can be dismissed with **Configure later** for the current visit.
-- Accounts support current, savings, cash and credit-card types in EUR, GBP, USD and BRL. Record dated income and expenses through **Add transaction**. **Transactions** shows 10 entries per page with inclusive date and category/subcategory filters. Reporting month changes dashboard totals, not transaction history.
-- Categories have one optional subcategory level. New wallets receive starter categories; existing wallets can add missing defaults without reclassifying records. Deletion requires confirmation and is limited to unused categories with no children or references. Root budgets include child spending; child budgets remain separate limits.
-- Validated ECB reference quotes are saved in the local database and survive restarts. If refresh fails, Overview uses them only within the existing seven-day validity window and labels the cached fallback with its reference date. Expired or invalid rates keep converted wealth unavailable.
-- Overview shows Total Wealth in the saved primary currency, plus native-currency cash flow and category spending. Chart inspection supports pointer, touch and keyboard. Cash Flow loads older history continuously and stops at the current Europe/Dublin month. See [reporting rules](api/graphql.md) for coverage, exchange rates and unavailable values.
-- Recurring income and expenses are created only by **Run due transactions**, through today's UTC date. Runs are idempotent, handle month ends and can be stopped. There is no scheduled background execution.
-- CSV imports require a read-only preview and explicit confirmation. Preview resolves account and category names and reports record errors. Editing the content or destination invalidates it. Only one import request can be pending, and failures allow a manual retry. Imports are all-or-nothing and additive: importing twice creates duplicate entries. Export downloads a ZIP with one CSV per account across all history. See the [CSV contract](api/finance.md#csv-interchange) for headers, account selection, legacy files and spreadsheet-safe descriptions.
-- Transaction history supports corrections to non-transfer, non-recurring income and expenses. Account and kind stay fixed. This MVP does not offer transaction deletion or automatic bank connections.
-
-### Local access
-
-Settings can enable, change or disable PIN protection and copy/download replacement recovery codes. Creating, changing or recovering a PIN replaces the code and revokes previous sessions while preserving wallet data. If both PIN and recovery code are lost, this version has no supported recovery flow. Use **Lock now** before leaving a protected wallet unattended; browser session restoration may retain access.
-
-The app is intended for trusted loopback use. Do not expose Compose services publicly. Database credentials are local defaults, and the application does not encrypt data at rest. The PIN is an app lock, not protection against someone who controls the computer. See [architecture](architecture.md) and [the local-access decision](decisions/0005-local-profile-and-optional-pin.md) for the security design.
-
-### Build version
-
-The sidebar displays the installed build version from `frontend/package.json`. Vite embeds it at build time, so it works offline and stays unchanged until the app is rebuilt. The development server adds `(dev)`; production builds show only `v<version>`. Missing or invalid version metadata stops the build.
-
-## Host development
-
-Use Go 1.26.9+ and Node.js 20.19+ (Node 22 is used by Docker and CI). Use a dedicated disposable PostgreSQL database for tests. To expose PostgreSQL for host development, use your own database or an explicit temporary Compose override binding its port only to `127.0.0.1`. The default Compose configuration deliberately does not publish it.
+## Checks
 
 ```bash
 cd backend
 go test -race ./...
 go vet ./...
-GENTUM_TEST_DATABASE_URL=postgres://gentum:gentum_test_only@localhost:55439/gentum_test?sslmode=disable go test -race -tags=integration -coverprofile=coverage.out ./...
-go build -o bin/gentum ./cmd/server
-GENTUM_DATABASE_URL=postgres://gentum_runtime:gentum_dev_only@localhost:5432/gentum_finance?sslmode=disable GENTUM_PROVISION_DATABASE_URL=postgres://gentum_provision:gentum_provision_dev_only@localhost:5432/gentum_finance?sslmode=disable go run ./cmd/server
+go build -o bin/gentum-backend ./cmd/desktop
+# Existing database integration suites need a disposable privileged PostgreSQL URL:
+GENTUM_TEST_DATABASE_URL=postgres://... go test -race -tags=integration ./...
+# Native managed runtime suite uses bundled binaries and disposable data:
+GENTUM_DESKTOP_POSTGRES_DIR=/absolute/path/to/desktop/resources/postgres go test -race -tags=integration ./internal/desktop
 ```
 
-The backend defaults to `127.0.0.1:8080` and `GENTUM_FRONTEND_ORIGIN=http://localhost:5173`. In Docker, `GENTUM_DATABASE_HOST`, `GENTUM_DATABASE_NAME`, `GENTUM_DATABASE_USERNAME`, `GENTUM_DATABASE_PASSWORD` are discrete overrides, avoiding URL escaping issues. HTTP has bounded read/write/header timeouts; embedded migrations run atomically at startup with checksum verification.
+From the repository root:
 
 ```bash
-cd frontend
-npm ci
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
-npm run dev
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+npm --prefix frontend run build
+cargo test --locked --manifest-path desktop/Cargo.toml
+node scripts/desktop-check.mjs
+node scripts/check-browser.mjs
+node scripts/native-smoke.mjs
+python3 website/build.py
+git diff --check
 ```
 
-Vite proxies `/auth`, `/databases` and `/graphql` to the host backend. Browse using `localhost` to match Origin validation.
+Prepare desktop resources before the IPC and browser checks. The native smoke test requires `tauri-driver`, `WebKitWebDriver` and Xvfb plus a built `.deb`; it extracts the installer to temporary storage and uses fictional application data. It does not install the package system-wide. Refer to the script for executable path overrides. Native export dialogs require an interactive desktop for manual confirmation.
 
-## Real stack checks
+The IPC check covers PIN setup, private cookies, restart persistence, PIN relocking and clean database shutdown. The managed-runtime integration test covers exact cents beyond JavaScript's safe integer range, physical ledger creation/selection, stale-scope rejection, role separation and restart persistence.
 
-With the full Compose stack running:
+The browser suite runs **only a test-mode frontend bundle** and `backend/cmd/test-server`, gated by `GENTUM_VERIFICATION_FIXTURE=1`, with a bundled disposable PostgreSQL cluster. This preserves browser component/interaction coverage. Neither the HTTP harness nor its frontend bundle is distributed. The native smoke test verifies the actual Tauri-to-Go path.
 
-```bash
-cd frontend
-npx playwright install --with-deps chromium
-npm run test:e2e
-cd ..
-node --test scripts/persistence-client.test.mjs
-node scripts/check-persistence.mjs
-node scripts/check-databases.mjs
-```
+## Public site
 
-`GENTUM_E2E_URL` overrides the browser/check base URL; it must match the configured Origin. `GENTUM_CHROME_PATH` optionally points Playwright to an already-installed Chrome executable. The browser suite verifies optional PIN setup, recovery-code acknowledgement, wrong/correct unlock, lock isolation, PIN change, recovery, disabling protection, exact cents, transfers, budgets, recurrence and CSV. The persistence script invokes the real launcher status/stop/start and verifies local access and exact account cents survive. These checks create fictional data in the default database and additional isolated databases: run them only against a disposable stack and set `GENTUM_VERIFICATION_FIXTURE=1`. They must not target your normal database.
-
-For an isolated local run, export these variables in the shell before starting the launcher and keep them set for browser and persistence checks:
-
-```bash
-export COMPOSE_PROJECT_NAME=gentum-verification
-export GENTUM_PORT=5187
-export GENTUM_DATABASE_VOLUME=gentum-verification-data
-export GENTUM_E2E_URL=http://localhost:5187
-export GENTUM_VERIFICATION_FIXTURE=1
-./gentum start
-(cd frontend && npm run test:e2e)
-node scripts/check-persistence.mjs
-node scripts/check-databases.mjs
-./gentum stop
-```
-
-Use a fresh, disposable verification volume for a fresh E2E run. Do not remove an existing data volume to rerun tests. CI uses disposable runners and a dedicated verification volume. Persistence requests close their HTTP connections explicitly so launcher restarts do not reuse stale sockets; financial writes are never automatically retried.
-
-CI runs five parallel jobs on pull requests and pushes to main: backend vet/build, backend race/integration coverage, frontend build/typecheck, frontend unit coverage and real browser/persistence checks. A workflow file does not configure branch protection; see [the Git workflow](workflow.md) for that distinction.
-
-Backend integration tests isolate schemas in the configured test database and cover migration adoption/checksum/rollback, session revocation/expiry, cross-user references, exact amounts above JavaScript's safe integer range, account overflow, monthly budget actuals, recurring idempotence and CSV atomicity. Never point tests at production data. Coverage is reported as a baseline; no percentage gate is enforced.
-
-## Troubleshooting
-
-- Docker permission error: ensure your user can access the Docker daemon through your operating system's normal setup.
-- Port in use: set `GENTUM_PORT` in `.env`, then run `./gentum start` again.
-- Authentication origin rejection: open the exact printed `http://localhost:PORT` URL.
-- Database authentication failure after changing configuration: restore credentials matching the existing volume; do not delete a volume to fix a password mismatch.
-- Migration rejects fractional cents or checksums: preserve the database and investigate; do not edit applied migration files or bypass checks.
-
-### Multiple database verification
-
-Run `node scripts/check-databases.mjs` after the existing browser and persistence journeys against an explicitly disposable Compose stack. It creates fictional isolated financial data, checks another browser session, then restarts the stack and checks selection, names, PIN protection and records.
-
-Host PostgreSQL setup must provide a normal financial role that owns the original database and a separate provisioner with CREATEDB and membership in that financial role. Set `GENTUM_DATABASE_URL` and `GENTUM_PROVISION_DATABASE_URL`, or use the discrete provisioner username/password variables in Compose. The backend rejects financial roles with SUPERUSER or CREATEDB. Missing provisioning credentials keep existing databases usable but creation reports a configuration error. Every registered database is migrated on startup; an unavailable or incompatible database blocks startup. A failed new provision/migration is removed before publication; abrupt process termination during provisioning may leave an unregistered generated database requiring local administrator cleanup.
+`python3 website/build.py` validates and builds `website/dist/`. It is static and contains no financial application runtime. Hosting and public release publication are separate authorized operations. Keep download availability truthful until an installer is released.

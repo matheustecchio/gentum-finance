@@ -1,37 +1,40 @@
 # Gentum Finance
 
-A personal-finance app that runs on your computer. Track accounts, transactions and spending without an online account.
+A desktop personal-finance application that keeps your ledgers on your computer. Track accounts, transactions, transfers, budgets and spending without an online account.
 
-## Features
+## Desktop application
 
-- Accounts and categories for income and expenses.
-- Correct amounts, dates, descriptions and categories of non-recurring income and expenses in transaction history.
-- Transfers, monthly budgets and recurring transactions.
-- Revolut-style financial Analytics: summary cards open Spent, Income, Net cash flow and Total Wealth. Browse whole calendar periods by drag, swipe, keyboard or buttons. Weeks show seven days, semesters and years show months, and charts support exact-value inspection, category totals and dated transaction drill-down. The animated 1W/1M/6M/1Y selector keeps extra periods and the centered Custom modal in its three-dot menu.
-- Select a period to see ranked category spending in its saved colors.
-- Validated exchange rates saved locally for offline wealth estimates for up to seven days.
-- Wealth, cash-flow and category spending reports, with balances and changes by account.
-- CSV import previews with record errors and explicit confirmation, plus export.
-- Separate local PostgreSQL databases with independent optional PIN protection.
-- Create, rename and switch databases from Settings at the same local address.
+React runs inside a Tauri window. Go owns the financial rules and starts a bundled PostgreSQL database. The installed application requires no Docker, Go, Node.js, Rust or separate PostgreSQL installation. Native GTK/WebKit system libraries are normal Linux package prerequisites.
 
-## Start locally
+The initial installer target is **Linux x86_64 (.deb)**, validated on Ubuntu 24.04-compatible systems. This repository builds the installer; no public release or website deployment is implied. Windows, macOS and ARM packages are not yet supported.
 
-Install Docker Engine with Docker Compose v2, then run:
+Features include dated Analytics with income/spending/cash-flow and wealth charts, transaction corrections, separate local ledgers, optional PIN protection, recurrence, budgets, CSV previews/import and native file export.
+
+This is an early MVP. Use fictional data while evaluating it. The PIN is an app lock, not database encryption.
+
+## Build from source
+
+Use Go 1.26.9+, Node.js 20.19+, Python 3.12+, Rust stable, a C compiler, make, Perl, Bison, Flex, patchelf and the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/). On Debian/Ubuntu these include WebKitGTK 4.1, GTK 3, Ayatana AppIndicator, librsvg and OpenSSL development packages.
 
 ```bash
-./gentum start
+npm --prefix frontend ci
+./gentum build
 ```
 
-Open [http://localhost:5173](http://localhost:5173) and choose whether to protect your wallet with a PIN. Save the recovery code if you enable protection. Settings lets you create independent databases and switch between them. Each has its own records, currency and optional PIN.
+The build verifies and builds the official pinned PostgreSQL source archive, compiles the Go sidecar and packages local assets. The `.deb` is written under `desktop/target/release/bundle/deb/`. Install the package using your distribution's package installer, then open Gentum Finance from the application menu. The first launch initializes its local data without downloading a runtime.
 
-This is an early MVP for trusted local use. Use fictional data while evaluating it. The PIN does not encrypt the database.
+For development, use `./gentum dev`. Build the public site with `./gentum website`; the static output is `website/dist/`.
+
+## Existing browser installations
+
+The browser runtime and Docker launcher have been retired. Existing Docker volumes are **not modified or imported automatically**. Keep the previous installation and backups until a separate full-ledger migration is reviewed. CSV transaction import is not a complete database backup/restore mechanism.
 
 ## Documentation
 
-- [Development and local operation](docs/development.md)
+- [Development and verification](docs/development.md)
 - [Architecture](docs/architecture.md)
+- [Desktop decision and storage](docs/decisions/0009-tauri-desktop-application.md)
 - [Interface design](docs/design.md)
-- [API and CSV contract](docs/api/finance.md)
+- [Financial API and CSV contract](docs/api/finance.md)
+- [Public website](website/README.md)
 - [Contributing](CONTRIBUTING.md)
-- [Git workflow](docs/workflow.md)

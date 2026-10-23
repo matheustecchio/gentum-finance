@@ -1,6 +1,6 @@
 # Interface design
 
-Gentum uses a dark neutral interface with white controls and semantic colors for financial data. The desktop migration is separate from this interface change; the application still runs locally in a browser.
+Gentum uses a dark neutral interface with white controls and semantic colors for financial data. The interface runs inside the local Tauri desktop application. The public website is a separate static surface.
 
 ## Visual roles
 
