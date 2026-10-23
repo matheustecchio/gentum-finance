@@ -24,7 +24,7 @@ JetBrains Mono is self-hosted from the bundled Latin variable font. Its SIL Open
 
 Analytics is the initial navigation destination. It uses the available main-column width without an additional outer panel. The existing cards still open their detailed charts and transaction views.
 
-Income and spending previews use the API's ordered trend buckets. Labels identify the dates or months without opening a detail view. The six-month view labels all six calendar months, including future months, without plotting future values. Missing or unsupported amounts leave a gap rather than inventing a value. Native point and bar tooltips show exact supported amounts.
+Income and spending previews use the API's ordered trend buckets. Labels identify the dates or months without opening a detail view. The six-month view labels all six calendar months, including future months, without plotting future values. Summary cards stack below 380 px so month labels stay readable. Missing or unsupported amounts leave a gap rather than inventing a value. Native point and bar tooltips show exact supported amounts.
 
 The Total Wealth preview labels its own history dates, independently of the cash-flow period selector. It has extra space above it. The current amount remains independent of the selected cash-flow range.
 

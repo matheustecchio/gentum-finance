@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-for (const width of [1280, 390]) {
+for (const width of [1280, 390, 320]) {
   test(`Calendar Analytics workflow at ${width}px`, async ({
     page,
     baseURL,
@@ -118,6 +118,15 @@ for (const width of [1280, 390]) {
       month: "short", timeZone: "UTC",
     }).format(new Date(Date.UTC(Number(today.slice(0, 4)), firstMonth + index, 1))));
     await expect(page.locator(".income-summary .summary-axis span")).toHaveText(months);
+    const labelBounds = await page.locator(".income-summary .summary-axis span").evaluateAll((labels) => labels.map((label) => {
+      const range = document.createRange();
+      range.selectNodeContents(label);
+      const bounds = range.getBoundingClientRect();
+      return { left: bounds.left, right: bounds.right };
+    }));
+    for (let index = 1; index < labelBounds.length; index++) {
+      expect(labelBounds[index].left).toBeGreaterThanOrEqual(labelBounds[index - 1].right);
+    }
     await expect(page.locator(".spent-summary .summary-axis span")).toHaveText(months);
     await expect(page.locator(".wealth-summary .summary-axis")).not.toBeEmpty();
     await expect(page.locator(".profile .active-database")).toContainText("Local database:");
