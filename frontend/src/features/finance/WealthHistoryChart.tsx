@@ -204,9 +204,10 @@ export function WealthHistoryChart({
                 y2="140"
                 vectorEffect="non-scaling-stroke"
               />
-              {point.row && (
+              {point.row && <>
+                <line className="wealth-guide" x1="12" x2="588" y1={point.y} y2={point.y} vectorEffect="non-scaling-stroke" />
                 <circle cx={point.x} cy={point.y} r="3" fill="var(--text)" />
-              )}
+              </>}
             </g>
           )}
         </svg>

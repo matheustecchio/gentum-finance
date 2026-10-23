@@ -575,6 +575,9 @@ export function Analytics({
                         currency={currency}
                         kind={screen}
                         today={today}
+                        grouping={(visible.trendBuckets || visible.buckets).some(b => b.start !== b.end) ? visible.grouping : "day"}
+                        period={period}
+                        width={width}
                         comparisonBuckets={visible.comparisonBuckets}
                         comparisonRows={visible.comparisonFlows}
                       />
@@ -603,7 +606,7 @@ export function Analytics({
                         rows={visible.flows}
                         currency={currency}
                         buckets={visible.buckets}
-                        grouping={visible.grouping}
+                        grouping={(visible.trendBuckets || visible.buckets).some(b => b.start !== b.end) ? visible.grouping : "day"}
                         period={period}
                         today={visible.today}
                         width={width}

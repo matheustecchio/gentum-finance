@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { formatMoney } from "../accounts/money";
+import { calendarBucketLabel } from "./CalendarFlowChart";
 import { type Bucket, rangeLabel } from "./CashFlowChart";
 import type { Row } from "./client";
 export function AnalyticsLineChart({
@@ -8,6 +9,9 @@ export function AnalyticsLineChart({
   currency,
   kind,
   today,
+  grouping = "day",
+  period = "month",
+  width = 900,
   comparisonBuckets = [],
   comparisonRows = [],
 }: {
@@ -16,6 +20,9 @@ export function AnalyticsLineChart({
   currency: string;
   kind: "income" | "expense";
   today: string;
+  grouping?: string;
+  period?: string;
+  width?: number;
   comparisonBuckets?: Bucket[];
   comparisonRows?: Row[];
 }) {
@@ -52,16 +59,19 @@ export function AnalyticsLineChart({
     (last, b, i) => (b.start <= today ? i : last),
     0,
   );
+  const selected = index === undefined ? undefined : Math.min(index, lastIndex);
   const change = (i: number) => setIndex(Math.max(0, Math.min(lastIndex, i)));
   if (!buckets.length) return <p>No recorded transactions.</p>;
   return (
     <div className="analytics-line-chart">
+      <div className="analytics-line-plot">
       <svg
+        onPointerLeave={() => setIndex(undefined)}
         onPointerMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           change(
             Math.round(
-              ((e.clientX - rect.left) / rect.width) * (buckets.length - 1),
+              (((e.clientX - rect.left) / rect.width * 900 - 20) / 860) * (buckets.length - 1),
             ),
           );
         }}
@@ -75,15 +85,19 @@ export function AnalyticsLineChart({
             <stop offset="1" stopColor="var(--series-color, var(--assets))" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[35, 90, 145, 205].map((p) => (
+        {[0, 1, 2, 3].map((step) => (
+          <g key={step}>
+          <text x="880" y={205 - step * 170 / 3 - 8} textAnchor="end" className="calendar-scale">
+            {formatMoney((maximum * BigInt(step) / 3n).toString(), currency)}
+          </text>
           <line
-            key={p}
             x1="20"
             x2="880"
-            y1={p}
-            y2={p}
+            y1={205 - step * 170 / 3}
+            y2={205 - step * 170 / 3}
             className="calendar-grid"
           />
+          </g>
         ))}
         {comparison.length > 0 && (
           <polyline
@@ -109,22 +123,23 @@ export function AnalyticsLineChart({
           stroke="var(--series-color, var(--assets))"
           strokeWidth="2"
         />
-        {index !== undefined && (
+        {selected !== undefined && (
           <>
             <line
               x1="20"
               x2="880"
-              y1={y(index)}
-              y2={y(index)}
+              y1={y(selected)}
+              y2={y(selected)}
               stroke="var(--control-border)"
               strokeDasharray="4 5"
             />
-            <circle cx={x(index)} cy={y(index)} r="5" fill="var(--text)" />
+            <line x1={x(selected)} x2={x(selected)} y1="35" y2="205" className="wealth-guide" />
+            <circle cx={x(selected)} cy={y(selected)} r="5" fill="var(--text)" />
           </>
         )}
         {buckets.map(
           (b, i) =>
-            (i % Math.max(1, Math.ceil(buckets.length / 7)) === 0 ||
+            (i % Math.max(1, Math.ceil(buckets.length / (width < 600 ? 4 : 7))) === 0 ||
               i === buckets.length - 1) && (
               <text
                 key={b.start}
@@ -133,17 +148,25 @@ export function AnalyticsLineChart({
                 textAnchor="middle"
                 className="calendar-label"
               >
-                {b.start.slice(5)}
+                {calendarBucketLabel(b, grouping, period, width)}
               </text>
             ),
         )}
-        <text x="880" y="22" textAnchor="end" className="calendar-scale">
-          {formatMoney(maximum.toString(), currency)}
-        </text>
       </svg>
+      {selected !== undefined && (
+        <div role="tooltip" className="wealth-tooltip" style={{ left: `clamp(0px, calc(${x(selected) / 9}% - 100px), max(0px, calc(100% - 200px)))` }}>
+          <time>{rangeLabel(buckets[selected].start, buckets[selected].end)}</time>
+          <strong>Selected: {formatMoney(values[selected], currency)}</strong>
+          {comparison[selected] !== undefined && <>
+            <span>Previous: {formatMoney(comparison[selected], currency)}</span>
+            <time>{rangeLabel(comparisonBuckets[selected].start, comparisonBuckets[selected].end)}</time>
+          </>}
+        </div>
+      )}
+      </div>
       {comparison.length > 0 && (
         <small className="analytics-line-legend">
-          White: selected period · Grey: previous period
+          Colored: selected period · Grey: previous period
         </small>
       )}
       <input
@@ -151,14 +174,16 @@ export function AnalyticsLineChart({
         type="range"
         min="0"
         max={Math.max(0, lastIndex)}
-        value={index ?? Math.max(0, lastIndex)}
+        value={selected ?? Math.max(0, lastIndex)}
         onChange={(e) => change(Number(e.target.value))}
-        onFocus={() => change(index ?? lastIndex)}
+        onFocus={() => change(selected ?? lastIndex)}
+        onBlur={() => setIndex(undefined)}
+        onKeyDown={(e) => { if (e.key === "Escape") setIndex(undefined); }}
       />
-      {index !== undefined && (
+      {selected !== undefined && (
         <output aria-live="polite">
-          {rangeLabel(buckets[index].start, buckets[index].end)} ·{" "}
-          {formatMoney(values[index], currency)}
+          {rangeLabel(buckets[selected].start, buckets[selected].end)} ·{" "}
+          {formatMoney(values[selected], currency)}
         </output>
       )}
     </div>

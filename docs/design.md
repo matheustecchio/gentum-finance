@@ -39,3 +39,7 @@ Chart view and style selectors use aligned 20 px icons in 40 px rounded rectangu
 ## Validation
 
 Frontend unit tests cover calendar labels, missing months, future buckets and unsupported history amounts. Browser tests cover semantic colors, semester labels, spacing, the database footer, keyboard navigation and narrow layouts. Keep financial values as integer cents and preserve server-side financial calculations.
+
+Analytics line charts keep the previous period in grey and use the same calendar labels as bars. Pointer and range inspection show exact selected and previous amounts with their dates. Each horizontal grid line shows its scale value, including zero. Total Wealth inspection includes horizontal and vertical dashed guides.
+
+The custom date dialog separates its actions from the fields by 24 px. Cancel aligns left below Start date and Apply aligns right below End date. Date fields stack on narrow screens.
