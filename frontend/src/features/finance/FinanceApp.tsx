@@ -1,4 +1,3 @@
-import appIcon from "../../assets/icons/gentum-app.svg";
 import { MAX_CSV_BYTES, useCSVImport } from "./CSVImport";
 import { SvgIcon } from "./SvgIcon";
 import { saveExport } from "../../desktop";
@@ -11,6 +10,7 @@ import binIcon from "../../assets/icons/bin.svg";
 import pencilIcon from "../../assets/icons/pencil.svg";
 import plusIcon from "../../assets/icons/plus.svg";
 import exitIcon from "../../assets/icons/exit.svg";
+import appIcon from "../../assets/icons/gentum-app.svg";
 import {
   useCallback,
   useEffect,
