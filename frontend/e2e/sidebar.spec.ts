@@ -50,7 +50,7 @@ for (const viewport of [
       await expect(page.getByRole("heading", { name: "Record a transaction" })).toBeVisible();
       const addBox = (await add.boundingBox())!;
       await expect(sidebar.locator(".app-version")).toHaveText(`v${version}`);
-      await expect(sidebar.locator(".profile small")).toContainText("Local database: My database");
+      await expect(sidebar.locator(".active-database")).toHaveJSProperty("innerText", "Local database:\nMy database");
       await expect(sidebar.locator(".profile small")).not.toContainText(/No PIN|PIN enabled/);
       await expect(sidebar.locator(".app-version")).toHaveCSS("display", "block");
       await expect(page.getByRole("button", { name: "Lock now" })).toHaveCount(pinEnabled ? 1 : 0);
