@@ -6,7 +6,7 @@ import { setActiveDatabase } from "./client";
 
 Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function(this: HTMLDialogElement) { this.open = true; } });
 Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function(this: HTMLDialogElement) { this.open = false; } });
-afterEach(() => { localStorage.clear(); setActiveDatabase(undefined); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); setActiveDatabase(undefined); vi.unstubAllGlobals(); });
 const committed = (id: string): ImportJob => ({ id, status: "committed", total: 100000, processed: 100000, message: "Imported 100000 transactions" });
 function Harness({ done = vi.fn() }: { done?: (message: string) => void }) {
   const importer = useCSVImport(async message => { done(message); });
@@ -70,4 +70,32 @@ it("shows the offending record after rollback and allows a fresh attempt", async
   await userEvent.click(screen.getByRole("button", { name: "Close" }));
   await userEvent.click(screen.getByRole("button", { name: "Start" }));
   await screen.findByRole("heading", { name: "Import complete" }); expect(starts).toBe(2);
+});
+it("does not submit when the recovery checkpoint cannot be saved", async () => {
+  const calls = mock((_action,id) => committed(id));
+  render(<Harness />);
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("Full", "QuotaExceededError"); });
+  await userEvent.click(screen.getByRole("button", { name: "Start" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("No transactions were submitted");
+  expect(calls).toEqual([]);
+});
+it("keeps a confirmed success when checkpoint cleanup fails", async () => {
+  const done = vi.fn(); const calls = mock((_action,id) => committed(id));
+  vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("Denied", "SecurityError"); });
+  render(<Harness done={done} />); await userEvent.click(screen.getByRole("button", { name: "Start" }));
+  await screen.findByRole("heading", { name: "Import complete" });
+  expect(done).toHaveBeenCalledOnce(); expect(calls).toEqual(["start"]);
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+});
+it("blocks new work until unreadable recovery information is checked", async () => {
+  const calls = mock((_action,id) => committed(id));
+  const read = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new DOMException("Denied", "SecurityError"); });
+  render(<Harness />);
+  await screen.findByText(/Local recovery information is unavailable/);
+  expect(screen.getByRole("button", { name: "Start" })).toBeDisabled(); expect(calls).toEqual([]);
+  read.mockRestore();
+  await userEvent.click(screen.getByRole("button", { name: "Check import status" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
 });
