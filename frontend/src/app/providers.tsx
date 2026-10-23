@@ -1,10 +1,12 @@
 import { ApolloClient, ApolloProvider, HttpLink, InMemoryCache } from "@apollo/client";
 import { useEffect, type PropsWithChildren } from "react";
-import { BrowserRouter } from "react-router-dom";
+import { desktopFetch } from "../desktop";
+import { HashRouter } from "react-router-dom";
 
 const client = new ApolloClient({
   link: new HttpLink({
-    uri: import.meta.env.VITE_GRAPHQL_URL ?? "/graphql",
+    uri: "/graphql",
+    fetch: desktopFetch,
     credentials: "include",
   }),
   cache: new InMemoryCache(),
@@ -18,7 +20,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   }, []);
   return (
     <ApolloProvider client={client}>
-      <BrowserRouter>{children}</BrowserRouter>
+      <HashRouter>{children}</HashRouter>
     </ApolloProvider>
   );
 }

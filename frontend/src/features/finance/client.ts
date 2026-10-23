@@ -1,3 +1,4 @@
+import { desktopFetch } from "../../desktop";
 export type Row = Record<string, string>;
 export interface Snapshot {
   accounts: Row[];
@@ -29,7 +30,7 @@ export async function request<T>(path: string, body?: unknown): Promise<T> {
   const controller = new AbortController();
   if (!discovery) pending.add(controller);
   try {
-    const response = await fetch(path, {
+    const response = await desktopFetch(path, {
       method: body === undefined ? "GET" : "POST",
       credentials: "same-origin",
       signal: controller.signal,

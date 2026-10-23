@@ -16,13 +16,7 @@ if (typeof version !== "string" || !versionPattern.test(version) ||
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(version) },
   plugins: [react()],
-  server: {
-    proxy: {
-      "/graphql": "http://localhost:8080",
-      "/auth": "http://localhost:8080",
-      "/databases": "http://localhost:8080",
-    },
-  },
+  server: { host: "127.0.0.1", strictPort: true },
   build: {
     rollupOptions: {
       output: {
