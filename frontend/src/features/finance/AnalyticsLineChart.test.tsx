@@ -22,3 +22,13 @@ it("keeps inspection in range when changing to fewer buckets", () => {
   rerender(<AnalyticsLineChart {...props} buckets={buckets.slice(0, 1)} />);
   expect(screen.getByRole("tooltip")).toHaveTextContent("19 Oct 2026");
 });
+
+it("keeps the previous endpoint visible and inspectable across unequal periods", () => {
+  const previous = buckets.slice(0, 2);
+  render(<AnalyticsLineChart buckets={buckets} rows={[]} currency="EUR" kind="expense" today="2026-10-21" comparisonBuckets={previous} comparisonRows={[{ month: previous[1].start, currency: "EUR", cumulativeExpense: "12345" }]} width={320} />);
+  fireEvent.focus(screen.getByRole("slider"));
+  expect(screen.getByRole("tooltip")).toHaveTextContent("Previous: €123.45");
+  expect(screen.getByRole("tooltip")).toHaveTextContent("20 Oct 2026");
+  expect(document.querySelector(".analytics-comparison-line")).toHaveAttribute("points", expect.stringMatching(/300,35$/));
+  expect(screen.getByRole("img")).toHaveAttribute("viewBox", "0 0 320 250");
+});

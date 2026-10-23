@@ -48,7 +48,11 @@ export function AnalyticsLineChart({
   const maximum = [...values, ...comparison]
     .map(BigInt)
     .reduce((a, b) => (a > b ? a : b), 0n);
-  const x = (i: number) => 20 + (i * 860) / Math.max(1, buckets.length - 1);
+  const size = Math.max(280, width);
+  const right = size - 20;
+  const plotWidth = size - 40;
+  const previousIndex = (i: number) => Math.round(i * (comparison.length - 1) / Math.max(1, buckets.length - 1));
+  const x = (i: number) => 20 + (i * plotWidth) / Math.max(1, buckets.length - 1);
   const valueY = (value: string) =>
     205 - (maximum ? Number((BigInt(value) * 17000n) / maximum) / 100 : 0);
   const y = (i: number) => valueY(values[i]);
@@ -71,11 +75,11 @@ export function AnalyticsLineChart({
           const rect = e.currentTarget.getBoundingClientRect();
           change(
             Math.round(
-              (((e.clientX - rect.left) / rect.width * 900 - 20) / 860) * (buckets.length - 1),
+              (((e.clientX - rect.left) / rect.width * size - 20) / plotWidth) * (buckets.length - 1),
             ),
           );
         }}
-        viewBox="0 0 900 250"
+        viewBox={`0 0 ${size} 250`}
         role="img"
         aria-label={`Cumulative ${kind} in ${currency}`}
       >
@@ -87,12 +91,12 @@ export function AnalyticsLineChart({
         </defs>
         {[0, 1, 2, 3].map((step) => (
           <g key={step}>
-          <text x="880" y={205 - step * 170 / 3 - 8} textAnchor="end" className="calendar-scale">
+          <text x={right} y={205 - step * 170 / 3 - 8} textAnchor="end" className="calendar-scale">
             {formatMoney((maximum * BigInt(step) / 3n).toString(), currency)}
           </text>
           <line
             x1="20"
-            x2="880"
+            x2={right}
             y1={205 - step * 170 / 3}
             y2={205 - step * 170 / 3}
             className="calendar-grid"
@@ -102,12 +106,7 @@ export function AnalyticsLineChart({
         {comparison.length > 0 && (
           <polyline
             className="analytics-comparison-line"
-            points={comparison
-              .map(
-                (value, i) =>
-                  `${20 + (i * 860) / Math.max(1, comparison.length - 1)},${valueY(value)}`,
-              )
-              .join(" ")}
+            points={buckets.map((_, i) => `${x(i)},${valueY(comparison[previousIndex(i)])}`).join(" ")}
             fill="none"
             stroke="var(--chart-muted)"
             strokeWidth="1.5"
@@ -127,7 +126,7 @@ export function AnalyticsLineChart({
           <>
             <line
               x1="20"
-              x2="880"
+              x2={right}
               y1={y(selected)}
               y2={y(selected)}
               stroke="var(--control-border)"
@@ -145,7 +144,7 @@ export function AnalyticsLineChart({
                 key={b.start}
                 x={x(i)}
                 y="240"
-                textAnchor="middle"
+                textAnchor={i === 0 ? "start" : i === buckets.length - 1 ? "end" : "middle"}
                 className="calendar-label"
               >
                 {calendarBucketLabel(b, grouping, period, width)}
@@ -154,12 +153,12 @@ export function AnalyticsLineChart({
         )}
       </svg>
       {selected !== undefined && (
-        <div role="tooltip" className="wealth-tooltip" style={{ left: `clamp(0px, calc(${x(selected) / 9}% - 100px), max(0px, calc(100% - 200px)))` }}>
+        <div role="tooltip" className="wealth-tooltip" style={{ left: `clamp(0px, calc(${x(selected) / size * 100}% - 100px), max(0px, calc(100% - 200px)))` }}>
           <time>{rangeLabel(buckets[selected].start, buckets[selected].end)}</time>
           <strong>Selected: {formatMoney(values[selected], currency)}</strong>
-          {comparison[selected] !== undefined && <>
-            <span>Previous: {formatMoney(comparison[selected], currency)}</span>
-            <time>{rangeLabel(comparisonBuckets[selected].start, comparisonBuckets[selected].end)}</time>
+          {comparison[previousIndex(selected)] !== undefined && <>
+            <span>Previous: {formatMoney(comparison[previousIndex(selected)], currency)}</span>
+            <time>{rangeLabel(comparisonBuckets[previousIndex(selected)].start, comparisonBuckets[previousIndex(selected)].end)}</time>
           </>}
         </div>
       )}
