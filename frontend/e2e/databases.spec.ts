@@ -11,7 +11,7 @@ test("separate databases, protected switching, rename, tabs and reload", async (
     await page.getByLabel("PIN (4 digits)", { exact: true }).fill("0123");
     await page.getByRole("button", { name: "Unlock", exact: true }).click();
   }
-  await expect(page.getByRole("heading", { name: "Overview", exact: true, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Analytics", exact: true, level: 1 })).toBeVisible();
   const initial = await page.request.get("/auth/status").then(r => r.json());
   const suffix = Date.now();
   const name = `Travel ${suffix}`;

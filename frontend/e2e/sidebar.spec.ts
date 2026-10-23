@@ -27,10 +27,10 @@ for (const viewport of [
       const add = page.getByRole("button", { name: "Add transaction", exact: true });
       await expect(add).toHaveCount(1);
       await expect(nav.getByRole("button")).toHaveText([
-        "Overview", "Transactions", "Transfers",
+        "Analytics", "Transactions", "Transfers",
         "Budgets", "Recurring", "Import & export", "Settings", "+ Add transaction",
       ]);
-      await expect(add).toHaveCSS("background-color", "rgb(228, 193, 111)");
+      await expect(add).toHaveCSS("background-color", "rgb(41, 41, 41)");
       await sidebar.getByRole("link").focus();
       for (const button of await nav.getByRole("button").all()) {
         await page.keyboard.press("Tab");
@@ -38,13 +38,13 @@ for (const viewport of [
         await expect(button).toBeInViewport({ ratio: 1 });
       }
       await expect(add).toHaveCSS("outline-style", "solid");
-      await expect(add).toHaveCSS("outline-width", "3px");
+      await expect(add).toHaveCSS("outline-width", "2px");
       await page.keyboard.press("Enter");
       await expect(add).toHaveAttribute("aria-current", "page");
       await expect(page.getByRole("heading", { name: "Record a transaction" })).toBeVisible();
       const addBox = (await add.boundingBox())!;
       await expect(sidebar.locator(".app-version")).toHaveText(`v${version}`);
-      await expect(sidebar.locator(".profile small")).toContainText("Local wallet");
+      await expect(sidebar.locator(".profile small")).toContainText("Local database: My database");
       await expect(sidebar.locator(".profile small")).not.toContainText(/No PIN|PIN enabled/);
       await expect(sidebar.locator(".app-version")).toHaveCSS("display", "block");
       await expect(page.getByRole("button", { name: "Lock now" })).toHaveCount(pinEnabled ? 1 : 0);

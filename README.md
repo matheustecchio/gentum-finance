@@ -31,6 +31,7 @@ This is an early MVP for trusted local use. Use fictional data while evaluating 
 
 - [Development and local operation](docs/development.md)
 - [Architecture](docs/architecture.md)
+- [Interface design](docs/design.md)
 - [API and CSV contract](docs/api/finance.md)
 - [Contributing](CONTRIBUTING.md)
 - [Git workflow](docs/workflow.md)

@@ -71,8 +71,8 @@ export function AnalyticsLineChart({
       >
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#dae2df" stopOpacity=".22" />
-            <stop offset="1" stopColor="#dae2df" stopOpacity="0" />
+            <stop stopColor="var(--series-color, var(--assets))" stopOpacity=".22" />
+            <stop offset="1" stopColor="var(--series-color, var(--assets))" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[35, 90, 145, 205].map((p) => (
@@ -95,7 +95,7 @@ export function AnalyticsLineChart({
               )
               .join(" ")}
             fill="none"
-            stroke="#8d9991"
+            stroke="var(--chart-muted)"
             strokeWidth="1.5"
           />
         )}
@@ -106,7 +106,7 @@ export function AnalyticsLineChart({
         <polyline
           points={points}
           fill="none"
-          stroke="#f0f4f2"
+          stroke="var(--series-color, var(--assets))"
           strokeWidth="2"
         />
         {index !== undefined && (
@@ -116,10 +116,10 @@ export function AnalyticsLineChart({
               x2="880"
               y1={y(index)}
               y2={y(index)}
-              stroke="#fff7"
+              stroke="var(--control-border)"
               strokeDasharray="4 5"
             />
-            <circle cx={x(index)} cy={y(index)} r="5" fill="#fff" />
+            <circle cx={x(index)} cy={y(index)} r="5" fill="var(--text)" />
           </>
         )}
         {buckets.map(

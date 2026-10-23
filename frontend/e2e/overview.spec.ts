@@ -104,7 +104,29 @@ for (const width of [1280, 390]) {
       description: "Fictional old history",
     });
     await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Analytics", exact: true })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Overview", exact: true })).toHaveCount(0);
+    await expect(page.locator(".spent-summary > strong")).toHaveCSS("color", "rgb(255, 130, 144)");
+    await expect(page.locator(".income-summary > strong")).toHaveCSS("color", "rgb(101, 214, 160)");
+    await expect(page.locator(".cash-summary > strong")).toHaveCSS("color", "rgb(134, 180, 255)");
+    await expect(page.locator(".summary-flow-bars i").first()).toHaveCSS("background-color", "rgb(101, 214, 160)");
+    await expect(page.locator(".summary-flow-bars i").last()).toHaveCSS("background-color", "rgb(255, 130, 144)");
+    await expect(page.locator("main")).toHaveCSS("max-width", "none");
+    await page.getByRole("button", { name: "Semester", exact: true }).click();
+    const firstMonth = Number(today.slice(5, 7)) <= 6 ? 0 : 6;
+    const months = Array.from({ length: 6 }, (_, index) => new Intl.DateTimeFormat("en-IE", {
+      month: "short", timeZone: "UTC",
+    }).format(new Date(Date.UTC(Number(today.slice(0, 4)), firstMonth + index, 1))));
+    await expect(page.locator(".income-summary .summary-axis span")).toHaveText(months);
+    await expect(page.locator(".spent-summary .summary-axis span")).toHaveText(months);
+    await expect(page.locator(".wealth-summary .summary-axis")).not.toBeEmpty();
+    await expect(page.locator(".profile .active-database")).toContainText("Local database:");
+    await expect(page.locator(".page-header .active-database")).toHaveCount(0);
+    const wealthBox = (await page.locator(".wealth-summary").boundingBox())!;
+    const controlsBox = (await page.locator(".cash-period-controls").boundingBox())!;
+    expect(wealthBox.y - controlsBox.y - controlsBox.height).toBeGreaterThanOrEqual(28);
     await page.getByRole("button", { name: /Net cash flow · EUR/ }).click();
+    await expect(page.locator(".cash-net")).toHaveCSS("color", "rgb(134, 180, 255)");
     const cash = page.locator(".cash-chart");
     await cash.getByRole("button", { name: "Week", exact: true }).click();
     await expect(cash.locator(".calendar-slot")).toHaveCount(7);
@@ -204,7 +226,7 @@ for (const width of [1280, 390]) {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("heading")).toHaveCSS(
       "color",
-      "rgb(21, 62, 51)",
+      "rgb(240, 240, 240)",
     );
     await page.keyboard.press("Escape");
     await expect(
@@ -248,7 +270,7 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Custom", exact: true }).click();
     await expect(page.getByRole("dialog").getByRole("heading")).toHaveCSS(
       "color",
-      "rgb(21, 62, 51)",
+      "rgb(240, 240, 240)",
     );
     await page.keyboard.press("Escape");
     await expect(

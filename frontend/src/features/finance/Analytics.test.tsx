@@ -408,3 +408,50 @@ it("labels the dashboard current wealth with its FX date and cached quote status
   );
   expect(screen.queryByText(/Current total estimated/)).toBeNull();
 });
+
+it("labels every semester month, keeps missing months in place and leaves future income unplotted", async () => {
+  const semester = Array.from({ length: 6 }, (_, i) => ({
+    start: `2026-${String(i + 7).padStart(2, "0")}-01`,
+    end: `2026-${String(i + 7).padStart(2, "0")}-${[31, 31, 30, 31, 30, 31][i]}`,
+  }));
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+    const { variables } = JSON.parse(String(init?.body));
+    return Response.json({ data: { cashFlowPage: variables.period === "halfYear" ? {
+      ...page(), start: "2026-07-01", end: "2026-12-31", grouping: "month",
+      buckets: semester, trendBuckets: semester,
+      trendFlows: [
+        { month: "2026-07-01", currency: "EUR", income: "100", cumulativeExpense: "20" },
+        { month: "2026-09-01", currency: "EUR", income: "300", cumulativeExpense: "60" },
+      ],
+    } : page() } });
+  }));
+  render(<Analytics snapshot={snapshot} overview={{
+    currency: "EUR", today: "2026-10-21", rateDate: "", rateError: "", converted: false, flows: [],
+    wealth: [{ date: "2026-10-01", amount: "100" }, { date: "2026-10-21", amount: "400" }],
+  }} />);
+  await screen.findByRole("button", { name: /Income · EUR/ });
+  fireEvent.click(screen.getByRole("button", { name: "Semester" }));
+  const incomeChart = await screen.findByRole("img", { name: /Income:.*Jul.*Dec/ });
+  expect([...incomeChart.querySelectorAll(".summary-axis span")].map((node) => node.textContent))
+    .toEqual(["Jul", "Aug", "Sept", "Oct", "Nov", "Dec"]);
+  expect(incomeChart.querySelectorAll("rect")).toHaveLength(2);
+  const titles = [...incomeChart.querySelectorAll("rect title")].map((node) => node.textContent);
+  expect(titles[0]).toMatch(/Jul.*€1.00/);
+  expect(titles[1]).toMatch(/Sept.*€3.00/);
+  expect(incomeChart.querySelectorAll(".is-future")).toHaveLength(2);
+  const wealth = screen.getByRole("img", { name: /Wealth:.*Oct/ });
+  expect(wealth).toHaveTextContent("1 Oct");
+  expect(wealth).toHaveTextContent("21 Oct");
+});
+
+
+it("keeps the wealth card available when an unsupported history amount cannot be formatted", async () => {
+  vi.stubGlobal("fetch", fixture());
+  render(<Analytics snapshot={snapshot} overview={{
+    currency: "EUR", today: "2026-10-21", rateDate: "", rateError: "", converted: false, flows: [],
+    wealth: [{ date: "2026-10-01", amount: "9223372036857491017" }, { date: "2026-10-21", amount: "100" }],
+  }} />);
+  const wealth = await screen.findByRole("button", { name: /Total Wealth/ });
+  expect(wealth).toHaveTextContent("€1.00");
+  expect(wealth.querySelectorAll("circle")).toHaveLength(1);
+});
