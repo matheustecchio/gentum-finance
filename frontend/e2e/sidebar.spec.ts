@@ -28,8 +28,10 @@ for (const viewport of [
       await expect(add).toHaveCount(1);
       await expect(nav.getByRole("button")).toHaveText([
         "Analytics", "Transactions", "Transfers",
-        "Budgets", "Recurring", "Import & export", "Settings", "+ Add transaction",
+        "Budgets", "Recurring", "Import & export", "Settings", "Add transaction",
       ]);
+      await expect(add.locator(".asset-icon")).toBeVisible();
+      await expect(add.locator(".asset-icon")).not.toHaveCSS("mask-image", "none");
       await expect(add).toHaveCSS("background-color", "rgb(41, 41, 41)");
       await sidebar.getByRole("link").focus();
       for (const button of await nav.getByRole("button").all()) {
@@ -41,6 +43,10 @@ for (const viewport of [
       await expect(add).toHaveCSS("outline-width", "2px");
       await page.keyboard.press("Enter");
       await expect(add).toHaveAttribute("aria-current", "page");
+      const inactiveBackground = await nav.getByRole("button", { name: "Transactions", exact: true })
+        .evaluate((el) => getComputedStyle(el).backgroundColor);
+      await expect.poll(() => add.evaluate((el) => getComputedStyle(el).backgroundColor))
+        .not.toEqual(inactiveBackground);
       await expect(page.getByRole("heading", { name: "Record a transaction" })).toBeVisible();
       const addBox = (await add.boundingBox())!;
       await expect(sidebar.locator(".app-version")).toHaveText(`v${version}`);
