@@ -213,27 +213,24 @@ export function CalendarFlowChart({
           layoutKey={`${maximum}:${size}`}
         />
       )}
-      <details className="calendar-amounts">
-        <summary>View amounts in {currency}</summary>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Money In</th>
-              <th>Money Out</th>
+      <table className="chart-amounts" aria-label={`Cash flow amounts in ${currency}`}>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Money In</th>
+            <th>Money Out</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buckets.map((b, i) => (
+            <tr key={b.start}>
+              <th>{rangeLabel(b.start, b.end)}</th>
+              <td>{formatMoney(entries[i].income, currency)}</td>
+              <td>{formatMoney(entries[i].expense, currency)}</td>
             </tr>
-          </thead>
-          <tbody>
-            {buckets.map((b, i) => (
-              <tr key={b.start}>
-                <th>{rangeLabel(b.start, b.end)}</th>
-                <td>{formatMoney(entries[i].income, currency)}</td>
-                <td>{formatMoney(entries[i].expense, currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

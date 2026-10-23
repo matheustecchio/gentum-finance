@@ -264,29 +264,26 @@ export function FlowChart({
           layoutKey={`${low}:${high}:${months.length}`}
         />
       )}
-      <details>
-        <summary>View amounts</summary>
-        <table>
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Income</th>
-              <th>Expenses</th>
-              <th>Net</th>
+      <table className="chart-amounts" aria-label={`Cash flow amounts in ${currency}`}>
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Income</th>
+            <th>Expenses</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((r) => (
+            <tr key={r.month}>
+              <td>{r.month}</td>
+              {["income", "expense", "net"].map((key) => (
+                <td key={key}>{formatMoney(r[key], currency)}</td>
+              ))}
             </tr>
-          </thead>
-          <tbody>
-            {entries.map((r) => (
-              <tr key={r.month}>
-                <td>{r.month}</td>
-                {["income", "expense", "net"].map((key) => (
-                  <td key={key}>{formatMoney(r[key], currency)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

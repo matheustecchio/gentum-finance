@@ -105,8 +105,12 @@
 .currency-flow rect {
   cursor: pointer;
 }
-.currency-flow rect:focus {
-  outline: 2px solid var(--accent);
+.currency-flow rect[role="button"]:focus {
+  outline: none;
+  stroke: none;
+}
+.currency-flow rect[role="button"]:focus-visible {
+  fill: rgb(240 240 240 / 6%);
 }
 .bar-inspection {
   min-height: 1.5em;
@@ -371,7 +375,8 @@
 .period-bar { transition: opacity 160ms ease; }
 .flow-period.is-muted .period-bar { opacity: .24; }
 .flow-period.is-selected .period-bar { opacity: 1; }
-.flow-period:focus-visible .period-hit { stroke: var(--accent); stroke-width: 2px; }
+.flow-period .period-hit { stroke: none; }
+.flow-period:focus-visible .period-hit { fill: rgb(240 240 240 / 6%); }
 .category-chart-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .category-chart-heading .chart-note { margin: 0; }
 .category-ranking { list-style: none; padding: 0; display: grid; gap: 18px; }
@@ -426,11 +431,8 @@
 .calendar-grid { stroke: var(--chart-grid); stroke-width: 1; }
 .calendar-label, .calendar-scale { fill: var(--muted); }
 .calendar-slot.is-future .calendar-label { fill: var(--muted); }
-.calendar-slot rect[role="button"]:focus-visible { stroke: var(--accent); stroke-width: 2; outline: none; }
-.calendar-amounts { color: var(--muted); margin-bottom: 16px; font-size: .8rem; }
-.calendar-amounts table { width: 100%; }
-.calendar-amounts th, .calendar-amounts td { padding: 8px 4px; text-align: right; overflow-wrap: anywhere; }
-.calendar-amounts th:first-child { text-align: left; }
+.calendar-slot rect[role="button"]:focus { stroke: none; outline: none; }
+.calendar-slot rect[role="button"]:focus-visible { fill: rgb(240 240 240 / 6%); }
 .cash-period-controls { position: relative; display: flex; gap: 10px; max-width: 580px; margin: 12px auto 0; align-items: center; }
 .cash-segments { position: relative; display: flex; flex: 1; min-width: 0; padding: 4px; border-radius: 6px; background: var(--surface-raised); }
 .cash-segments button { position: relative; z-index: 1; flex: 1; width: 25%; min-width: 0; padding: 10px 0; border: 1px solid var(--border); color: var(--muted); background: transparent; border-radius: 4px; }
@@ -485,10 +487,11 @@ button.analytics-summary-card { display: flex; flex-direction: column; align-ite
 .analytics-detail-heading { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
 .analytics-detail-heading h2 { font-size: 1.1rem; flex: 1; margin: 0; }
 button.analytics-back { width: 44px; height: 44px; flex: 0 0 44px; padding: 0; background: var(--surface-hover); color: var(--text); border: 1px solid var(--border); border-radius: 50%; font-size: 1.5rem; }
-.analytics-view-switch { display: flex; background: var(--surface-raised); border-radius: 6px; padding: 4px; gap: 3px; }
-.analytics-view-switch button { display: grid; place-items: center; background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 50%; width: 36px; height: 36px; padding: 8px; }
-.analytics-view-switch button[aria-pressed="true"] { background: var(--accent-border); color: var(--text); }
-.analytics-view-switch svg, .money-category-icon svg { width: 24px; height: 24px; }
+.analytics-view-switch { display: flex; align-items: center; background: var(--surface-raised); border-radius: 6px; padding: 4px; gap: 4px; }
+.analytics-view-switch button { display: grid; place-items: center; flex: 0 0 40px; background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 4px; width: 40px; height: 40px; padding: 0; line-height: 1; }
+.analytics-view-switch button[aria-pressed="true"] { background: var(--accent-surface); border-color: var(--accent-border); color: var(--text); }
+.analytics-view-switch svg, .analytics-view-switch .asset-icon { display: block; width: 20px; height: 20px; }
+.money-category-icon svg { width: 24px; height: 24px; }
 .chart-style-switch { width: fit-content; margin: 10px 0; }
 .revolut-flow h3#cash-flow-title { font-weight: 500; font-size: 1rem; }
 button.money-category-open { display: flex; gap: 12px; align-items: center; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
@@ -600,4 +603,18 @@ main.analytics-main {
 
 @media (max-width: 380px) {
   .analytics-summary-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Keep exact chart values available to assistive technology without a disclosure. */
+.chart-amounts {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

@@ -76,6 +76,6 @@ export function CashFlowChart({ rows, currency, buckets, selected, grouping, tod
       </g>)}
     </svg>
     {inspection && <FlowTooltip selection={inspection} id={id} layoutKey={`${low}:${high}:${width}`} />}
-    <details><summary>View amounts</summary><table><thead><tr><th>Period</th><th>Income</th><th>Expenses</th><th>Net</th></tr></thead><tbody>{entries.map((r, i) => <tr key={r.month}><th>{rangeLabel(buckets[i].start, buckets[i].end)}</th>{series.map(key => <td key={key}>{formatMoney(r[key], currency)}</td>)}</tr>)}</tbody></table></details>
+    <table className="chart-amounts" aria-label={`Cash flow amounts in ${currency}`}><thead><tr><th>Period</th><th>Income</th><th>Expenses</th><th>Net</th></tr></thead><tbody>{entries.map((r, i) => <tr key={r.month}><th>{rangeLabel(buckets[i].start, buckets[i].end)}</th>{series.map(key => <td key={key}>{formatMoney(r[key], currency)}</td>)}</tr>)}</tbody></table>
   </div>;
 }
