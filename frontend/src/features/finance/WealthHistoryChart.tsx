@@ -160,8 +160,8 @@ export function WealthHistoryChart({
         >
           <defs>
             <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#19ba96" stopOpacity=".5" />
-              <stop offset="100%" stopColor="#19ba96" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--assets)" stopOpacity=".5" />
+              <stop offset="100%" stopColor="var(--assets)" stopOpacity="0" />
             </linearGradient>
           </defs>
           {segments.map((segment, i) => {
@@ -179,7 +179,7 @@ export function WealthHistoryChart({
                 <path
                   d={line}
                   fill="none"
-                  stroke="#19ba96"
+                  stroke="var(--assets)"
                   strokeWidth="2.5"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -188,7 +188,7 @@ export function WealthHistoryChart({
                     cx={segment[0].x}
                     cy={segment[0].y}
                     r="3"
-                    fill="#19ba96"
+                    fill="var(--assets)"
                   />
                 )}
               </g>
@@ -205,7 +205,7 @@ export function WealthHistoryChart({
                 vectorEffect="non-scaling-stroke"
               />
               {point.row && (
-                <circle cx={point.x} cy={point.y} r="3" fill="#fff" />
+                <circle cx={point.x} cy={point.y} r="3" fill="var(--text)" />
               )}
             </g>
           )}

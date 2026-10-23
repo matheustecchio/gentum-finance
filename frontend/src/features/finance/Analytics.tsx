@@ -255,7 +255,6 @@ export function Analytics({
     return (
       <section className="analytics-dashboard" aria-label="Analytics overview">
         <div className="analytics-dashboard-header">
-          <h2>Analytics</h2>
           <span>{visible && rangeLabel(visible.start, visible.end)}</span>
         </div>
         {status}
@@ -273,25 +272,31 @@ export function Analytics({
                   <strong>{formatMoney(total.expense, currency)}</strong>
                   <SummaryPlot
                     rows={visible.trendFlows || []}
+                    buckets={visible.trendBuckets}
+                    today={visible.today}
+                    period={period}
                     currency={currency}
                     field="cumulativeExpense"
                   />
                 </button>
                 <button
-                  className="analytics-summary-card"
+                  className="analytics-summary-card income-summary"
                   onClick={() => open("income")}
                 >
                   <span>Income · {currency}</span>
                   <strong>{formatMoney(total.income, currency)}</strong>
                   <SummaryPlot
                     rows={visible.trendFlows || []}
+                    buckets={visible.trendBuckets}
+                    today={visible.today}
+                    period={period}
                     currency={currency}
                     field="income"
                     bars
                   />
                 </button>
                 <button
-                  className="analytics-summary-card"
+                  className="analytics-summary-card cash-summary"
                   onClick={() => open("cash")}
                 >
                   <span>Net cash flow · {currency}</span>
@@ -328,7 +333,6 @@ export function Analytics({
         {controls}
         {overview && (
           <>
-            <h3>Overview</h3>
             <button
               className="analytics-summary-card wealth-summary"
               onClick={onWealth}
@@ -350,6 +354,7 @@ export function Analytics({
                   currency: overview.currency,
                 }))}
                 currency={overview.currency}
+                today={overview.today}
                 field="amount"
               />
               <small>View assets and account balances</small>
@@ -359,7 +364,7 @@ export function Analytics({
       </section>
     );
   return (
-    <div className="analytics-detail">
+    <div className={`analytics-detail mode-${screen}`}>
       <div className="analytics-detail-heading">
         <button
           className="analytics-back"
@@ -773,7 +778,7 @@ function CategoryDonut({
             return `${categoryColor(r, i)} ${from}deg ${cursor}deg`;
           })
           .join(",")
-      : "#38423c 0deg 360deg";
+      : "var(--surface-hover) 0deg 360deg";
   return (
     <div className="analytics-donut">
       <div
@@ -800,51 +805,95 @@ function CategoryDonut({
 
 function SummaryPlot({
   rows,
+  buckets,
   currency,
   field,
+  today,
+  period,
   bars = false,
 }: {
   rows: Row[];
+  buckets?: Bucket[];
   currency: string;
   field: string;
+  today: string;
+  period?: Period;
   bars?: boolean;
 }) {
-  const values = rows
-    .filter((r) => r.currency === currency && r[field] !== undefined)
-    .map((r) => BigInt(r[field]));
+  const matching = rows.filter((row) => row.currency === currency);
+  const calendar = buckets?.length ? buckets : matching.map((row) => ({
+    start: row.month || row.date,
+    end: row.month || row.date,
+  }));
+  const points = calendar.map((bucket) => {
+    const row = matching.find((row) => (row.month || row.date) === bucket.start);
+    if (bucket.start > today || row?.[field] === undefined) return { bucket };
+    try {
+      return { bucket, formatted: formatMoney(row[field], currency), value: BigInt(row[field]) };
+    } catch {
+      return { bucket };
+    }
+  });
+  const values = points.flatMap((point) => point.value === undefined ? [] : [point.value]);
   const low = values.reduce((a, b) => (a < b ? a : b), 0n),
     high = values.reduce((a, b) => (a > b ? a : b), 0n);
-  const y = (value: bigint) =>
-    high === low
-      ? 45
-      : 85 - Number(((value - low) * 7500n) / (high - low)) / 100;
+  const y = (value: bigint) => high === low
+    ? 85 : 85 - Number(((value - low) * 7500n) / (high - low)) / 100;
+  const x = (index: number) => ((index + 0.5) * 500) / Math.max(1, calendar.length);
+  const monthly = calendar.some((bucket) =>
+    Date.parse(bucket.end) - Date.parse(bucket.start) >= 20 * 86400000);
+  const yearly = calendar.some((bucket) =>
+    Date.parse(bucket.end) - Date.parse(bucket.start) >= 300 * 86400000);
+  const label = (bucket: Bucket) => new Intl.DateTimeFormat("en-IE", {
+    timeZone: "UTC",
+    ...(yearly ? { year: "numeric" as const }
+      : monthly ? { month: "short" as const }
+      : period === "week" ? { weekday: "short" as const }
+      : { day: "numeric" as const, month: "short" as const }),
+  }).format(new Date(`${bucket.start}T00:00:00Z`));
+  const tickCount = Math.min(calendar.length, monthly || period === "week" ? 7 : 3);
+  const ticks = new Set(Array.from({ length: tickCount }, (_, i) =>
+    tickCount === 1 ? 0 : Math.round((i * (calendar.length - 1)) / (tickCount - 1))));
+  const segments: string[][] = [];
+  points.forEach((point, index) => {
+    if (point.value === undefined) return;
+    if (index === 0 || points[index - 1].value === undefined) segments.push([]);
+    segments[segments.length - 1].push(`${x(index)},${y(point.value)}`);
+  });
+  const chartName = field === "amount" ? "Wealth" : bars ? "Income" : "Spending";
+  if (!calendar.length) return <small>No chart history yet.</small>;
   return (
-    <svg viewBox="0 0 500 100" aria-hidden="true">
-      {bars ? (
-        values.map((value, i) => (
-          <rect
-            key={i}
-            x={10 + (i * 480) / Math.max(1, values.length)}
-            y={y(value)}
-            width={Math.max(1, Math.min(18, 400 / Math.max(1, values.length)))}
-            height={Math.max(1, 85 - y(value))}
-            rx="2"
-            fill="#4a88ff"
-          />
-        ))
-      ) : (
-        <polyline
-          points={values
-            .map(
-              (value, i) =>
-                `${10 + (i * 480) / Math.max(1, values.length - 1)},${y(value)}`,
-            )
-            .join(" ")}
-          stroke="currentColor"
-          fill="none"
-          strokeWidth="2"
-        />
-      )}
-    </svg>
+    <div className="summary-plot" role="img"
+      aria-label={`${chartName}: ${rangeLabel(calendar[0].start, calendar[calendar.length - 1].end)}`}>
+      <svg viewBox="0 0 500 100" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="0" x2="500" y1="85" y2="85" className="summary-baseline" />
+        {bars ? points.map((point, index) => point.value === undefined ? null : (
+          <rect key={point.bucket.start}
+            x={x(index) - Math.min(18, 320 / calendar.length) / 2}
+            y={y(point.value)} width={Math.min(18, 320 / calendar.length)}
+            height={Math.max(1, 85 - y(point.value))} rx="2" fill="var(--income-chart)">
+            <title>{rangeLabel(point.bucket.start, point.bucket.end)}: {point.formatted}</title>
+          </rect>
+        )) : segments.map((segment, index) => (
+          <polyline key={index} points={segment.join(" ")} stroke="currentColor"
+            fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        ))}
+        {!bars && points.map((point, index) => point.value === undefined ? null : (
+          <circle key={point.bucket.start} cx={x(index)} cy={y(point.value)}
+            r={values.length === 1 ? "3" : "2"} fill="currentColor">
+            <title>{rangeLabel(point.bucket.start, point.bucket.end)}: {point.formatted}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="summary-axis" aria-hidden="true"
+        style={{ gridTemplateColumns: `repeat(${calendar.length}, minmax(0, 1fr))` }}>
+        {calendar.map((bucket, index) => (
+          <span key={bucket.start} className={bucket.start > today ? "is-future" : undefined}
+            title={`${rangeLabel(bucket.start, bucket.end)}${bucket.start > today ? " · Future period" : ""}`}>
+            {ticks.has(index) ? label(bucket) : ""}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

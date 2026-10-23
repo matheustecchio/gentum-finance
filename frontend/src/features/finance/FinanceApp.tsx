@@ -153,7 +153,7 @@ const empty: Snapshot = {
   totals: [],
 };
 const tabs = [
-  "Overview",
+  "Analytics",
   "Transactions",
   "Transfers",
   "Budgets",
@@ -190,7 +190,7 @@ function Wallet({
     if (deleting) deleteDialog.current?.showModal();
     else deleteTrigger.current?.focus();
   }, [deleting]);
-  const [tab, setTab] = useState("Overview");
+  const [tab, setTab] = useState("Analytics");
   const [month, setMonth] = useState(dublinMonth);
   const [data, setData] = useState<Snapshot>(empty);
   const [notice, setNotice] = useState("");
@@ -322,7 +322,7 @@ function Wallet({
         </nav>
         <div className="profile">
           <small>
-            Local wallet
+            <span className="active-database">Local database: {status.databaseName || "My database"}</span>
             <span className="app-version">
               v{__APP_VERSION__}
               {import.meta.env.DEV ? " (dev)" : ""}
@@ -346,14 +346,13 @@ function Wallet({
           )}
         </div>
       </aside>
-      <main>
+      <main className={tab === "Analytics" ? "analytics-main" : undefined}>
         <header className="page-header">
           <div>
-            <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
+            {tab !== "Analytics" && <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>}
             <h1>{tab}</h1>
-            {status.databaseName && <p className="active-database">Database: <strong>{status.databaseName}</strong></p>}
           </div>
-          {tab !== "Overview" && <label>
+          {tab !== "Analytics" && <label>
             Reporting month
             <input
               aria-label="Reporting month"
@@ -412,7 +411,7 @@ function Wallet({
               </div>
             </section>
           )}
-        {tab === "Overview" && (
+        {tab === "Analytics" && (
           <>
             {loaded && !error && (
               <OverviewCharts snapshot={data} month={month} onManage={() => setTab("Settings")} />
