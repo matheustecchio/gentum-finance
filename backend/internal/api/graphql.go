@@ -84,6 +84,24 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			fields[key] = &graphql.InputObjectFieldConfig{Type: graphql.String}
 		}
 		input := graphql.NewInputObject(graphql.InputObjectConfig{Name: "FinanceInput", Fields: fields})
+		financeMutations["csvImport"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"action": {Type: graphql.NewNonNull(graphql.String)}, "input": {Type: graphql.NewNonNull(input)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			values := finance.Row{}
+			for k, v := range p.Args["input"].(map[string]interface{}) {
+				if text, ok := v.(string); ok {
+					values[k] = text
+				}
+			}
+			result, err := fs.ImportJob(p.Context, p.Args["action"].(string), values)
+			if err != nil {
+				var validation finance.ValidationError
+				if errors.As(err, &validation) {
+					return nil, validation
+				}
+				return nil, errors.New("Unable to confirm import status. Check the operation before retrying.")
+			}
+			return result, nil
+		}}
+
 		financeFields["previewImport"] = &graphql.Field{Type: data, Args: graphql.FieldConfigArgument{"input": {Type: graphql.NewNonNull(input)}}, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			values := finance.Row{}
 			for key, value := range p.Args["input"].(map[string]interface{}) {
@@ -292,7 +310,7 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			http.Error(w, "Use application/json", 415)
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
 		var request struct {
 			Query         string                 `json:"query"`
 			Variables     map[string]interface{} `json:"variables"`
@@ -311,7 +329,7 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 			http.Error(w, "Missing query", 400)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
 		defer cancel()
 		result := graphql.Do(graphql.Params{Schema: schema, RequestString: request.Query, VariableValues: request.Variables, OperationName: request.OperationName, Context: ctx})
 		w.Header().Set("Content-Type", "application/json")

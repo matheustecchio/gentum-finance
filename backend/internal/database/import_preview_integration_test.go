@@ -65,14 +65,14 @@ func TestCSVPreviewAndRevalidation(t *testing.T) {
 	if err != nil || len(p.Errors) != 0 || p.Transactions[0]["accountId"] != a.ID {
 		t.Fatal(p, err)
 	}
-	for _, n := range []int{1000, 1001} {
+	for _, n := range []int{100000, 100001} {
 		rows := header + strings.Repeat(fmt.Sprintf("2026-10-01,EXPENSE,%s,1,Row\n", cat), n)
 		p, err = svc.PreviewImport(ctx, finance.Row{"csv": rows, "accountId": a.ID})
-		if n == 1000 && (err != nil || p.Count != 1000 || len(p.Errors) != 0) {
+		if n == 100000 && (err != nil || p.Count != 100000 || len(p.Errors) != 0) {
 			t.Fatal(p, err)
 		}
-		if n == 1001 && err == nil {
-			t.Fatal("accepted >1000")
+		if n == 100001 && err == nil {
+			t.Fatal("accepted >100000")
 		}
 	}
 	// Preview success cannot authorize a later invalid write: archive after preview.

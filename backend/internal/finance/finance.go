@@ -101,10 +101,16 @@ func nextMonth(t time.Time, day int) time.Time {
 	return first.AddDate(0, 0, day-1)
 }
 
+const MaxImportRows = 100000
+const MaxImportBytes = 32 * 1024 * 1024
+
 var csvHeader = []string{"date", "kind", "category_id", "amount_cents", "description"}
 var legacyCSVHeader = []string{"date", "account_id", "category_id", "kind", "amount_cents", "description"}
 
 func parseCSV(raw string) ([]Row, error) {
+	if len(raw) > MaxImportBytes {
+		return nil, invalid("Use a CSV of at most 32 MiB")
+	}
 	r := csv.NewReader(strings.NewReader(raw))
 	r.FieldsPerRecord = -1
 	header, err := r.Read()
@@ -121,8 +127,8 @@ func parseCSV(raw string) ([]Row, error) {
 		if err != nil {
 			return nil, csvRecordError(len(rows)+2, invalid("Malformed CSV record: "+err.Error()))
 		}
-		if len(rows) >= 1000 {
-			return nil, csvRecordError(len(rows)+2, invalid("Import supports up to 1000 rows"))
+		if len(rows) >= MaxImportRows {
+			return nil, csvRecordError(len(rows)+2, invalid("Import supports up to 100000 rows"))
 		}
 		row := Row{}
 		for i, key := range header {

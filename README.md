@@ -8,7 +8,7 @@ React runs inside a Tauri window. Go owns the financial rules and starts a bundl
 
 The initial installer target is **Linux x86_64 (.deb)**, validated on Ubuntu 24.04-compatible systems. This repository builds the installer; no public release or website deployment is implied. Windows, macOS and ARM packages are not yet supported.
 
-Features include dated Analytics with income/spending/cash-flow and wealth charts, transaction corrections, separate local ledgers, optional PIN protection, recurrence, budgets, CSV previews/import and native file export.
+Features include dated Analytics with income/spending/cash-flow and wealth charts, transaction corrections, separate local ledgers, optional PIN protection, recurrence, budgets, CSV previews/import with up to 100,000 records, progress, cancellation and full rollback, and native file export.
 
 This is an early MVP. Use fictional data while evaluating it. The PIN is an app lock, not database encryption.
 

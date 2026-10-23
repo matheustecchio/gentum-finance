@@ -149,7 +149,7 @@ async fn backend_request(request: Request, state: State<'_, Runtime>) -> Result<
         || request
             .body
             .as_ref()
-            .is_some_and(|b| b.len() > 4 * 1024 * 1024)
+            .is_some_and(|b| b.len() > 64 * 1024 * 1024)
     {
         return Err("This request is not supported.".into());
     }

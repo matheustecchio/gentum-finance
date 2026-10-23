@@ -10,6 +10,7 @@ export interface Snapshot {
   breakdown?: Row[];
 }
 let activeDatabase: string | undefined;
+export function databaseScope() { return activeDatabase ?? "default"; }
 let generation = 0;
 const pending = new Set<AbortController>();
 export function setActiveDatabase(id: string | undefined) {

@@ -1,3 +1,4 @@
+import { MAX_CSV_BYTES, useCSVImport } from "./CSVImport";
 import { SvgIcon } from "./SvgIcon";
 import { saveExport } from "../../desktop";
 import { Databases } from "../security/Databases";
@@ -201,9 +202,8 @@ function Wallet({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [csv, setCsv] = useState("");
-  const [preview, setPreview] = useState<{ csv: string; accountId: string; count: number; transactions: Row[]; errors: Row[] }>();
-  const [importBusy, setImportBusy] = useState(false);
-  const importPending = useRef(false);
+  const [preview, setPreview] = useState<{ csv: string; accountId: string; count: number; transactions: Row[]; errors: Row[]; errorCount?: number }>();
+
   const [previewBusy, setPreviewBusy] = useState(false);
   const previewVersion = useRef(0);
   const [importAccount, setImportAccount] = useState("");
@@ -252,6 +252,8 @@ function Wallet({
     setNotice(result);
     await load();
   };
+  const importer = useCSVImport(async (message) => { setNotice(message); setPreview(undefined); await load(); });
+  const importBusy = importer.busy;
   const act = async (action: string, input: Row = {}) => {
     setError("");
     try {
@@ -293,6 +295,7 @@ function Wallet({
   ];
   return (
     <div className="app-shell">
+      {importer.popup}
       <aside className="sidebar">
         <a href="/" className="brand">
           <span className="brand-mark">G</span>Gentum Finance
@@ -798,7 +801,7 @@ function Wallet({
             <p>
               Import income and expense transactions using exact integer cents
               (100 = 1.00). Create accounts and categories first. Imports are
-              all-or-nothing; importing the same file again creates duplicates.
+              all-or-nothing. Up to 100,000 records and 32 MiB per file. Identical completed files are not imported twice.
             </p>
             <p>
               Header:{" "}
@@ -846,8 +849,8 @@ function Wallet({
                   setPreview(undefined);
                   const file = e.target.files?.[0];
                   if (file) {
-                    if (file.size > 500000) {
-                      setError("Use a CSV below 500 KB");
+                    if (file.size > MAX_CSV_BYTES) {
+                      setError("Use a CSV of at most 32 MiB");
                       return;
                     }
                     const text = await file.text();
@@ -865,9 +868,9 @@ function Wallet({
                 rows={8}
               />
             </label>
-            {importBusy && <p role="status">Import in progress…</p>}
             {preview && preview.csv === csv && preview.accountId === (destination?.id ?? "") && <section aria-label="CSV preview">
               <h3>Import preview: {preview.count} transactions</h3>
+              <p>Showing up to 50 sample records and 50 errors. The complete file is validated. Limit: 100,000 records and 32 MiB.</p>
               {preview.errors.map((error, i) => <p role="alert" key={i}>CSV record {error.record}: {error.message}</p>)}
               {!!preview.transactions.length && <div className="table-scroll"><table><thead><tr><th>CSV record</th><th>Date</th><th>Account</th><th>Category</th><th>Kind</th><th>Amount</th><th>Description</th></tr></thead><tbody>
                 {preview.transactions.map(row => <tr key={row.record}><td>{row.record}</td><td>{row.date}</td><td>{row.account}</td><td>{row.category}</td><td>{row.kind}</td><td>{formatMoney(row.amount, row.currency)} · {row.currency}</td><td>{row.description}</td></tr>)}
@@ -885,10 +888,11 @@ function Wallet({
                 }
                 onClick={async () => {
                   const version = ++previewVersion.current;
+                  if (new Blob([csv]).size > MAX_CSV_BYTES) { setError("Use a CSV of at most 32 MiB"); return; }
                   setPreview(undefined); setPreviewBusy(true); setError("");
                   const accountId = destination?.id ?? "";
                   try {
-                    const result = await graphql<{ previewImport: { count: number; transactions: Row[]; errors: Row[] } }>("query PreviewImport($input:FinanceInput!){previewImport(input:$input)}", { input: { csv, accountId } });
+                    const result = await graphql<{ previewImport: { count: number; transactions: Row[]; errors: Row[]; errorCount?: number } }>("query PreviewImport($input:FinanceInput!){previewImport(input:$input)}", { input: { csv, accountId } });
                     if (version === previewVersion.current) setPreview({ ...result.previewImport, csv, accountId });
                   } catch (e) { if (version === previewVersion.current) setError(e instanceof Error ? e.message : "Unable to preview CSV"); }
                   finally { setPreviewBusy(false); }
@@ -898,14 +902,8 @@ function Wallet({
               </button>
               <button disabled={importBusy || !preview || preview.errors.length > 0 || preview.csv !== csv || preview.accountId !== (destination?.id ?? "")}
                 onClick={async () => {
-                  if (importPending.current || !preview || preview.errors.length || preview.csv !== csv || preview.accountId !== (destination?.id ?? "")) return;
-                  importPending.current = true; setImportBusy(true); setError("");
-                  try {
-                    setNotice(await execute("import", { csv: preview.csv, accountId: preview.accountId }));
-                    setPreview(undefined);
-                    await load();
-                  } catch (e) { setError(e instanceof Error ? e.message : "Import failed"); }
-                  finally { importPending.current = false; setImportBusy(false); }
+                  if (importBusy || !preview || preview.errors.length || preview.csv !== csv || preview.accountId !== (destination?.id ?? "")) return;
+                  await importer.start({ csv: preview.csv, accountId: preview.accountId }, preview.count);
                 }}> {importBusy ? "Importing…" : "Import CSV"} </button>
               <button
                 className="secondary"
