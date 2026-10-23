@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Gentum Finance",
+  "version": "0.0.1",
+  "identifier": "com.gentum.finance",
+  "build": {
+    "beforeBuildCommand": "npm --prefix frontend run build",
+    "beforeDevCommand": "npm --prefix frontend run dev -- --host 127.0.0.1",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Gentum Finance",
+        "width": 1280,
+        "height": 850,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-src 'none'",
+      "capabilities": [
+        "main"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.png"
+    ],
+    "targets": [
+      "deb"
+    ],
+    "externalBin": [
+      "binaries/gentum-backend"
+    ],
+    "resources": {
+      "resources/postgres/": "postgres/",
+      "licenses/": "licenses/"
+    },
+    "category": "Finance",
+    "shortDescription": "Private personal finance on your computer"
+  }
+}

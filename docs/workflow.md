@@ -98,7 +98,7 @@ Verified on 2026-08-30 for `matheustecchio/ledger-app`:
 - secret scanning and push protection are enabled;
 - private vulnerability reporting and Dependabot security updates are disabled.
 
-These are observations, not guarantees. Re-check GitHub before claiming a check, approval, merge strategy, or security mechanism is enforced. This MVP adds `.github/workflows/ci.yml` with five parallel jobs: `backend-checks` (Go vet and build), `backend-tests` (race detection, coverage, and PostgreSQL integration), `frontend-checks` (build, including type checking), `frontend-tests` (unit tests with coverage), and `end-to-end` (persistence client tests, Playwright, and persistence checks against the Compose stack) for pull requests and pushes to main. It validates real PostgreSQL and Docker browser/persistence flows. A workflow does not configure branch protection; the historical settings above are not a current enforcement claim.
+These are observations, not guarantees. Re-check GitHub before claiming a check, approval, merge strategy, or security mechanism is enforced. The current `.github/workflows/ci.yml` defines backend checks and integration tests, frontend checks and coverage, a test-only browser fixture suite, a Linux desktop package/native smoke job and a static website build. Native tests use bundled PostgreSQL and fictional application data. The browser HTTP harness is never packaged. These jobs validate and upload test artifacts; they do not publish a release or deploy the site. A workflow does not configure branch protection; the historical settings above are not a current enforcement claim.
 
 ## Recommended GitHub hardening
 

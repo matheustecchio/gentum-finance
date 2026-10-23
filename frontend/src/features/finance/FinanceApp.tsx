@@ -1,4 +1,5 @@
 import { SvgIcon } from "./SvgIcon";
+import { saveExport } from "../../desktop";
 import { Databases } from "../security/Databases";
 import { CategoryColor } from "./CategoryColor";
 import "./categories.css";
@@ -911,17 +912,7 @@ function Wallet({
                 onClick={async () => {
                   try {
                     const result = await execute("export", {});
-                    const url = URL.createObjectURL(
-                      new Blob(
-                        [Uint8Array.from(atob(result), (c) => c.charCodeAt(0))],
-                        { type: "application/zip" },
-                      ),
-                    );
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "gentum-transactions.zip";
-                    a.click();
-                    URL.revokeObjectURL(url);
+                    await saveExport("gentum-transactions.zip", Uint8Array.from(atob(result), (c) => c.charCodeAt(0)));
                   } catch (e) {
                     setError(String(e));
                   }

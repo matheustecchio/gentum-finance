@@ -16,3 +16,7 @@ frontend/playwright-report/
 
 # Keep editable icon sources and previews local; commit exported SVGs only.
 frontend/src/assets/icons/raw-icons/
+frontend/test-dist/
+
+__pycache__/
+*.pyc

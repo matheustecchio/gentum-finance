@@ -1,10 +1,13 @@
-#!/usr/bin/env bash
-set -euo pipefail
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-case "${1:-start}" in
-  start) docker compose up --build --detach --wait; published="$(docker compose port frontend 80)"; printf '\nGentum Finance: http://localhost:%s\n' "${published##*:}" ;;
-  status) docker compose ps ;;
-  stop) docker compose stop ;;
-  logs) docker compose logs --tail=100 ;;
-  *) printf 'Usage: ./gentum [start|status|stop|logs]\n' >&2; exit 2 ;;
+#!/bin/sh
+# Development helper. Installed desktop packages do not need these tools.
+set -eu
+GENTUM_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$GENTUM_ROOT"
+case "${1:-help}" in
+ dev) exec npm --prefix frontend run desktop:dev ;;
+ build) exec npm --prefix frontend run desktop:build ;;
+ check) exec node scripts/desktop-check.mjs ;;
+ website) exec python3 website/build.py ;;
+ help|--help|-h) printf '%s\n' 'Gentum Finance development commands:' '  ./gentum dev      Open the Tauri development app' '  ./gentum build    Build the Linux desktop installer' '  ./gentum check    Check the private service and persistence' '  ./gentum website  Build the public static website' ;;
+ *) printf '%s\n' 'Use ./gentum dev or install the desktop application. The browser stack is retired.' >&2; exit 1 ;;
 esac

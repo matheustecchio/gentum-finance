@@ -1,5 +1,8 @@
 # Local databases
 
+> Desktop transport: these operation paths and GraphQL contracts are dispatched in memory through private Tauri-to-Go IPC. They are not public HTTP endpoints. HTTP is available only in the explicitly gated acceptance-test fixture.
+
+
 All routes use same-origin HttpOnly cookies. POST requires the configured Origin and application/json. GET /auth/status discovers `databaseId` and `databaseName` alongside existing access status. Every subsequent operation except status includes `X-Gentum-Database: <databaseId>`. A stale or missing selection header returns 409 before any financial operation. Health checks are exempt. Refresh status and clear old forms/caches before retrying.
 
 The persistent `gentum_database_session` cookie identifies browser selection; the separate `gentum_session` cookie authenticates inside the selected database and expires server-side after 24 hours. Clearing browser cookies restores the original default selection.

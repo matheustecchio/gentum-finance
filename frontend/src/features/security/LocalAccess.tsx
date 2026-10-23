@@ -1,3 +1,4 @@
+import { saveExport } from "../../desktop";
 import {
   createContext,
   useCallback,
@@ -96,20 +97,12 @@ export function RecoveryNotice({
         <button
           type="button"
           className="secondary"
-          onClick={() => {
-            const url = URL.createObjectURL(
-              new Blob(
-                [
-                  `Gentum Finance recovery code\n\n${code}\n\nKeep this private. It can reset your local PIN.\n`,
-                ],
-                { type: "text/plain" },
-              ),
-            );
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "gentum-recovery-code.txt";
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          onClick={async () => {
+            try {
+              await saveExport("gentum-recovery-code.txt", new TextEncoder().encode(`Gentum Finance recovery code\n\n${code}\n\nKeep this private. It can reset your local PIN.\n`));
+            } catch {
+              setMessage("The recovery code could not be saved. Please try again.");
+            }
           }}
         >
           Save recovery code

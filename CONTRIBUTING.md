@@ -9,7 +9,7 @@ Gentum Finance is an early-stage personal finance application. Contributions sho
 3. Use an issue to discuss substantial features, architecture changes, or behavior changes before investing in implementation.
 4. Never use real credentials, bank data, or personal financial data in development, tests, screenshots, logs, or examples.
 
-The runtime uses separate physical PostgreSQL databases, each with optional PIN protection and verified cookie sessions, including direct-access mode. Browser selection belongs to the registry and requests bind to its database ID. Keep provisioning privileges separate from the financial role. Preserve session, Origin and ownership checks, and keep the application on trusted loopback.
+The runtime uses separate physical PostgreSQL databases, each with optional PIN protection and private cookie sessions, including direct-access mode. Desktop selection belongs to the registry and requests bind to its database ID. Keep provisioning privileges separate from the financial role. Preserve session, Origin and ownership checks, and keep the application on trusted loopback.
 
 ## Set up the project
 
@@ -69,10 +69,10 @@ For the complete backend gate, run:
 cd backend
 go test -race ./...
 go vet ./...
-go build -o bin/gentum ./cmd/server
+go build -o bin/gentum-backend ./cmd/desktop
 ```
 
-Coverage commands are `go test -coverprofile=coverage.out ./...` in `backend/` and `npm run test:coverage` in `frontend/`. No percentage threshold is currently enforced. Run the enabled Playwright journey against the full Compose stack and `node scripts/check-persistence.mjs` when changing full-stack delivery.
+Coverage commands are `go test -coverprofile=coverage.out ./...` in `backend/` and `npm run test:coverage` in `frontend/`. No percentage threshold is currently enforced. For delivery changes, follow the native, IPC, managed-runtime and browser-fixture checks in [development](docs/development.md). The production application has no HTTP listener; the HTTP acceptance harness is gated and test-only.
 
 ## Commit the work
 

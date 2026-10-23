@@ -1,6 +1,8 @@
 # Architecture
 
-Gentum Finance is a local-first modular monolith: React browser UI → same-origin nginx → Go GraphQL/application services → PostgreSQL. Docker Compose runs the services locally and bootstraps separate financial and provisioning roles; only nginx publishes a loopback port.
+Gentum Finance is a local desktop modular monolith: React in a Tauri window → restricted Rust commands → private Go process messages → Go application services → managed PostgreSQL. The public static website is independent.
+
+The installed product opens no application HTTP listener and requires no Docker. PostgreSQL uses generated credentials and a loopback-only ephemeral port. The initial validated installer targets Linux x86_64. See [ADR 0009](decisions/0009-tauri-desktop-application.md).
 
 ## Components
 
@@ -22,13 +24,19 @@ GraphQL preserves typed accounts and uses the documented `FinanceData` JSON scal
 
 ## Local access
 
-The browser talks only to same-origin routes. Cookie sessions use hashed opaque tokens, browser-session cookies and 24-hour server expiry. Local setup configures the original database, with direct access or optional four-digit PIN. A registry in that original database lists all physical databases. Each additional database has an independent owner, access configuration and financial pool. A persistent HttpOnly selection cookie maps each browser to a registry ID; financial/authentication operations carry X-Gentum-Database to reject stale selections. A PostgreSQL advisory lock serializes selection changes against requests from that browser. Switching verifies the target before issuing a new target-specific session. PIN derivation uses PBKDF2-SHA256; recovery codes are randomly generated and stored as digests. Locking and protection changes revoke previous sessions. Per-database attempt counters and an independent installation-wide counter with progressive waits persist in PostgreSQL. Successful PIN verification resets the installation counter; direct access and creation do not. Mutation Origin checks and JSON-only requests protect against CSRF; response CSP and frame restrictions reduce browser exposure. Local HTTP omits Secure cookies intentionally. This architecture is intended for trusted loopback operation, without public hosting or bank credentials.
+The renderer invokes `backend_start`, `backend_request` and `save_export` through Tauri. Only the trusted main window has those capabilities. Rust checks operation paths, methods, headers and payload size before writing a correlated JSON line to the bundled Go process. Responses are serialized and bounded by a timeout.
+
+`backend/internal/desktop` dispatches allowed operations to the existing authenticated handlers in memory. It supplies the trusted internal Origin and JSON content type, manages a private cookie jar and returns only safe response headers. Session cookies never reach JavaScript. Only the selected-ledger cookie persists across launches; PIN sessions do not.
+
+The original local database remains the registry, with independent physical ledgers and existing per-ledger PIN/recovery/session behavior. Ownership stays server-derived. The financial role cannot create databases or act as a superuser. A separate provisioner creates ledgers. Installation-wide throttling and stale database-ID checks remain in PostgreSQL. The PIN does not encrypt stored data.
+
+Tauri starts the Go process asynchronously. Go initializes or opens its own PostgreSQL 17 cluster, applies the existing checksum-verified migrations and announces readiness. EOF on the private input pipe triggers shutdown. Closing the application preserves data. The public website and native renderer cannot submit arbitrary shell commands or choose database paths.
 
 ## Storage
 
-Migrations preserve the original V1/V2 files, convert legacy exact hundredths to BIGINT cents in V3 and add authenticated finance tables in V4. V5 adds one local-access configuration and persistent attempt counters. New wallets use a fresh server-generated owner. Existing password profiles require credential verification only when adoption is explicitly selected; all other owners remain separate. See [ADR 0005](decisions/0005-local-profile-and-optional-pin.md). PostgreSQL data persists in the configured named volume across launcher restarts.
+Migrations preserve the original V1/V2 files, convert legacy exact hundredths to BIGINT cents in V3 and add authenticated finance tables in V4. V5 adds one local-access configuration and persistent attempt counters. New wallets use a fresh server-generated owner. Existing password profiles require credential verification only when adoption is explicitly selected; all other owners remain separate. See [ADR 0005](decisions/0005-local-profile-and-optional-pin.md). Desktop PostgreSQL data persists in the platform application data directory across launches. Legacy Docker volumes remain untouched and are not automatically imported.
 
-See [local-first delivery](decisions/0002-local-first-web-application.md), [Go and cents](decisions/0003-go-backend-and-integer-cents.md), [MVP boundaries](decisions/0004-authenticated-local-finance-mvp.md) and [API](api/finance.md).
+See [desktop delivery](decisions/0009-tauri-desktop-application.md), [Go and cents](decisions/0003-go-backend-and-integer-cents.md), [MVP boundaries](decisions/0004-authenticated-local-finance-mvp.md) and [API](api/finance.md).
 
 ## Reporting
 

@@ -1,0 +1,1 @@
+{"identifier":"main","description":"Only the trusted local main window can start the private service, make allowlisted requests and save user-selected exports.","windows":["main"],"permissions":["allow-backend-start","allow-backend-request","allow-save-export"]}
