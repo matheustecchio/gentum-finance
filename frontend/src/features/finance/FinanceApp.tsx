@@ -331,7 +331,7 @@ function Wallet({
         </nav>
         <div className="profile">
           <small>
-            <span className="active-database">Local database: {status.databaseName || "My database"}</span>
+            <span className="active-database">Local database:<br />{status.databaseName || "My database"}</span>
             <span className="app-version">
               v{__APP_VERSION__}
               {import.meta.env.DEV ? " (dev)" : ""}

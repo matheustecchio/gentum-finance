@@ -623,7 +623,7 @@ for (const pinEnabled of [false, true]) {
       ),
     );
     render(<FinanceApp />);
-    await screen.findByText("Local database: My database");
+    await screen.findByText(/Local database:.*My database/);
     expect(screen.getByText(`v${__APP_VERSION__} (dev)`)).toBeInTheDocument();
     expect(screen.queryByText(/No PIN|PIN enabled/)).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button", { name: "Lock now" })).toHaveLength(
