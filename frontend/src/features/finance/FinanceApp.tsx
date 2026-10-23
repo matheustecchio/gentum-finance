@@ -1,3 +1,4 @@
+import appIcon from "../../assets/icons/gentum-app.svg";
 import { MAX_CSV_BYTES, useCSVImport } from "./CSVImport";
 import { SvgIcon } from "./SvgIcon";
 import { saveExport } from "../../desktop";
@@ -298,7 +299,7 @@ function Wallet({
       {importer.popup}
       <aside className="sidebar">
         <a href="/" className="brand">
-          <span className="brand-mark">G</span>Gentum Finance
+          <img className="brand-mark" src={appIcon} alt="" />Gentum Finance
         </a>
         <p className="eyebrow">YOUR LOCAL WALLET</p>
         <nav aria-label="Main navigation">
