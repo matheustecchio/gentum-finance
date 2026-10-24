@@ -106,7 +106,7 @@ for (const [hasAccount, hasCategory] of [
       screen.getByRole("button", { name: "Configure later" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    await userEvent.type(screen.getByLabelText("Reporting month"), "2026-09");
+    expect(screen.queryByLabelText("Reporting month")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Complete your wallet setup"),
     ).not.toBeInTheDocument();

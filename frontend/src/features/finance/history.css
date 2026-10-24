@@ -1,0 +1,31 @@
+.history-toolbar, .history-filter-actions, .history-page-size, .history-pagination, .history-page-buttons { display: flex; align-items: center; gap: 12px; }
+.history-toolbar { justify-content: space-between; flex-wrap: wrap; margin: 20px 0 24px; }
+.history-filter-actions { flex-wrap: wrap; }
+.history-page-size { display: block; }
+.history-clear-filters, .history-page-size select { width: 140px; height: 44px; min-width: 0; box-sizing: border-box; margin: 0; }
+.transaction-history table { width: 100%; min-width: 780px; }
+.transaction-history .history-description { width: 44%; min-width: 240px; white-space: normal; overflow-wrap: anywhere; }
+.transaction-history .history-kind { white-space: nowrap; }
+.transaction-history .history-amount { text-align: right; white-space: nowrap; }
+.transaction-history .kind-expense, .transaction-history .kind-expense small { color: var(--expense); }
+.transaction-history .kind-income, .transaction-history .kind-income small { color: var(--income); }
+.history-edit { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 10px; background: transparent; color: var(--muted); }
+.history-edit:hover, .history-edit:focus-visible { color: var(--accent-text); background: var(--accent-surface); }
+.history-edit .button-icon { margin: 0; }
+.history-pagination { justify-content: space-between; flex-wrap: wrap; margin-top: 24px; }
+.history-page-buttons { gap: 6px; flex-wrap: wrap; }
+.history-page-buttons button { min-width: 40px; min-height: 40px; padding: 8px; }
+.history-page-buttons [aria-current="page"] { color: var(--accent-text); background: var(--accent-surface); border-color: var(--accent-border); }
+@media (max-width: 600px) {
+  .history-toolbar { align-items: flex-start; gap: 16px; }
+  .history-page-buttons { gap: 4px; }
+  .history-page-buttons button { min-width: 36px; padding: 6px; }
+}
+
+.transaction-edit-dialog { position: fixed; inset: 0; margin: auto; width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; box-sizing: border-box; padding: 24px; border: 1px solid var(--control-border); border-radius: 10px; background: var(--surface-raised); color: var(--text); }
+.transaction-edit-dialog::backdrop { background: rgb(0 0 0 / 76%); }
+.transaction-edit-dialog h2 { margin: 0 0 20px; }
+.transaction-edit-dialog fieldset { display: grid; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.transaction-edit-dialog fieldset p { margin: 0; color: var(--muted); }
+.transaction-edit-dialog input, .transaction-edit-dialog select { min-width: 0; width: 100%; box-sizing: border-box; }
+.transaction-edit-actions { display: flex; justify-content: space-between; gap: 16px; margin-top: 24px; }

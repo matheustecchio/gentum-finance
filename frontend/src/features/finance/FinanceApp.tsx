@@ -198,7 +198,7 @@ function Wallet({
     else deleteTrigger.current?.focus();
   }, [deleting]);
   const [tab, setTab] = useState("Analytics");
-  const [month, setMonth] = useState(dublinMonth);
+  const [month] = useState(dublinMonth);
   const [data, setData] = useState<Snapshot>(empty);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -331,7 +331,7 @@ function Wallet({
         </nav>
         <div className="profile">
           <small>
-            <span className="active-database">Local database: {status.databaseName || "My database"}</span>
+            <span className="active-database">Local database:<br />{status.databaseName || "My database"}</span>
             <span className="app-version">
               v{__APP_VERSION__}
               {import.meta.env.DEV ? " (dev)" : ""}
@@ -361,24 +361,7 @@ function Wallet({
             {tab !== "Analytics" && <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>}
             <h1>{tab}</h1>
           </div>
-          {tab !== "Analytics" && <label>
-            Reporting month
-            <input
-              aria-label="Reporting month"
-              type="month"
-              value={month}
-              min="1900-01"
-              max="9998-12"
-              onChange={(e) => {
-                if (
-                  /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(e.target.value) &&
-                  e.target.value >= "1900-01" &&
-                  e.target.value <= "9998-12"
-                )
-                  setMonth(e.target.value);
-              }}
-            />
-          </label>}
+
         </header>
         {notice && (
           <p role="status" className="notice">
@@ -593,7 +576,7 @@ function Wallet({
             title="Record a transaction"
             submit="Save transaction"
             fields={entryFields}
-            onSubmit={(values) => save("transaction", values)}
+            onSubmit={async (values) => { await save("transaction", values); setTab("Transactions"); }}
           />
         )}
         {tab === "Transactions" && (
@@ -603,6 +586,7 @@ function Wallet({
             filters={filters}
             onFilters={setFilters}
             onSaved={load}
+            onAdd={() => setTab("Add transaction")}
           />
         )}
         {deleting && (

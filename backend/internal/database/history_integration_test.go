@@ -85,6 +85,34 @@ func TestHistoryPaginationFiltersAndDeletion(t *testing.T) {
 		}
 		return p
 	}
+
+	for _, limit := range []int{10, 25, 50, 100} {
+		first, err := svc.History(ctx, finance.HistoryFilter{Page: 1, Limit: limit})
+		if err != nil || first.TotalCount != 28 || len(first.Entries) != min(limit, 28) {
+			t.Fatalf("size %d: %#v %v", limit, first, err)
+		}
+		second, err := svc.History(ctx, finance.HistoryFilter{Page: 2, Limit: limit})
+		if err != nil || second.TotalCount != 28 || len(second.Entries) != min(limit, max(0, 28-limit)) {
+			t.Fatalf("page2 size %d: %#v %v", limit, second, err)
+		}
+		ids := map[string]bool{}
+		for _, row := range first.Entries {
+			ids[row["id"]] = true
+		}
+		for _, row := range second.Entries {
+			if ids[row["id"]] {
+				t.Fatal("numbered page duplicate")
+			}
+		}
+	}
+	filtered, err := svc.History(ctx, finance.HistoryFilter{Page: 1, Limit: 25, CategoryID: education})
+	if err != nil || filtered.TotalCount != 1 || len(filtered.Entries) != 1 {
+		t.Fatal("filtered count", filtered, err)
+	}
+	third, err := svc.History(ctx, finance.HistoryFilter{Page: 3, Limit: 10})
+	if err != nil || len(third.Entries) != 8 || third.TotalCount != 28 {
+		t.Fatal("last page", third, err)
+	}
 	seen := map[string]bool{}
 	f := finance.HistoryFilter{}
 	for {
@@ -168,7 +196,7 @@ func TestHistoryPaginationFiltersAndDeletion(t *testing.T) {
 		t.Fatal("foreign category")
 	}
 	fp, err := foreign.History(ctx, finance.HistoryFilter{})
-	if err != nil || len(fp.Entries) != 0 || fp.HasEntries {
+	if err != nil || len(fp.Entries) != 0 || fp.HasEntries || fp.TotalCount != 0 {
 		t.Fatal("foreign entries", err)
 	}
 	stable, err := svc.Summary(ctx, "2026-10")

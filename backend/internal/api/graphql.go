@@ -221,9 +221,13 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 		for _, key := range []string{"start", "end", "categoryId", "subcategoryId", "after"} {
 			historyArgs[key] = &graphql.ArgumentConfig{Type: graphql.String}
 		}
+		historyArgs["limit"] = &graphql.ArgumentConfig{Type: graphql.Int, DefaultValue: 10}
+		historyArgs["page"] = &graphql.ArgumentConfig{Type: graphql.Int, DefaultValue: 0}
 		financeFields["entryHistory"] = &graphql.Field{Type: data, Args: historyArgs, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			value := func(key string) string { v, _ := p.Args[key].(string); return v }
-			result, err := fs.History(p.Context, finance.HistoryFilter{Start: value("start"), End: value("end"), CategoryID: value("categoryId"), SubcategoryID: value("subcategoryId"), After: value("after")})
+			limit, _ := p.Args["limit"].(int)
+			page, _ := p.Args["page"].(int)
+			result, err := fs.History(p.Context, finance.HistoryFilter{Limit: limit, Page: page, Start: value("start"), End: value("end"), CategoryID: value("categoryId"), SubcategoryID: value("subcategoryId"), After: value("after")})
 			if err != nil {
 				var validation finance.ValidationError
 				if errors.As(err, &validation) {

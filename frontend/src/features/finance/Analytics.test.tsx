@@ -453,5 +453,5 @@ it("keeps the wealth card available when an unsupported history amount cannot be
   }} />);
   const wealth = await screen.findByRole("button", { name: /Total Wealth/ });
   expect(wealth).toHaveTextContent("€1.00");
-  expect(wealth.querySelectorAll("circle")).toHaveLength(1);
+  expect(wealth.querySelectorAll(".summary-point")).toHaveLength(1);
 });
