@@ -704,3 +704,18 @@ it("invalidates CSV preview on content or destination changes and blocks row err
  await screen.findByText("CSV record 2: Invalid amount");
  expect(screen.getByRole("button",{name:"Import CSV"})).toBeDisabled();
 });
+
+it("processes recurring schedules on open and on return to the wallet", async () => {
+  mockLedger();
+  render(<FinanceApp />);
+  await screen.findByRole("heading", { name: "Total Wealth" });
+  const processingCalls = () => vi.mocked(fetch).mock.calls.filter(([, init]) => {
+    if (!init?.body) return false;
+    return JSON.parse(String(init.body)).variables?.action === "processRecurring";
+  }).length;
+  await waitFor(() => expect(processingCalls()).toBe(1));
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await waitFor(() => expect(processingCalls()).toBe(2));
+  await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+  await waitFor(() => expect(processingCalls()).toBe(3));
+});

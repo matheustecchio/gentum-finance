@@ -6,6 +6,7 @@ export interface Snapshot {
   entries: Row[];
   budgets: Row[];
   recurring: Row[];
+  occurrences?: Row[];
   totals: Row[];
   breakdown?: Row[];
 }

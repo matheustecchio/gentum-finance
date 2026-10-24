@@ -47,3 +47,11 @@ The custom date dialog separates its actions from the fields by 24 px. Cancel al
 Transactions uses date and category filters without a separate subcategory selector. The toolbar places Clear filters and the compact 10/25/50/100 rows selector (with an accessible name) on the left and Add transaction on the right. Successful transaction creation returns to Transactions. Kind appears before Description, which receives the most table width; income and expense kinds and amounts use the same semantic colors as Analytics. Row editing uses the existing pencil icon and opens a centered modal with a dark backdrop. Numbered pagination shows five consecutive page links, the last page, and ellipses as needed, with the total page count. The shared page header no longer shows Reporting month.
 
 Dashboard line previews use 8 by 8 px circular HTML markers over the chart. They stay outside the SVG scaling transform, so wide and narrow monitors render the same diameter. Exact-value titles remain attached to each marker.
+
+## Recurring transactions
+
+Recurring starts with Needs confirmation and a 90-day upcoming view, followed by the schedule form/list and recent posted, matched or skipped occurrences. Pending items show the due date, account, category, amount and overdue status, with Confirm, Adjust, Skip and Link transaction actions. These items do not change balances until recorded or linked. Automatic schedules are explicitly labeled.
+
+The form supports weekly, every two weeks, monthly and yearly frequencies, with confirmation as the default. Edit schedule changes future occurrences only. A pending occurrence can be adjusted separately. Stop/resume retains history and pending items. Resume includes missed dates. Linking uses a modal with eligible unlinked transactions within 14 days (all history pages are fetched), and replaces a generated entry rather than counting both. Dialogs use native modal keyboard behavior, explicit errors and disabled saving controls.
+
+Processing runs at wallet open, each visible minute and focus/visibility return. Failures show an error and retry action. UTC dates, month-end behavior and catch-up are explained by the form. The interface never requires a global Run due action. CSV preview labels exact unique recurring matches.

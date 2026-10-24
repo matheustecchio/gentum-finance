@@ -10,6 +10,8 @@ The initial installer target is **Linux x86_64 (.deb)**, validated on Ubuntu 24.
 
 Features include dated Analytics with income/spending/cash-flow and wealth charts, transaction corrections, separate local ledgers, optional PIN protection, recurrence, budgets, CSV previews/import with up to 100,000 records, progress, cancellation and full rollback, and native file export.
 
+Recurring schedules support weekly, every-two-weeks, monthly and yearly income or expenses. Choose automatic entry or confirmation, review upcoming and overdue items, adjust or skip an occurrence, and edit future occurrences. The app processes due dates while open and catches up on the next launch. CSV import links unique matching recurring charges to avoid counting them twice. See the [recurring decision](docs/decisions/0010-recurring-occurrences.md).
+
 This is an early MVP. Use fictional data while evaluating it. The PIN is an app lock, not database encryption.
 
 ## Build from source

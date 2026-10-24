@@ -154,15 +154,13 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await page.getByLabel("Amount (decimal, account currency)").fill("0.01");
   await page.getByLabel("Description", { exact: true }).fill("Monthly coffee");
   await page.getByRole("button", { name: "Create recurring schedule" }).click();
-  await expect(page.getByText("Monthly coffee", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Run due transactions" }).click();
-  await expect(
-    page.getByRole("status").filter({ hasText: "Created 1 due transactions" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Run due transactions" }).click();
-  await expect(
-    page.getByRole("status").filter({ hasText: "Created 0 due transactions" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Needs confirmation (1)" })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm transaction", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Needs confirmation (0)" })).toBeVisible();
+  await page.reload();
+  await nav(page, "Recurring");
+  await expect(page.getByRole("heading", { name: "Needs confirmation (0)" })).toBeVisible();
   await nav(page, "Import & export");
   const date = new Date().toISOString().slice(0, 10);
   const header = "date,kind,category_id,amount_cents,description\n";
@@ -230,7 +228,7 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(page.getByRole("heading", { name: "Meals", exact: true })).toBeVisible();
   await expect(page.getByText("31% used")).toBeVisible();
   await nav(page, "Recurring");
-  await expect(page.locator(".item-list li").filter({ hasText: "Monthly coffee" })).toContainText("Daily wallet · Meals · EXPENSE");
+  await expect(page.locator(".item-list li").filter({ hasText: "Monthly coffee" }).first()).toContainText("Daily wallet · Meals · Expense");
   await nav(page, "Add transaction");
   await page.getByLabel("Kind", { exact: true }).selectOption("EXPENSE");
   const renamedCategoryId = await choose(page, "Category (must match kind)", "Meals / Morning coffee");
