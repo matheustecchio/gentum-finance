@@ -59,6 +59,7 @@ export function History({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
+  const loadedRevision = useRef(-1);
   const totalPages = Math.max(1, Math.ceil((page?.totalCount ?? 0) / pageSize));
   useEffect(() => {
     let current = true;
@@ -73,7 +74,7 @@ export function History({
         if (current) {
           const lastPage = Math.max(1, Math.ceil(result.entryHistory.totalCount / pageSize));
           if (pageNumber > lastPage) setPageNumber(lastPage);
-          else setPage(result.entryHistory);
+          else { loadedRevision.current = retry; setPage(result.entryHistory); }
         }
       })
       .catch((e) => {
@@ -89,13 +90,14 @@ export function History({
   }, [filters, pageNumber, pageSize, retry]);
   useEffect(() => {
     if (editing && !editDialog.current?.open) editDialog.current?.showModal();
-    if (!editing && !loading && page && restoreFocus.current) {
+    if (!editing && !saving && !loading && page && loadedRevision.current === retry && restoreFocus.current) {
       const buttons = root.current?.querySelectorAll<HTMLButtonElement>("[data-edit-entry]");
       const trigger = [...(buttons ?? [])].find(button => button.dataset.editEntry === returnToEntry.current);
-      (trigger ?? root.current?.querySelector<HTMLButtonElement>(".history-clear-filters"))?.focus();
-      restoreFocus.current = false;
+      const target = trigger ?? root.current?.querySelector<HTMLButtonElement>(".history-clear-filters");
+      target?.focus();
+      if (target && document.activeElement === target) restoreFocus.current = false;
     }
-  }, [editing, loading, page]);
+  }, [editing, saving, loading, page, retry]);
   const closeEditor = () => { if (!savingRef.current) { restoreFocus.current = true; setEditing(undefined); } };
   const change = (values: Partial<Filters>) => {
     setPageNumber(1);

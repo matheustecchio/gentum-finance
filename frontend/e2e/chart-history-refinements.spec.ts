@@ -8,11 +8,17 @@ for (const width of [390, 1280, 2560, 3840]) {
     const categories = [{ id: "expense", name: "Food", kind: "EXPENSE" }];
     let edited = { id: "entry-1", date: "2026-10-24", accountId: "wallet", categoryId: "expense", kind: "EXPENSE", amount: "1234", currency: "EUR", description: "Fictional transaction" };
     await page.route("**/auth/status", route => route.fulfill({ json: { setupRequired: false, unlocked: true, pinEnabled: false } }));
-    await page.route("**/graphql", route => {
+    let summaryRefreshPending = false;
+    await page.route("**/graphql", async route => {
       const { query, variables } = route.request().postDataJSON();
       if (query.includes("mutation")) {
         edited = { ...edited, ...variables.input };
+        summaryRefreshPending = true;
         return route.fulfill({ json: { data: { executeFinance: "Saved" } } });
+      }
+      if (query.includes("financeSummary") && summaryRefreshPending) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        summaryRefreshPending = false;
       }
       return route.fulfill({ json: { data: {
         financeSummary: { accounts: [{ id: "wallet", name: "Wallet", currency: "EUR" }], categories, entries: [], budgets: [], recurring: [], totals: [] },
@@ -88,5 +94,7 @@ for (const width of [390, 1280, 2560, 3840]) {
     await dialog.getByRole("button", { name: "Save correction" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("cell", { name: "Corrected in modal", exact: true })).toBeVisible();
+    await expect(edit).toBeEnabled();
+    await expect(edit).toBeFocused();
   });
 }
