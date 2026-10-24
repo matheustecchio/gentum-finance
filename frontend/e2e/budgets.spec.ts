@@ -1,0 +1,64 @@
+import { expect, test } from "@playwright/test";
+
+for (const width of [320, 768, 1024, 1440]) {
+  test(`budget planning, matching expenses and lifecycle at ${width}px`, async ({ page, baseURL }) => {
+    test.skip(process.env.GENTUM_VERIFICATION_FIXTURE !== "1", "Requires disposable data");
+    await page.setViewportSize({ width, height: 900 });
+    let status = await page.request.get("/auth/status").then(r => r.json());
+    const post = async (path: string, data: unknown) => {
+      const response = await page.request.post(path, { data, headers: { Origin: baseURL!, ...(status.databaseId ? { "X-Gentum-Database": status.databaseId } : {}) } });
+      expect(response.ok(), await response.text()).toBe(true);
+      const result = await response.json(); expect(result.errors).toBeUndefined(); return result;
+    };
+    if (status.setupRequired) await post("/auth/setup", { source: "new", mode: "open" });
+    else if (!status.unlocked) await post("/auth/open", {});
+    status = await page.request.get("/auth/status").then(r => r.json());
+    const name = `Budget fixture ${width} ${Date.now()}`;
+    await post("/databases/create", { name, mode: "open" });
+    const registry = await page.request.get("/databases", { headers: { "X-Gentum-Database": status.databaseId } }).then(r => r.json());
+    await post("/databases/select", { id: registry.databases.find((d: { name: string }) => d.name === name).id });
+    status = await page.request.get("/auth/status").then(r => r.json());
+    const gql = (query: string, variables = {}) => post("/graphql", { query, variables });
+    const execute = (action: string, input: Record<string, string>) => gql("mutation($action:String!,$input:FinanceInput!){executeFinance(action:$action,input:$input)}", { action, input });
+    const account = (await gql('mutation{createAccount(input:{name:"Budget wallet",type:CASH,currency:"EUR",initialBalance:"100000"}){id}}')).data.createAccount.id;
+    const date = new Date().toISOString().slice(0, 10);
+    const month = date.slice(0, 7);
+    const summary = async () => (await gql("query($month:String!){financeSummary(month:$month)}", { month })).data.financeSummary;
+    const category = (await summary()).categories.find((c: {kind: string}) => c.kind === "EXPENSE");
+    await execute("transaction", { accountId: account, categoryId: category.id, kind: "EXPENSE", amount: "9000", date, description: "Budget lunch fixture" });
+    await page.goto("/");
+    await page.getByRole("navigation").getByRole("button", { name: "Budgets", exact: true }).click();
+    await page.getByRole("button", {name:"Create budget",exact:true}).click();
+    await page.getByLabel("Name", {exact:true}).fill("Everyday spending");
+    await page.getByLabel("Limit", {exact:true}).fill("100");
+    await page.getByLabel("Start date", {exact:true}).fill(`${month}-01`);
+    await page.getByLabel(category.path || category.name, {exact:true}).check();
+    await page.getByLabel("Budget wallet", {exact:true}).check();
+    if (width === 320 || width === 1440) await page.screenshot({path:`/tmp/gentum-budget-form-${width}.png`,fullPage:true});
+    await page.getByRole("button",{name:"Save budget",exact:true}).click();
+    const card = page.getByRole("article").filter({has:page.getByRole("heading",{name:"Everyday spending",exact:true})});
+    await expect(card.getByText("90% of limit reached",{exact:true})).toBeVisible();
+    await expect(card.getByText(/10.00 remaining/)).toBeVisible();
+    if (width === 320 || width === 1440) await page.screenshot({path:`/tmp/gentum-budget-${width}.png`,fullPage:true});
+    await card.getByRole("button",{name:"Transactions",exact:true}).click();
+    await expect(page.getByRole("dialog").getByRole("listitem").filter({hasText:"Budget lunch fixture"})).toBeVisible();
+    await page.getByRole("dialog").getByRole("button",{name:"Close",exact:true}).click();
+    await expect(card.getByRole("button",{name:"Transactions",exact:true})).toBeFocused();
+    await card.getByRole("button",{name:"Edit",exact:true}).click();
+    await page.getByLabel("Limit",{exact:true}).fill("120");
+    await page.getByRole("combobox",{name:"Apply changes",exact:true}).selectOption({label:"Next period"});
+    await page.getByRole("button",{name:"Save budget",exact:true}).click();
+    await expect(card.getByText("90% of limit reached",{exact:true})).toBeVisible();
+    expect((await summary()).budgets.find((b:{name:string})=>b.name==="Everyday spending").amount).toBe("10000");
+    await card.getByRole("button",{name:"Stop",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"Stop budget",exact:true}).click();
+    await expect(card.getByRole("button",{name:"Stop",exact:true})).toHaveCount(0);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow).toBe(false);
+    await card.getByRole("button",{name:"Delete",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"Delete budget",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"No budgets for this month",exact:true})).toBeVisible();
+    const history = (await gql("query($start:String!,$end:String!){entryHistory(start:$start,end:$end,limit:100)}", {start:`${month}-01`,end:date})).data.entryHistory;
+    expect(history.entries.some((entry:{description:string}) => entry.description === "Budget lunch fixture")).toBe(true);
+  });
+}

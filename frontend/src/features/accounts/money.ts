@@ -15,6 +15,13 @@ export function formatMoney(amount: string, currency: string): string {
   if (!/^(0|-[1-9]\d*|[1-9]\d*)$/.test(amount)) throw new Error("Invalid integer cents");
   const cents = BigInt(amount);
   if (cents < MIN_CENTS || cents > MAX_CENTS) throw new Error("Amount exceeds the supported range");
+  return formatAggregateMoney(amount, currency);
+}
+
+// Period totals can exceed one stored transaction's int64 range.
+export function formatAggregateMoney(amount: string, currency: string): string {
+  if (!/^(0|-[1-9]\d*|[1-9]\d*)$/.test(amount)) throw new Error("Invalid integer cents");
+  const cents = BigInt(amount);
   const absolute = cents < 0n ? -cents : cents;
   const whole = absolute / 100n;
   const fraction = (absolute % 100n).toString().padStart(2, "0");

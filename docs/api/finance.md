@@ -193,3 +193,38 @@ The UI saves the pending ID in local storage under the physical database ID befo
 Both synchronous `import` and background CSV jobs use the same matcher as preview. A unique pending/posted occurrence must match account, category, kind, exact cents and a nonempty trimmed case-insensitive description within three days of its due date. Preview adds `recurringMatch` to displayed matching rows and excludes an already-posted charge from balance additions. Import keeps one entry and marks the occurrence linked, adopting the imported date and description. Each occurrence matches only once per file. Multiple candidates reject the whole import with a validation error. Unmatched rows remain normal additions; this is not general duplicate detection.
 
 Due processing also links a uniquely matching unlinked entry before posting. Multiple candidate entries keep the occurrence pending for review. Manual linking permits different amounts/categories/descriptions, retains the actual transaction details, requires the same owned account and kind, and atomically replaces any generated entry. The UI searches within 14 days; the API accepts an owned eligible entry regardless of date. Linked and generated transactions remain protected from ordinary history edits.
+
+## Budget workflows
+
+`saveBudget` accepts `name`, `currency`, positive integer-cent `amount`, `date`
+(the original anchor), `frequency` (`weekly`, `monthly`, `yearly`, `once`),
+comma-separated `categoryIds` and `accountIds`, and `alert` (`true` or `false`).
+One-time plans require inclusive `endDate`. Empty ID lists select all expense
+categories/accounts in the chosen currency. Every supplied reference must belong
+to the owner; selected accounts must match the currency. Parent categories include
+children without counting a transaction twice.
+
+For edits, supply `id` and `effectiveDate` at the current or next period start.
+Keep the original anchor and frequency. A new revision preserves earlier periods;
+editing a version that already has a successor is rejected. `stopBudget(id,date)`
+ends renewal at the inclusive period end and removes later revisions.
+`deleteBudget(id)` removes every version of the series without changing entries.
+
+Budget snapshot rows include `id`, `seriesId`, `name`, `currency`, `amount`,
+`spent`, `remaining`, `frequency`, `planStartDate`, `effectiveDate`, `stopDate`,
+`startDate`, `endDate`, `nextDate`, `categoryIds`, `accountIds`, `alert`,
+`active`, `latestVersion` and comma-separated matching `entryIds`.
+Stored limits use int64 cents; period spending/remaining aggregates are exact
+integer strings and can exceed int64. All periods intersecting the requested month are returned, including weekly
+periods that cross month boundaries. Amounts cover the whole displayed period.
+Use `(id,startDate)` as the row identity. `active` describes renewal;
+one-time budgets do not renew. Older revisions may still belong to a renewing
+series. `latestVersion` controls editing even when the successor is in another
+month. `month` and `categoryId` remain compatibility fields.
+
+Only recorded expenses count. Imports and confirmed recurring occurrences count;
+transfers, income and pending occurrences do not. There is no combined total for
+overlapping limits. Alerts are visible status indicators at 75%, 90% and 100%
+in the Budgets view, without OS notifications. No rollover or FX conversion is
+performed. V14 preserves old monthly limits as one-time plans; the legacy `budget`
+command still upserts its category/currency/month limit.

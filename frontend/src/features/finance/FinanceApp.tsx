@@ -1,3 +1,4 @@
+import { Budgets } from "./Budgets";
 import { Recurring } from "./Recurring";
 import { MAX_CSV_BYTES, useCSVImport } from "./CSVImport";
 import { SvgIcon } from "./SvgIcon";
@@ -697,55 +698,7 @@ function Wallet({
             </p>
           </>
         )}
-        {tab === "Budgets" && (
-          <>
-            <Form
-              title="Set a monthly budget"
-              submit="Save budget"
-              fields={[
-                {
-                  name: "categoryId",
-                  label: "Expense category",
-                  options: options(
-                    data.categories.filter((c) => c.kind === "EXPENSE"),
-                  ),
-                },
-                { name: "currency", label: "Currency", options: currencies },
-                {
-                  name: "month",
-                  label: "Budget month",
-                  type: "month",
-                  value: month,
-                },
-                { name: "amount", label: "Monthly limit" },
-              ]}
-              onSubmit={(values) => save("budget", values)}
-            />
-            <div className="stats-grid">
-              {data.budgets.map((b) => {
-                const percent = (BigInt(b.spent) * 100n) / BigInt(b.amount);
-                return (
-                  <article className="panel" key={b.id}>
-                    <h2>{category(b.categoryId)}</h2>
-                    <p>
-                      {formatMoney(b.spent, b.currency)} of{" "}
-                      {formatMoney(b.amount, b.currency)}
-                    </p>
-                    <progress
-                      max="100"
-                      value={Number(percent > 100n ? 100n : percent)}
-                      aria-label={`${category(b.categoryId)} budget usage`}
-                    />
-                    <p>
-                      {percent.toString()}% used
-                      {percent > 100n ? " · Over budget" : ""}
-                    </p>
-                  </article>
-                );
-              })}
-            </div>
-          </>
-        )}
+        {tab === "Budgets" && <Budgets data={data} month={month} refresh={load} />}
         {tab === "Recurring" && <Recurring data={data} refresh={async () => { await processSchedules(); await load(); }} />}
         {tab === "Import & export" && (
           <section className="panel">

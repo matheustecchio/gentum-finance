@@ -55,3 +55,13 @@ Recurring starts with Needs confirmation and a 90-day upcoming view, followed by
 The form supports weekly, every two weeks, monthly and yearly frequencies, with confirmation as the default. Edit schedule changes future occurrences only. A pending occurrence can be adjusted separately. Stop/resume retains history and pending items. Resume includes missed dates. Linking uses a modal with eligible unlinked transactions within 14 days (all history pages are fetched), and replaces a generated entry rather than counting both. Dialogs use native modal keyboard behavior, explicit errors and disabled saving controls.
 
 Processing runs at wallet open, each visible minute and focus/visibility return. Failures show an error and retry action. UTC dates, month-end behavior and catch-up are explained by the form. The interface never requires a global Run due action. CSV preview labels exact unique recurring matches.
+
+## Budget planning
+
+Budgets track spending limits across selected categories and accounts in one
+currency. Create weekly, monthly, yearly or one-time plans. Each intersecting
+period has its own spent, remaining/exceeded amount, status and transactions.
+Repeated limits renew automatically. Edits apply from this or the next period;
+older versions remain readable. Stop ends renewal, and delete removes settings
+without touching transactions. Overlap warnings explain shared expenses without
+presenting a misleading combined total. In-app threshold indicators are optional.

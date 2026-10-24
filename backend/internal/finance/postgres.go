@@ -78,15 +78,11 @@ func snapshotData(ctx context.Context, q queryer, user, month string, includeEnt
 		s.Entries = []Row{}
 	}
 
-	s.Budgets, err = rows(ctx, q, `SELECT b.id::text,b.category_id::text,b.currency,to_char(b.month,'YYYY-MM'),b.amount::text,COALESCE((SELECT sum(e.amount::numeric) FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id WHERE e.user_id=b.user_id AND (e.category_id=b.category_id OR e.category_id IN (SELECT id FROM category WHERE user_id=b.user_id AND parent_id=b.category_id)) AND e.kind='EXPENSE' AND a.currency=b.currency AND date_trunc('month',e.entry_date)=b.month),0)::text FROM budget b WHERE b.user_id=$1 AND b.month=$2::date ORDER BY b.currency,b.category_id`, []string{"id", "categoryId", "currency", "month", "amount", "spent"}, user, month+"-01")
+	s.Budgets, err = budgetSnapshot(ctx, q, user, month)
 	if err != nil {
 		return
 	}
-	for _, b := range s.Budgets {
-		if _, err = checked(b["spent"]); err != nil {
-			return
-		}
-	}
+
 	s.Breakdown, err = rows(ctx, q, `SELECT c.id::text,a.currency,sum(e.amount::numeric)::text FROM entry e JOIN account a ON a.id=e.account_id AND a.user_id=e.user_id JOIN category c ON c.id=e.category_id AND c.user_id=e.user_id WHERE e.user_id=$1 AND e.kind IN ('INCOME','EXPENSE') AND date_trunc('month',e.entry_date)=$2::date GROUP BY c.id,a.currency ORDER BY c.id,a.currency`, []string{"categoryId", "currency", "direct"}, user, month+"-01")
 	if err != nil {
 		return
@@ -153,20 +149,11 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 	case "transfer":
 		err = transfer(ctx, tx, user, in)
 	case "budget":
-		if !validMonth(in["month"]) {
-			return "", invalid("Use YYYY-MM")
-		}
-		var amount int64
-		amount, err = positive(in["amount"])
-		if err != nil {
-			return "", err
-		}
-		var kind string
-		err = tx.QueryRow(ctx, `SELECT kind FROM category WHERE user_id=$1 AND id=$2`, user, in["categoryId"]).Scan(&kind)
-		if err != nil || kind != "EXPENSE" {
-			return "", invalid("Choose your expense category")
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO budget(id,user_id,category_id,currency,month,amount) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,category_id,currency,month) DO UPDATE SET amount=excluded.amount`, newID(), user, in["categoryId"], in["currency"], in["month"]+"-01", amount)
+		err = saveLegacyBudget(ctx, tx, user, in)
+	case "saveBudget":
+		err = saveBudget(ctx, tx, user, in)
+	case "stopBudget", "deleteBudget":
+		err = changeBudget(ctx, tx, user, action, in)
 	case "recurring", "editRecurring":
 		err = saveRecurring(ctx, tx, user, action, in)
 	case "stopRecurring", "resumeRecurring":

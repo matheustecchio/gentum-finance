@@ -40,3 +40,7 @@ The browser runtime and Docker launcher have been retired. Existing Docker volum
 - [Financial API and CSV contract](docs/api/finance.md)
 - [Public website](website/README.md)
 - [Contributing](CONTRIBUTING.md)
+
+Budgets support named weekly, monthly, yearly and one-time spending limits across
+selected categories and same-currency accounts, automatic renewal, period-aware
+edits, stop/delete, matching transactions and optional in-app threshold indicators.
