@@ -46,7 +46,7 @@ for (const width of [320, 768, 1024, 1440]) {
     await expect(card.getByRole("button",{name:"Transactions",exact:true})).toBeFocused();
     await card.getByRole("button",{name:"Edit",exact:true}).click();
     await page.getByLabel("Limit",{exact:true}).fill("120");
-    await page.getByLabel("Apply changes",{exact:true}).selectOption({label:"Next period"});
+    await page.getByRole("combobox",{name:"Apply changes",exact:true}).selectOption({label:"Next period"});
     await page.getByRole("button",{name:"Save budget",exact:true}).click();
     await expect(card.getByText("90% of limit reached",{exact:true})).toBeVisible();
     expect((await summary()).budgets.find((b:{name:string})=>b.name==="Everyday spending").amount).toBe("10000");

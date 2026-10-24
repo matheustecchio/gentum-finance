@@ -4,7 +4,7 @@
 .budget-form { display: grid; gap: 1rem; }
 .budget-form fieldset { min-width: 0; border: 1px solid var(--control-border); border-radius: .5rem; padding: 1rem; }
 .budget-choices { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; margin-top: .75rem; }
-.budget-choice { display: flex; align-items: center; gap: .5rem; }
+.budget-choice { display: flex; flex-direction: row; align-items: center; gap: .5rem; }
 .budget-choice input[type=checkbox] { width: auto; flex: none; }
 .budget-card { min-width: 0; }
 .budget-card h3, .budget-card p { overflow-wrap: anywhere; }

@@ -145,7 +145,7 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await page.getByRole("button", { name: "Create budget", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Food spending");
   await page.getByLabel("Food", { exact: true }).check();
-  await page.getByLabel("Currency", { exact: true }).selectOption("EUR");
+  await page.getByRole("combobox", { name: "Currency", exact: true }).selectOption("EUR");
   await page.getByLabel("Limit", { exact: true }).fill("1.00");
   await page.getByRole("button", { name: "Save budget" }).click();
   await expect(page.getByText("29% used")).toBeVisible();
