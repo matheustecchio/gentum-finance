@@ -51,3 +51,9 @@ The finance module owns durable CSV operation metadata (V12), authenticated oper
 ## Recurring plans and occurrences
 
 [ADR 0010](decisions/0010-recurring-occurrences.md) separates frozen pending/skipped occurrences from ledger entries. Automatic schedules post due entries; confirmation schedules wait for review. Authenticated wallet lifecycle mutations process due dates while open and catch up after closure, without a background server. Both import paths and their preview share conservative matching rules. The owner write lock serializes processing, confirmation, linking and imports. Migration V13 preserves old entries and selects confirmation mode for existing schedules.
+
+Budget plans compute renewable UTC periods on read. Versioned settings preserve
+prior periods; per-owner locking serializes edits, stop and delete. Snapshots sum
+recorded expenses once across selected categories and same-currency accounts.
+V14 migrates old monthly limits into one-time plans. See
+[ADR 0011](decisions/0011-budget-workflows.md).

@@ -1,0 +1,22 @@
+.budgets-view { display: grid; gap: 1.5rem; }
+.budget-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.budget-header h2 { margin-bottom: .5rem; }
+.budget-form { display: grid; gap: 1rem; }
+.budget-form fieldset { min-width: 0; border: 1px solid var(--control-border); border-radius: .5rem; padding: 1rem; }
+.budget-choices { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; margin-top: .75rem; }
+.budget-choice { display: flex; align-items: center; gap: .5rem; }
+.budget-choice input[type=checkbox] { width: auto; flex: none; }
+.budget-card { min-width: 0; }
+.budget-card h3, .budget-card p { overflow-wrap: anywhere; }
+.budget-card progress { width: 100%; }
+.budget-card .actions { flex-wrap: wrap; gap: .5rem; }
+.budget-alert { font-weight: 600; }
+.budget-dialog { color: var(--text); background: var(--surface); border: 1px solid var(--control-border); border-radius: .75rem; width: min(36rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1.5rem; }
+.budget-dialog::backdrop { background: rgb(0 0 0 / 76%); }
+.budget-dialog h2 { overflow-wrap: anywhere; }
+.budget-dialog .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }
+.budget-transactions { list-style: none; padding: 0; }
+.budget-transactions li { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; padding: .75rem 0; border-bottom: 1px solid var(--control-border); }
+.budget-transactions span { min-width: 0; overflow-wrap: anywhere; }
+.budget-transactions small { display: block; }
+@media (max-width: 30rem) { .budget-form .form-grid { grid-template-columns: minmax(0, 1fr); } .budget-dialog { padding: 1rem; } }

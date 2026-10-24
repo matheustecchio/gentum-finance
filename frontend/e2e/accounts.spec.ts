@@ -142,9 +142,11 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(page.getByText("€89.71", { exact: true })).toBeVisible();
   await expect(page.getByText("€10.00", { exact: true })).toBeVisible();
   await nav(page, "Budgets");
-  await choose(page, "Expense category", "Food");
+  await page.getByRole("button", { name: "Create budget", exact: true }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Food spending");
+  await page.getByLabel("Food", { exact: true }).check();
   await page.getByLabel("Currency", { exact: true }).selectOption("EUR");
-  await page.getByLabel("Monthly limit").fill("1.00");
+  await page.getByLabel("Limit", { exact: true }).fill("1.00");
   await page.getByRole("button", { name: "Save budget" }).click();
   await expect(page.getByText("29% used")).toBeVisible();
   await nav(page, "Recurring");
@@ -225,7 +227,8 @@ test("complete local wallet journey: exact money, transfers, budgets, recurrence
   await expect(coffeeHistory).toContainText("Meals / Morning coffee");
   await expect(coffeeHistory).toContainText("€0.29");
   await nav(page, "Budgets");
-  await expect(page.getByRole("heading", { name: "Meals", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Food spending", exact: true })).toBeVisible();
+  await expect(page.locator(".budget-card")).toContainText("Meals");
   await expect(page.getByText("31% used")).toBeVisible();
   await nav(page, "Recurring");
   await expect(page.locator(".item-list li").filter({ hasText: "Monthly coffee" }).first()).toContainText("Daily wallet · Meals · Expense");
