@@ -80,7 +80,7 @@ func NewHandler(service account.Service, allowedOrigin string, financeServices .
 		fs := financeServices[0]
 		data := graphql.NewScalar(graphql.ScalarConfig{Name: "FinanceData", Description: "Finance snapshot: money values are exact integer strings.", Serialize: func(v interface{}) interface{} { return v }})
 		fields := graphql.InputObjectConfigFieldMap{}
-		for _, key := range []string{"color", "parentId", "name", "kind", "accountId", "categoryId", "amount", "description", "date", "fromId", "toId", "month", "currency", "id", "csv"} {
+		for _, key := range []string{"color", "parentId", "name", "kind", "accountId", "categoryId", "amount", "description", "date", "fromId", "toId", "month", "currency", "id", "csv", "frequency", "mode", "occurrenceId", "entryId"} {
 			fields[key] = &graphql.InputObjectFieldConfig{Type: graphql.String}
 		}
 		input := graphql.NewInputObject(graphql.InputObjectConfig{Name: "FinanceInput", Fields: fields})

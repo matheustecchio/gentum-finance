@@ -73,6 +73,10 @@ func (r PostgresRepository) PreviewImport(ctx context.Context, user string, inpu
 	for _, t := range totals {
 		monthly[t["currency"]+t["month"]+t["kind"]], _ = new(big.Int).SetString(t["amount"], 10)
 	}
+	matcher, err := newRecurringMatcher(ctx, tx, user)
+	if err != nil {
+		return preview, err
+	}
 	preview.Count = len(data)
 	lastRecords := map[string]string{}
 	for i, raw := range data {
@@ -90,23 +94,45 @@ func (r PostgresRepository) PreviewImport(ctx context.Context, user string, inpu
 			preview.Errors = append(preview.Errors, Row{"record": record, "message": e.Error()})
 			continue
 		}
+		match, e := matcher.match(row)
+		if e != nil {
+			preview.Errors = append(preview.Errors, Row{"record": record, "message": e.Error()})
+			continue
+		}
 		delta := big.NewInt(amount)
 		if row["kind"] == "EXPENSE" {
 			delta.Neg(delta)
 		}
 		lastRecords[a["id"]] = record
 		balance := balances[a["id"]]
-		balance.Add(balance, delta)
+		if match == nil || match["status"] != "posted" {
+			balance.Add(balance, delta)
+		}
 		key := a["currency"] + row["date"][:7] + row["kind"]
 		if monthly[key] == nil {
 			monthly[key] = new(big.Int)
+		}
+		if match != nil && match["status"] == "posted" {
+			oldKey := a["currency"] + match["date"][:7] + row["kind"]
+			// Generated entry dates may differ after a previous correction.
+			var oldDate string
+			if err = tx.QueryRow(ctx, `SELECT entry_date::text FROM entry WHERE user_id=$1 AND id::text=$2`, user, match["entryId"]).Scan(&oldDate); err != nil {
+				return preview, err
+			}
+			oldKey = a["currency"] + oldDate[:7] + row["kind"]
+			if monthly[oldKey] != nil {
+				monthly[oldKey].Sub(monthly[oldKey], big.NewInt(amount))
+			}
 		}
 		monthly[key].Add(monthly[key], big.NewInt(amount))
 		if !monthly[key].IsInt64() {
 			preview.Errors = append(preview.Errors, Row{"record": record, "message": "Import exceeds integer cents range"})
 		}
+		if match != nil {
+			row["recurringMatch"] = "Links to recurring occurrence"
+		}
 		if len(preview.Transactions) < 50 {
-			preview.Transactions = append(preview.Transactions, Row{"record": record, "accountId": a["id"], "account": a["name"], "categoryId": c["id"], "category": c["path"], "currency": a["currency"], "date": row["date"], "kind": row["kind"], "amount": row["amount"], "description": row["description"]})
+			preview.Transactions = append(preview.Transactions, Row{"recurringMatch": row["recurringMatch"], "record": record, "accountId": a["id"], "account": a["name"], "categoryId": c["id"], "category": c["path"], "currency": a["currency"], "date": row["date"], "kind": row["kind"], "amount": row["amount"], "description": row["description"]})
 		}
 	}
 	for id, balance := range balances {

@@ -1,3 +1,4 @@
+import { Recurring } from "./Recurring";
 import { MAX_CSV_BYTES, useCSVImport } from "./CSVImport";
 import { SvgIcon } from "./SvgIcon";
 import { saveExport } from "../../desktop";
@@ -209,6 +210,8 @@ function Wallet({
   const previewVersion = useRef(0);
   const [importAccount, setImportAccount] = useState("");
   const [loading, setLoading] = useState(true);
+  const [automationError, setAutomationError] = useState("");
+  const processing = useRef(false);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState<"account" | "category">();
   const [renaming, setRenaming] = useState<Row>();
@@ -234,7 +237,7 @@ function Wallet({
         "query Finance($month:String!){financeSummary(month:$month)}",
         { month },
       );
-      setData(result.financeSummary);
+      setData(current => JSON.stringify(current) === JSON.stringify(result.financeSummary) ? current : result.financeSummary);
       setLoaded(true);
       setError("");
     } catch (e) {
@@ -243,9 +246,23 @@ function Wallet({
       setLoading(false);
     }
   }, [month]);
-  useEffect(() => {
-    void load();
+  const processSchedules = useCallback(async () => {
+    if (processing.current) return;
+    processing.current = true;
+    try {
+      await execute("processRecurring", {});
+      setAutomationError("");
+    } catch (e) { setAutomationError(e instanceof Error ? e.message : "Unable to update recurring transactions"); }
+    finally { await load(); processing.current = false; }
   }, [load]);
+  useEffect(() => {
+    void processSchedules();
+    const timer = window.setInterval(() => { if (!document.hidden) void processSchedules(); }, 60_000);
+    const wake = () => { if (!document.hidden) void processSchedules(); };
+    window.addEventListener("focus", wake);
+    document.addEventListener("visibilitychange", wake);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", wake); document.removeEventListener("visibilitychange", wake); };
+  }, [processSchedules]);
   const save = async (action: string, input: Row) => {
     const values = { ...input };
     if (values.amount) values.amount = toCents(values.amount);
@@ -373,6 +390,7 @@ function Wallet({
             {error}
           </p>
         )}
+        {automationError && <p role="alert" className="error">Recurring update failed: {automationError} <button onClick={() => void processSchedules()}>Retry recurring update</button></p>}
         {loading && <p role="status">Refreshing…</p>}
         {loaded &&
           !loading &&
@@ -728,58 +746,7 @@ function Wallet({
             </div>
           </>
         )}
-        {tab === "Recurring" && (
-          <>
-            <Form
-              title="Add a monthly recurring transaction"
-              submit="Create recurring schedule"
-              fields={entryFields.map((f) =>
-                f.name === "date" ? { ...f, label: "First occurrence" } : f,
-              )}
-              onSubmit={(values) => save("recurring", values)}
-            />
-            <section className="panel">
-              <h2>Monthly schedules</h2>
-              <p>
-                Run due creates occurrences through today (UTC). Running again
-                is safe. Month-end dates retain their original day when
-                possible.
-              </p>
-              <button onClick={() => void act("runDue")}>
-                Run due transactions
-              </button>
-              <ul className="item-list">
-                {data.recurring.map((r) => (
-                  <li key={r.id}>
-                    <div>
-                      <strong>{r.description || category(r.categoryId)}</strong>
-                      <small>
-                        {account(r.accountId)} · {category(r.categoryId)} ·{" "}
-                        {r.kind} · next {r.nextDate} ·{" "}
-                        {r.active === "true" ? "Active" : "Stopped"}
-                      </small>
-                    </div>
-                    <span>
-                      {formatMoney(
-                        r.amount,
-                        data.accounts.find((a) => a.id === r.accountId)
-                          ?.currency ?? "EUR",
-                      )}
-                    </span>
-                    {r.active === "true" && (
-                      <button
-                        className="secondary"
-                        onClick={() => void act("stopRecurring", { id: r.id })}
-                      >
-                        Stop schedule
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </>
-        )}
+        {tab === "Recurring" && <Recurring data={data} refresh={async () => { await processSchedules(); await load(); }} />}
         {tab === "Import & export" && (
           <section className="panel">
             <h2>Portable transaction CSV</h2>
@@ -858,7 +825,7 @@ function Wallet({
               <p>Showing up to 50 sample records and 50 errors. The complete file is validated. Limit: 100,000 records and 32 MiB.</p>
               {preview.errors.map((error, i) => <p role="alert" key={i}>CSV record {error.record}: {error.message}</p>)}
               {!!preview.transactions.length && <div className="table-scroll"><table><thead><tr><th>CSV record</th><th>Date</th><th>Account</th><th>Category</th><th>Kind</th><th>Amount</th><th>Description</th></tr></thead><tbody>
-                {preview.transactions.map(row => <tr key={row.record}><td>{row.record}</td><td>{row.date}</td><td>{row.account}</td><td>{row.category}</td><td>{row.kind}</td><td>{formatMoney(row.amount, row.currency)} · {row.currency}</td><td>{row.description}</td></tr>)}
+                {preview.transactions.map(row => <tr key={row.record}><td>{row.record}</td><td>{row.date}</td><td>{row.account}</td><td>{row.category}</td><td>{row.kind}</td><td>{formatMoney(row.amount, row.currency)} · {row.currency}</td><td>{row.description}{row.recurringMatch && <small>{row.recurringMatch}</small>}</td></tr>)}
               </tbody></table></div>}
               <p>Review these records, then choose Import CSV to confirm. Confirmation validates all records again.</p>
             </section>}

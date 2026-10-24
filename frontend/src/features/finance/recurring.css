@@ -1,0 +1,56 @@
+.recurring-view {
+  display: grid;
+  gap: 1.5rem;
+}
+.recurring-list > li {
+  align-items: start;
+  gap: 1rem;
+}
+.recurring-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 0.5rem;
+}
+.recurring-item-actions > span {
+  white-space: nowrap;
+}
+.recurring-dialog {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  width: min(36rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.recurring-dialog select {
+  max-width: 100%;
+}
+@media (max-width: 48rem) {
+  .recurring-list > li {
+    flex-direction: column;
+  }
+  .recurring-item-actions {
+    justify-content: start;
+  }
+  .recurring-item-actions > span {
+    flex-basis: 100%;
+  }
+}
+
+.recurring-dialog::backdrop {
+  background: rgb(0 0 0 / 76%);
+}
+.recurring-dialog .actions {
+  margin-top: 1.5rem;
+}
+.recurring-list > li > div {
+  min-width: 0;
+}
+.recurring-list strong,
+.recurring-list small {
+  overflow-wrap: anywhere;
+}
