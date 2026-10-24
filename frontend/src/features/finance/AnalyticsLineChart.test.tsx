@@ -7,18 +7,21 @@ it.each(["income", "expense"] as const)("inspects exact %s values and dates with
   expect(screen.getByText("Monday")).toBeVisible();
   expect(screen.getByText("€0.00")).toBeVisible();
   const slider = screen.getByRole("slider");
-  fireEvent.change(slider, { target: { value: "0" } });
-  expect(screen.getByRole("tooltip")).toHaveTextContent("Selected: €90,071,992,547,409.93");
+  fireEvent.keyDown(slider, { key: "Home" });
+  expect(screen.getByRole("tooltip")).toHaveTextContent("€90,071,992,547,409.93");
   expect(screen.getByRole("tooltip")).toHaveTextContent("Previous: €120.00");
-  expect(screen.getByRole("tooltip")).toHaveTextContent("12 Oct 2026");
-  expect(slider).toHaveAttribute("max", "1");
+  expect(screen.getByRole("tooltip")).not.toHaveTextContent("12 Oct 2026");
+  expect(screen.getByRole("tooltip")).not.toHaveTextContent("Selected:");
+  expect(document.querySelector("input[type=range]")).toBeNull();
+  expect(slider).toHaveAttribute("aria-valuemax", "1");
   fireEvent.keyDown(slider, { key: "Escape" });
   expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 });
 it("keeps inspection in range when changing to fewer buckets", () => {
   const props = { buckets, rows: [], currency: "EUR", kind: "expense" as const, today: "2026-10-21" };
   const { rerender } = render(<AnalyticsLineChart {...props} />);
-  fireEvent.change(screen.getByRole("slider"), { target: { value: "1" } });
+  fireEvent.keyDown(screen.getByRole("slider"), { key: "Home" });
+  fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowRight" });
   rerender(<AnalyticsLineChart {...props} buckets={buckets.slice(0, 1)} />);
   expect(screen.getByRole("tooltip")).toHaveTextContent("19 Oct 2026");
 });
@@ -28,7 +31,8 @@ it("keeps the previous endpoint visible and inspectable across unequal periods",
   render(<AnalyticsLineChart buckets={buckets} rows={[]} currency="EUR" kind="expense" today="2026-10-21" comparisonBuckets={previous} comparisonRows={[{ month: previous[1].start, currency: "EUR", cumulativeExpense: "12345" }]} width={320} />);
   fireEvent.focus(screen.getByRole("slider"));
   expect(screen.getByRole("tooltip")).toHaveTextContent("Previous: €123.45");
-  expect(screen.getByRole("tooltip")).toHaveTextContent("20 Oct 2026");
+  expect(screen.getByRole("tooltip")).toHaveTextContent("21 Oct 2026");
+  expect(screen.getByRole("tooltip")).not.toHaveTextContent("20 Oct 2026");
   expect(document.querySelector(".analytics-comparison-line")).toHaveAttribute("points", expect.stringMatching(/300,35$/));
   expect(screen.getByRole("img")).toHaveAttribute("viewBox", "0 0 320 250");
 });

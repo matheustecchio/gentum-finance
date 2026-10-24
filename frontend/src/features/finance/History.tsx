@@ -21,7 +21,9 @@ type Page = { entries: Row[]; totalCount: number; hasEntries: boolean };
 export function historyPages(current: number, total: number): (number | string)[] {
  const pages: (number | string)[] = [];
  let last = 0;
- const candidates = total <= 7 ? Array.from({length: total}, (_, i) => i + 1) : [...new Set([1, current - 1, current, current + 1, total])].filter(n => n >= 1 && n <= total).sort((a,b) => a-b);
+ const start = Math.min(Math.max(1, current - 2), Math.max(1, total - 4));
+ const window = Array.from({ length: Math.min(5, total) }, (_, i) => start + i);
+ const candidates = [...new Set([1, ...window, total])].filter(n => n >= 1 && n <= total).sort((a, b) => a - b);
  for (const n of candidates) {
   if (last && n - last > 1) pages.push(`gap-${last}`);
   pages.push(n); last = n;
@@ -46,6 +48,10 @@ export function History({
   const [editing, setEditing] = useState<Row>();
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const editDialog = useRef<HTMLDialogElement>(null);
+  const root = useRef<HTMLElement>(null);
+  const returnToEntry = useRef<string | undefined>(undefined);
+  const restoreFocus = useRef(false);
   const [editError, setEditError] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -81,14 +87,26 @@ export function History({
       current = false;
     };
   }, [filters, pageNumber, pageSize, retry]);
+  useEffect(() => {
+    if (editing && !editDialog.current?.open) editDialog.current?.showModal();
+    if (!editing && !loading && page && restoreFocus.current) {
+      const buttons = root.current?.querySelectorAll<HTMLButtonElement>("[data-edit-entry]");
+      const trigger = [...(buttons ?? [])].find(button => button.dataset.editEntry === returnToEntry.current);
+      (trigger ?? root.current?.querySelector<HTMLButtonElement>(".history-clear-filters"))?.focus();
+      restoreFocus.current = false;
+    }
+  }, [editing, loading, page]);
+  const closeEditor = () => { if (!savingRef.current) { restoreFocus.current = true; setEditing(undefined); } };
   const change = (values: Partial<Filters>) => {
     setPageNumber(1);
     onFilters({ ...filters, ...values });
   };
   return (
-    <section className="panel transaction-history">
+    <section ref={root} className="panel transaction-history">
       <h2>Transaction history</h2>
-      {editing && <form key={editing.id} aria-label="Edit transaction" onSubmit={async (event) => {
+      {editing && <dialog ref={editDialog} className="transaction-edit-dialog" aria-label="Edit transaction"
+        onCancel={event => { event.preventDefault(); closeEditor(); }}>
+      <form key={editing.id} aria-label="Edit transaction" onSubmit={async (event) => {
         event.preventDefault();
         if (savingRef.current) return;
         savingRef.current = true; setSaving(true); setEditError("");
@@ -97,23 +115,27 @@ export function History({
           const amount = toCents(values.amount);
           if (BigInt(amount) <= 0n) throw new Error("Amount must be positive");
           await execute("editTransaction", { ...values, id: editing.id, amount });
-          setEditing(undefined); setPageNumber(1); setRetry(v => v + 1);
+          restoreFocus.current = true; setEditing(undefined); setPageNumber(1); setRetry(v => v + 1);
           await onSaved?.();
         } catch (e) { setEditError(e instanceof Error ? e.message : "Unable to save correction"); }
         finally { savingRef.current = false; setSaving(false); }
       }}>
-        <h3>Edit transaction</h3>
+        <h2>Edit transaction</h2>
+        <fieldset disabled={saving}>
         <p>{accounts.find(a => a.id === editing.accountId)?.name} · {editing.kind} · {editing.currency}</p>
-        <label>Amount<input name="amount" required inputMode="decimal" defaultValue={`${BigInt(editing.amount) / 100n}.${(BigInt(editing.amount) % 100n).toString().padStart(2, "0")}`} /></label>
+        <label>Amount<input name="amount" required inputMode="decimal" autoFocus defaultValue={`${BigInt(editing.amount) / 100n}.${(BigInt(editing.amount) % 100n).toString().padStart(2, "0")}`} /></label>
         <label>Date<input name="date" required type="date" min="1900-01-01" max="9998-12-31" defaultValue={editing.date} /></label>
         <label>Description<input name="description" maxLength={200} defaultValue={editing.description} /></label>
         <label>Transaction category<select name="categoryId" required defaultValue={editing.categoryId}>
           {categories.filter(c => c.kind === editing.kind).map(c => <option key={c.id} value={c.id}>{c.path || c.name}</option>)}
         </select></label>
         {editError && <p role="alert">{editError}</p>}
+        </fieldset>
+        <div className="transaction-edit-actions">
+        <button type="button" className="secondary" disabled={saving} onClick={closeEditor}>Cancel</button>
         <button type="submit" disabled={saving}>{saving ? "Saving…" : "Save correction"}</button>
-        <button type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</button>
-      </form>}
+        </div>
+      </form></dialog>}
       <div className="form-grid">
         <label>
           Start date
@@ -160,9 +182,9 @@ export function History({
       </div>
       <div className="history-toolbar">
         <div className="history-filter-actions">
-          <button className="secondary" onClick={() => { setPageNumber(1); onFilters({ ...clearFilters }); }}>Clear filters</button>
-          <label className="history-page-size">Rows per page
-            <select value={pageSize} onChange={e => { setPageNumber(1); setPageSize(Number(e.target.value)); }}>
+          <button className="secondary history-clear-filters" onClick={() => { setPageNumber(1); onFilters({ ...clearFilters }); }}>Clear filters</button>
+          <label className="history-page-size">
+            <select aria-label="Rows per page" value={pageSize} onChange={e => { setPageNumber(1); setPageSize(Number(e.target.value)); }}>
               {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </label>
@@ -219,7 +241,7 @@ export function History({
                         {formatMoney(e.amount, e.currency)}{" "}
                         <small>{e.currency}</small>
                       </td>
-                      <td>{["INCOME", "EXPENSE"].includes(e.kind) && !e.transferId && !e.recurringId && <button className="history-edit" aria-label="Edit transaction" title="Edit transaction" disabled={saving} onClick={() => { setEditing({ ...e }); setEditError(""); }}><SvgIcon className="button-icon" src={pencilIcon} /></button>}</td>
+                      <td>{["INCOME", "EXPENSE"].includes(e.kind) && !e.transferId && !e.recurringId && <button className="history-edit" data-edit-entry={e.id} aria-label="Edit transaction" title="Edit transaction" disabled={saving} onClick={() => { returnToEntry.current = e.id; setEditing({ ...e }); setEditError(""); }}><SvgIcon className="button-icon" src={pencilIcon} /></button>}</td>
                     </tr>
                   ))}
                 </tbody>

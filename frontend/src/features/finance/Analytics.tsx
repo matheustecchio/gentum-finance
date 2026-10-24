@@ -868,6 +868,7 @@ function SummaryPlot({
   return (
     <div className="summary-plot" role="img"
       aria-label={`${chartName}: ${rangeLabel(calendar[0].start, calendar[calendar.length - 1].end)}`}>
+      <div className="summary-canvas">
       <svg viewBox="0 0 500 100" preserveAspectRatio="none" aria-hidden="true">
         <line x1="0" x2="500" y1="85" y2="85" className="summary-baseline" />
         {bars ? points.map((point, index) => point.value === undefined ? null : (
@@ -881,16 +882,13 @@ function SummaryPlot({
           <polyline key={index} points={segment.join(" ")} stroke="currentColor"
             fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         ))}
-        {!bars && points.map((point, index) => point.value === undefined ? null : (
-          // A round, zero-length stroke stays circular when the SVG stretches.
-          <path key={point.bucket.start} className="summary-point"
-            d={`M${x(index)},${y(point.value)}l0,0`}
-            fill="none" stroke="currentColor" strokeWidth="8"
-            strokeLinecap="round" vectorEffect="non-scaling-stroke">
-            <title>{rangeLabel(point.bucket.start, point.bucket.end)}: {point.formatted}</title>
-          </path>
-        ))}
       </svg>
+      {!bars && points.map((point, index) => point.value === undefined ? null : (
+        <span key={point.bucket.start} className="summary-point" aria-hidden="true"
+          style={{ left: `${x(index) / 5}%`, top: `${y(point.value)}%` }}
+          title={`${rangeLabel(point.bucket.start, point.bucket.end)}: ${point.formatted}`} />
+      ))}
+      </div>
       <div className="summary-axis" aria-hidden="true"
         style={{ gridTemplateColumns: `repeat(${calendar.length}, minmax(0, 1fr))` }}>
         {calendar.map((bucket, index) => (

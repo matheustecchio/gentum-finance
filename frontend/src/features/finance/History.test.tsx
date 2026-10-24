@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { History, clearFilters, historyPages } from "./History";
 import type { Row } from "./client";
 const categories: Row[] = [
@@ -25,6 +25,9 @@ const entry = {
   currency: "EUR",
   description: "Groceries",
 };
+beforeEach(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function(this: HTMLDialogElement) { this.open = true; } });
+});
 afterEach(() => vi.unstubAllGlobals());
 function Harness() {
   const [filters, setFilters] = useState({ ...clearFilters });
@@ -66,8 +69,9 @@ it("requests numbered pages and resets pagination when filters or row counts cha
   await waitFor(() => expect(requests.at(-1)).toEqual({start:"", end:"", categoryId:"", limit:25, page:1}));
 });
 it("limits visible page links while keeping both ends and neighboring pages", () => {
-  expect(historyPages(5, 100)).toEqual([1, "gap-1", 4, 5, 6, "gap-6", 100]);
+  expect(historyPages(5, 100)).toEqual([1, "gap-1", 3, 4, 5, 6, 7, "gap-7", 100]);
   expect(historyPages(1, 3)).toEqual([1, 2, 3]);
+  expect(historyPages(1, 100)).toEqual([1, 2, 3, 4, 5, "gap-5", 100]);
 });
 it("shows loading, distinct empty states and retryable request errors", async () => {
   let mode = "error";
@@ -119,6 +123,7 @@ it("edits exact cents, validates, cancels and refreshes history", async () => {
   }));
   render(<History categories={categories} accounts={[{id:"a",name:"Wallet"}]} filters={clearFilters} onFilters={() => {}} onSaved={saved} />);
   await userEvent.click(await screen.findByRole("button", {name:"Edit transaction"}));
+  expect(screen.getByRole("dialog", {name:"Edit transaction"})).toBeVisible();
   expect(screen.getByLabelText("Amount")).toHaveValue("90071992547409.93");
   await userEvent.click(screen.getByRole("button", {name:"Cancel"}));
   expect(writes).toHaveLength(0);

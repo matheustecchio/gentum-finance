@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { formatMoney } from "../accounts/money";
 import { calendarBucketLabel } from "./CalendarFlowChart";
 import { type Bucket, rangeLabel } from "./CashFlowChart";
@@ -28,6 +28,7 @@ export function AnalyticsLineChart({
 }) {
   const [index, setIndex] = useState<number>();
   const id = useId();
+  const focused = useRef(false);
   const key = kind === "income" ? "cumulativeIncome" : "cumulativeExpense";
   let last = "0";
   const values = buckets.map((b) => {
@@ -68,9 +69,29 @@ export function AnalyticsLineChart({
   if (!buckets.length) return <p>No recorded transactions.</p>;
   return (
     <div className="analytics-line-chart">
-      <div className="analytics-line-plot">
+      <div className="analytics-line-plot" role="slider" tabIndex={0}
+        aria-label={`Inspect ${kind} history in ${currency}`}
+        aria-valuemin={0} aria-valuemax={lastIndex} aria-valuenow={selected ?? lastIndex}
+        aria-valuetext={`${rangeLabel(buckets[selected ?? lastIndex].start, buckets[selected ?? lastIndex].end)}: ${formatMoney(values[selected ?? lastIndex], currency)}${comparison.length ? `; Previous: ${formatMoney(comparison[previousIndex(selected ?? lastIndex)], currency)}` : ""}`}
+        onFocus={() => { focused.current = true; change(selected ?? lastIndex); }}
+        onBlur={() => { focused.current = false; setIndex(undefined); }}
+        onKeyDown={e => {
+          const current = selected ?? lastIndex;
+          if (["ArrowLeft", "ArrowDown", "ArrowRight", "ArrowUp", "Home", "End", "Escape"].includes(e.key)) e.preventDefault();
+          if (e.key === "ArrowLeft" || e.key === "ArrowDown") change(current - 1);
+          else if (e.key === "ArrowRight" || e.key === "ArrowUp") change(current + 1);
+          else if (e.key === "Home") change(0);
+          else if (e.key === "End") change(lastIndex);
+          else if (e.key === "Escape") setIndex(undefined);
+        }}
+      >
       <svg
-        onPointerLeave={() => setIndex(undefined)}
+        onPointerLeave={() => { if (!focused.current) setIndex(undefined); }}
+        onPointerDown={e => {
+          e.currentTarget.parentElement?.focus({ preventScroll: true });
+          const rect = e.currentTarget.getBoundingClientRect();
+          change(Math.round((((e.clientX - rect.left) / rect.width * size - 20) / plotWidth) * (buckets.length - 1)));
+        }}
         onPointerMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           change(
@@ -155,10 +176,9 @@ export function AnalyticsLineChart({
       {selected !== undefined && (
         <div role="tooltip" className="wealth-tooltip" style={{ left: `clamp(0px, calc(${x(selected) / size * 100}% - 100px), max(0px, calc(100% - 200px)))` }}>
           <time>{rangeLabel(buckets[selected].start, buckets[selected].end)}</time>
-          <strong>Selected: {formatMoney(values[selected], currency)}</strong>
+          <strong>{formatMoney(values[selected], currency)}</strong>
           {comparison[previousIndex(selected)] !== undefined && <>
             <span>Previous: {formatMoney(comparison[previousIndex(selected)], currency)}</span>
-            <time>{rangeLabel(comparisonBuckets[previousIndex(selected)].start, comparisonBuckets[previousIndex(selected)].end)}</time>
           </>}
         </div>
       )}
@@ -168,23 +188,7 @@ export function AnalyticsLineChart({
           Colored: selected period · Grey: previous period
         </small>
       )}
-      <input
-        aria-label={`Inspect ${kind} history in ${currency}`}
-        type="range"
-        min="0"
-        max={Math.max(0, lastIndex)}
-        value={selected ?? Math.max(0, lastIndex)}
-        onChange={(e) => change(Number(e.target.value))}
-        onFocus={() => change(selected ?? lastIndex)}
-        onBlur={() => setIndex(undefined)}
-        onKeyDown={(e) => { if (e.key === "Escape") setIndex(undefined); }}
-      />
-      {selected !== undefined && (
-        <output aria-live="polite">
-          {rangeLabel(buckets[selected].start, buckets[selected].end)} ·{" "}
-          {formatMoney(values[selected], currency)}
-        </output>
-      )}
+
     </div>
   );
 }

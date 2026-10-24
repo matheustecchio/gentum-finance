@@ -501,8 +501,6 @@ button.analytics-clear { border: 1px solid var(--border); background: var(--acce
 .calendar-slot.is-muted .calendar-bar { fill: var(--chart-muted); }
 .calendar-bar { transition: fill 180ms, height 300ms, y 300ms; }
 .analytics-line-chart svg { width: 100%; display: block; }
-.analytics-line-chart input { width: 100%; accent-color: var(--accent); }
-.analytics-line-chart output { display: block; color: var(--muted); text-align: center; font-size: .85rem; }
 .analytics-donut { display: grid; justify-items: center; gap: 20px; padding: 24px 0; }
 .analytics-pie { width: min(260px,100%); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; }
 .analytics-pie > span { background: var(--surface); width: 72%; height: 72%; border-radius: 50%; display: grid; place-items: center; padding: 10px; box-sizing: border-box; overflow-wrap: anywhere; text-align: center; }
@@ -627,3 +625,7 @@ main.analytics-main {
 @media (max-width: 380px) {
   .period-dialog .period-dates { grid-template-columns: 1fr; }
 }
+
+.summary-canvas { position: relative; height: 90px; }
+.summary-point { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
+.analytics-line-plot:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
