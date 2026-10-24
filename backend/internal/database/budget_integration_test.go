@@ -181,3 +181,32 @@ func TestBudgetLegacyUpgradeAndExactCents(t *testing.T) {
 		t.Fatal(snap.Budgets, e)
 	}
 }
+
+func TestBudgetAnnualSumRetainsExactWideAggregate(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	if e := Migrate(ctx, pool); e != nil {
+		t.Fatal(e)
+	}
+	s := finance.Service{Repository: finance.PostgresRepository{Pool: pool}, CurrentUser: owner("00000000-0000-0000-0000-000000000001")}
+	// Each month's total and the account balance fit int64, while the annual expense total does not.
+	_, e := pool.Exec(ctx, `INSERT INTO account(id,user_id,name,type,currency,initial_balance,archived,created_at,updated_at) VALUES('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001','QA','CASH','EUR',9000000000000000000,false,now(),now()); INSERT INTO category(id,user_id,name,kind) VALUES('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000001','Expense','EXPENSE')`)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, d := range []string{"2026-01-01", "2026-02-01"} {
+		if _, e = s.Execute(ctx, "transaction", finance.Row{"accountId": "00000000-0000-0000-0000-000000000002", "categoryId": "00000000-0000-0000-0000-000000000003", "kind": "EXPENSE", "amount": "5000000000000000000", "date": d}); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if _, e = s.Execute(ctx, "saveBudget", finance.Row{"name": "Annual", "currency": "EUR", "amount": "100", "frequency": "yearly", "date": "2026-01-01", "alert": "false"}); e != nil {
+		t.Fatal(e)
+	}
+	snap, e := s.Snapshot(ctx, "2026-01")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(snap.Budgets) != 1 || snap.Budgets[0]["spent"] != "10000000000000000000" || snap.Budgets[0]["remaining"] != "-9999999999999999900" {
+		t.Fatal(snap.Budgets)
+	}
+}

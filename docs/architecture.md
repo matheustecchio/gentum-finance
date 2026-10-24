@@ -16,9 +16,9 @@ The installed product opens no application HTTP listener and requires no Docker.
 
 ## Financial boundaries
 
-Money uses signed Go `int64` and PostgreSQL `BIGINT` integer cents: `100 = 1.00`. GraphQL sends exact integer strings, and the browser converts decimal text with `BigInt`. Overflowing balances and monthly totals reject the whole write.
+Stored monetary amounts use signed Go `int64` and PostgreSQL `BIGINT` integer cents: `100 = 1.00`. GraphQL sends exact integer strings, and the browser converts decimal text with `BigInt`. Overflowing balances and monthly totals reject the whole write.
 
-Ownership is obtained from the verified session context. Resource queries and composite foreign keys scope records by owner. A per-owner database row lock serializes financial writes, imports and recurring runs. Linked transfer entries and CSV imports are atomic. Reads use repeatable-read snapshots. PostgreSQL numeric aggregates avoid intermediate BIGINT overflow and are checked before returning or committing; supported money remains signed int64 cents.
+Ownership is obtained from the verified session context. Resource queries and composite foreign keys scope records by owner. A per-owner database row lock serializes financial writes, imports and recurring runs. Linked transfer entries and CSV imports are atomic. Reads use repeatable-read snapshots. PostgreSQL numeric aggregates avoid intermediate BIGINT overflow. Account balances and monthly totals are checked against signed int64 before returning or committing. Wider budget period totals remain exact arbitrary-precision integer strings.
 
 GraphQL preserves typed accounts and uses the documented `FinanceData` JSON scalar for the complete finance snapshot plus a constrained `FinanceInput` command object. Monthly report totals and budget spending are authoritative backend values. Currency totals remain separate. No exchange-rate assumptions are introduced.
 
@@ -57,3 +57,7 @@ prior periods; per-owner locking serializes edits, stop and delete. Snapshots su
 recorded expenses once across selected categories and same-currency accounts.
 V14 migrates old monthly limits into one-time plans. See
 [ADR 0011](decisions/0011-budget-workflows.md).
+Stored transaction and limit amounts remain int64 cents. Wider budget period
+aggregates use PostgreSQL numeric and Go/JavaScript arbitrary-precision integers,
+so a valid yearly total can exceed one transaction's range without breaking the
+wallet snapshot or display.

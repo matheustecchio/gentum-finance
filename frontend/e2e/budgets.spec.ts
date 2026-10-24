@@ -41,7 +41,7 @@ for (const width of [320, 768, 1024, 1440]) {
     await expect(card.getByText(/10.00 remaining/)).toBeVisible();
     if (width === 320 || width === 1440) await page.screenshot({path:`/tmp/gentum-budget-${width}.png`,fullPage:true});
     await card.getByRole("button",{name:"Transactions",exact:true}).click();
-    await expect(page.getByRole("dialog").getByText("Budget lunch fixture",{exact:true})).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("listitem").filter({hasText:"Budget lunch fixture"})).toBeVisible();
     await page.getByRole("dialog").getByRole("button",{name:"Close",exact:true}).click();
     await expect(card.getByRole("button",{name:"Transactions",exact:true})).toBeFocused();
     await card.getByRole("button",{name:"Edit",exact:true}).click();

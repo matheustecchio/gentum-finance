@@ -101,3 +101,9 @@ it("caps a future period's duration and distinguishes one-time plans from stoppe
   expect(screen.getByText("Starts 2099-10-01 · 31-day period")).toBeVisible();
   expect(screen.queryByText(/Stopped/)).not.toBeInTheDocument(); expect(screen.getByRole("button",{name:"Edit"})).toBeDisabled();
 });
+
+it("renders wide period aggregates without weakening transaction limits", () => {
+  render(<Budgets data={{...data,budgets:[{...budget,amount:"100",spent:"10000000000000000000",remaining:"-9999999999999999900"}]}} month="2026-10" refresh={vi.fn()} />);
+  expect(screen.getByText(/10000000000000000000% used/)).toBeVisible();
+  expect(screen.getByText(/exceeded$/)).toBeVisible();
+});

@@ -214,7 +214,8 @@ Budget snapshot rows include `id`, `seriesId`, `name`, `currency`, `amount`,
 `spent`, `remaining`, `frequency`, `planStartDate`, `effectiveDate`, `stopDate`,
 `startDate`, `endDate`, `nextDate`, `categoryIds`, `accountIds`, `alert`,
 `active`, `latestVersion` and comma-separated matching `entryIds`.
-All periods intersecting the requested month are returned, including weekly
+Stored limits use int64 cents; period spending/remaining aggregates are exact
+integer strings and can exceed int64. All periods intersecting the requested month are returned, including weekly
 periods that cross month boundaries. Amounts cover the whole displayed period.
 Use `(id,startDate)` as the row identity. `active` describes renewal;
 one-time budgets do not renew. Older revisions may still belong to a renewing

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { formatMoney } from "../accounts/money";
+import { formatMoney, formatAggregateMoney } from "../accounts/money";
 import { execute, graphql, type Row, type Snapshot } from "./client";
 import { BudgetForm, budgetFrequencies, ids } from "./BudgetForm";
 import "./budgets.css";
@@ -84,10 +84,10 @@ export function Budgets({ data, month, refresh }: { data: Snapshot; month: strin
       const alert = percent >= 100n ? "Limit reached" : percent >= 90n ? "90% of limit reached" : percent >= 75n ? "75% of limit reached" : "";
       return <article className="panel budget-card" key={`${budget.id}-${budget.startDate || month}`}>
         <div><h3>{name(budget)}</h3><p className="muted">{budgetFrequencies[budget.frequency as keyof typeof budgetFrequencies] || "Monthly"}{budget.startDate && ` · ${budget.startDate} to ${budget.endDate}`}</p></div>
-        <p>{formatMoney(spent.toString(), budget.currency)} spent of {formatMoney(amount.toString(), budget.currency)}</p>
+        <p>{formatAggregateMoney(spent.toString(), budget.currency)} spent of {formatMoney(amount.toString(), budget.currency)}</p>
         <progress max="100" value={Number(percent > 100n ? 100n : percent)} aria-label={`${name(budget)} budget usage`} />
         <p>{percent.toString()}% used{percent > 100n ? " · Over budget" : ""}</p>
-        <strong>{formatMoney((remaining < 0n ? -remaining : remaining).toString(), budget.currency)} {remaining < 0n ? "exceeded" : "remaining"}</strong>
+        <strong>{formatAggregateMoney((remaining < 0n ? -remaining : remaining).toString(), budget.currency)} {remaining < 0n ? "exceeded" : "remaining"}</strong>
         <p className="muted">{timing}{budget.active === "false" && budget.frequency !== "once" ? " · Stopped" : ""}{budget.frequency && budget.frequency !== "once" && budget.active !== "false" ? " · Renews automatically" : ""}</p>
         {budget.alert !== "false" && alert && <p className="budget-alert" role="status">{alert}</p>}
         <p className="muted">{scope(budget, "categoryIds")}<br />{scope(budget, "accountIds")}</p>

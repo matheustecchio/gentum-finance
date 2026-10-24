@@ -21,7 +21,7 @@ Migration V14 converts each existing monthly budget into an equivalent one-time 
 
 ## Consequences
 
-Budget configuration does not affect balances. Spending is recalculated from ledger entries, so corrections and imports update the result. Per-owner write locking serializes revisions and lifecycle changes. Snapshots use repeatable-read isolation. Money remains integer cents, with numeric database sums and checked int64 output.
+Budget configuration does not affect balances. Spending is recalculated from ledger entries, so corrections and imports update the result. Per-owner write locking serializes revisions and lifecycle changes. Snapshots use repeatable-read isolation. Stored limits and transactions remain int64 cents. Period aggregates use PostgreSQL numeric, Go big.Int and frontend BigInt so a valid annual/custom sum cannot make the wallet unreadable.
 
 ## Sources
 

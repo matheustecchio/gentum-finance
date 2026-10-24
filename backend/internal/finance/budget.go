@@ -85,9 +85,6 @@ func budgetSnapshot(ctx context.Context, q queryer, user, month string) ([]Row, 
 				if e != nil {
 					return nil, e
 				}
-				if _, e = checked(stats[0]["spent"]); e != nil {
-					return nil, e
-				}
 				row := Row{}
 				for k, v := range p {
 					row[k] = v
