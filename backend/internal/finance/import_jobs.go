@@ -218,6 +218,10 @@ func (r PostgresRepository) writeImport(ctx context.Context, user, id, account s
 	for _, c := range cs {
 		categories[c["id"]] = c["kind"]
 	}
+	matcher, err := newRecurringMatcher(ctx, tx, user)
+	if err != nil {
+		return err
+	}
 	for start := 0; start < len(data); start += 1000 {
 		var cancelled bool
 		if err = r.Pool.QueryRow(ctx, `SELECT cancel_requested FROM csv_import_job WHERE user_id=$1 AND id=$2`, user, id).Scan(&cancelled); err != nil {
@@ -236,6 +240,16 @@ func (r PostgresRepository) writeImport(ctx context.Context, user, id, account s
 			}
 			if e != nil {
 				return csvRecordError(i+2, e)
+			}
+			match, e := matcher.match(row)
+			if e != nil {
+				return csvRecordError(i+2, e)
+			}
+			if match != nil {
+				if e = importRecurringMatch(ctx, tx, user, row, match); e != nil {
+					return csvRecordError(i+2, e)
+				}
+				continue
 			}
 			day, _ := date(row["date"])
 			batch = append(batch, []any{newID(), user, row["accountId"], row["categoryId"], row["kind"], amount, strings.TrimSpace(row["description"]), day})

@@ -47,3 +47,7 @@ See [ADR 0008](decisions/0008-multiple-local-databases.md) for database lifecycl
 ### Large CSV imports
 
 The finance module owns durable CSV operation metadata (V12), authenticated operation lookup and a background worker bound to the selected physical PostgreSQL pool and owner. The UI polls progress over the existing private desktop GraphQL transport; no listener or new native capability is introduced. All financial entries and the success marker commit in one transaction. Progress updates do not expose partial ledger entries. Request IDs and exact-file fingerprints prevent duplicate retries; interrupted operations are resolved against durable state after restart. The preview validates all records and returns bounded samples. Source CSVs are not persisted in operation metadata.
+
+## Recurring plans and occurrences
+
+[ADR 0010](decisions/0010-recurring-occurrences.md) separates frozen pending/skipped occurrences from ledger entries. Automatic schedules post due entries; confirmation schedules wait for review. Authenticated wallet lifecycle mutations process due dates while open and catch up after closure, without a background server. Both import paths and their preview share conservative matching rules. The owner write lock serializes processing, confirmation, linking and imports. Migration V13 preserves old entries and selects confirmation mode for existing schedules.

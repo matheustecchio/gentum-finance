@@ -163,7 +163,7 @@ func (r PostgresRepository) History(ctx context.Context, user string, f HistoryF
 }
 func deleteCategory(ctx context.Context, tx pgx.Tx, user, id string) error {
 	var exists, children, entries, budgets, schedules bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM category WHERE user_id=$1 AND id::text=$2),EXISTS(SELECT 1 FROM category WHERE user_id=$1 AND parent_id::text=$2),EXISTS(SELECT 1 FROM entry WHERE user_id=$1 AND category_id::text=$2),EXISTS(SELECT 1 FROM budget WHERE user_id=$1 AND category_id::text=$2),EXISTS(SELECT 1 FROM recurring WHERE user_id=$1 AND category_id::text=$2)`, user, id).Scan(&exists, &children, &entries, &budgets, &schedules)
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM category WHERE user_id=$1 AND id::text=$2),EXISTS(SELECT 1 FROM category WHERE user_id=$1 AND parent_id::text=$2),EXISTS(SELECT 1 FROM entry WHERE user_id=$1 AND category_id::text=$2),EXISTS(SELECT 1 FROM budget WHERE user_id=$1 AND category_id::text=$2),(EXISTS(SELECT 1 FROM recurring WHERE user_id=$1 AND category_id::text=$2) OR EXISTS(SELECT 1 FROM recurring_occurrence WHERE user_id=$1 AND category_id::text=$2))`, user, id).Scan(&exists, &children, &entries, &budgets, &schedules)
 	if err != nil {
 		return err
 	}

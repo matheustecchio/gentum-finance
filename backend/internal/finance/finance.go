@@ -19,13 +19,14 @@ import (
 
 type Row map[string]string
 type Snapshot struct {
-	Breakdown  []Row `json:"breakdown"`
-	Accounts   []Row `json:"accounts"`
-	Categories []Row `json:"categories"`
-	Entries    []Row `json:"entries"`
-	Budgets    []Row `json:"budgets"`
-	Recurring  []Row `json:"recurring"`
-	Totals     []Row `json:"totals"`
+	Breakdown   []Row `json:"breakdown"`
+	Accounts    []Row `json:"accounts"`
+	Categories  []Row `json:"categories"`
+	Entries     []Row `json:"entries"`
+	Budgets     []Row `json:"budgets"`
+	Recurring   []Row `json:"recurring"`
+	Occurrences []Row `json:"occurrences"`
+	Totals      []Row `json:"totals"`
 }
 type Repository interface {
 	Snapshot(context.Context, string, string) (Snapshot, error)

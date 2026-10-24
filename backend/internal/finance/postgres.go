@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"math/big"
 	"strconv"
@@ -94,7 +95,11 @@ func snapshotData(ctx context.Context, q queryer, user, month string, includeEnt
 	if err != nil {
 		return
 	}
-	s.Recurring, err = rows(ctx, q, `SELECT id::text,account_id::text,category_id::text,kind,amount::text,description,to_char(next_date,'YYYY-MM-DD'),active::text FROM recurring WHERE user_id=$1 ORDER BY next_date,id`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "nextDate", "active"}, user)
+	s.Recurring, err = rows(ctx, q, `SELECT id::text,account_id::text,category_id::text,kind,amount::text,description,to_char(next_date,'YYYY-MM-DD'),active::text,frequency,mode,anchor_day::text,anchor_month::text FROM recurring WHERE user_id=$1 ORDER BY next_date,id`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "nextDate", "active", "frequency", "mode", "anchorDay", "anchorMonth"}, user)
+	if err != nil {
+		return
+	}
+	s.Occurrences, err = recurringOccurrences(ctx, q, user, s.Recurring, time.Now().UTC())
 	if err != nil {
 		return
 	}
@@ -162,60 +167,44 @@ func (r PostgresRepository) Execute(ctx context.Context, user, action string, in
 			return "", invalid("Choose your expense category")
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO budget(id,user_id,category_id,currency,month,amount) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,category_id,currency,month) DO UPDATE SET amount=excluded.amount`, newID(), user, in["categoryId"], in["currency"], in["month"]+"-01", amount)
-	case "recurring":
-		var t time.Time
-		t, err = date(in["date"])
-		if err != nil {
-			return "", err
-		}
-		var amount int64
-		amount, err = validateEntry(ctx, tx, user, in)
-		if err != nil {
-			return "", err
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO recurring(id,user_id,account_id,category_id,kind,amount,description,next_date,anchor_day) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, newID(), user, in["accountId"], in["categoryId"], in["kind"], amount, in["description"], t, t.Day())
-	case "stopRecurring":
-		res, e := tx.Exec(ctx, `UPDATE recurring SET active=false WHERE user_id=$1 AND id=$2`, user, in["id"])
-		err = e
-		if e == nil && res.RowsAffected() != 1 {
+	case "recurring", "editRecurring":
+		err = saveRecurring(ctx, tx, user, action, in)
+	case "stopRecurring", "resumeRecurring":
+		var res pgconn.CommandTag
+		res, err = tx.Exec(ctx, `UPDATE recurring SET active=$3 WHERE user_id=$1 AND id::text=$2`, user, in["id"], action == "resumeRecurring")
+		if err == nil && res.RowsAffected() != 1 {
 			err = invalid("Schedule not found")
 		}
-	case "runDue":
-		today := time.Now().UTC().Format("2006-01-02")
-		var schedules []Row
-		schedules, err = rows(ctx, tx, `SELECT id::text,account_id::text,category_id::text,kind,amount::text,description,to_char(next_date,'YYYY-MM-DD'),anchor_day::text FROM recurring WHERE user_id=$1 AND active AND next_date<=$2::date ORDER BY next_date,id FOR UPDATE`, []string{"id", "accountId", "categoryId", "kind", "amount", "description", "date", "anchorDay"}, user, today)
-		if err != nil {
-			return "", err
-		}
-		count := 0
-		for _, s := range schedules {
-			t, _ := date(s["date"])
-			anchor, _ := strconv.Atoi(s["anchorDay"])
-			for t.Format("2006-01-02") <= today {
-				if count >= 1000 {
-					return "", invalid("More than 1000 due occurrences; stop outdated schedules first")
-				}
-				s["date"] = t.Format("2006-01-02")
-				if err = insertEntry(ctx, tx, user, s, s["id"], ""); err != nil {
-					return "", err
-				}
-				count++
-				t = nextMonth(t, anchor)
-			}
-			if _, err = tx.Exec(ctx, `UPDATE recurring SET next_date=$1 WHERE user_id=$2 AND id=$3`, t, user, s["id"]); err != nil {
-				return "", err
-			}
-		}
-		result = "Created " + strconv.Itoa(count) + " due transactions"
+	case "processRecurring", "runDue":
+		err = processRecurring(ctx, tx, user, time.Now().UTC(), action == "runDue")
+		result = "Recurring transactions updated"
+	case "confirmOccurrence", "skipOccurrence", "editOccurrence", "linkOccurrence":
+		err = updateOccurrence(ctx, tx, user, action, in)
 	case "import":
 		var data []Row
 		data, err = parseCSV(in["csv"])
 		if err != nil {
 			return "", err
 		}
+		matcher, e := newRecurringMatcher(ctx, tx, user)
+		if e != nil {
+			return "", e
+		}
 		for i, row := range data {
 			row = importRow(row, in["accountId"])
-			if err = insertEntry(ctx, tx, user, row, "", ""); err != nil {
+			if _, e := validateEntry(ctx, tx, user, row); e != nil {
+				return "", csvRecordError(i+2, e)
+			}
+			match, e := matcher.match(row)
+			if e != nil {
+				return "", csvRecordError(i+2, e)
+			}
+			if match != nil {
+				err = importRecurringMatch(ctx, tx, user, row, match)
+			} else {
+				err = insertEntry(ctx, tx, user, row, "", "")
+			}
+			if err != nil {
 				return "", csvRecordError(i+2, err)
 			}
 		}
@@ -263,7 +252,7 @@ func insertEntry(ctx context.Context, tx pgx.Tx, user string, in Row, recurring,
 	if recurring != "" {
 		schedule = recurring
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO entry(id,user_id,account_id,category_id,kind,amount,description,entry_date,recurring_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(recurring_id,entry_date) DO NOTHING`, newID(), user, in["accountId"], in["categoryId"], in["kind"], amount, strings.TrimSpace(in["description"]), in["date"], schedule)
+	_, err = tx.Exec(ctx, `INSERT INTO entry(id,user_id,account_id,category_id,kind,amount,description,entry_date,recurring_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, newID(), user, in["accountId"], in["categoryId"], in["kind"], amount, strings.TrimSpace(in["description"]), in["date"], schedule)
 	return err
 }
 func transfer(ctx context.Context, tx pgx.Tx, user string, in Row) error {

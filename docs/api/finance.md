@@ -37,7 +37,8 @@ query Finance($month: String!) { finance(month: $month) }
 | entries | id, accountId, categoryId, kind, amount, description, date, currency, transferId |
 | budgets | id, categoryId, currency, month, amount, spent |
 | breakdown | categoryId, currency, direct, total (monthly cents) |
-| recurring | id, accountId, categoryId, kind, amount, description, nextDate, active |
+| recurring | id, accountId, categoryId, kind, amount, description, nextDate, active, frequency, mode, anchorDay, anchorMonth |
+| occurrences | id (empty for projections), recurringId, date, accountId, categoryId, kind, amount, description, status, entryId |
 | totals | currency, income, expense, net |
 
 Accounts, categories, entries and recurring schedules cover all dates; budgets and totals use the requested month. Empty optional IDs are empty strings. Money is canonical integer cents; `active` is `"true"` or `"false"`. Accounts contain current all-date balances. Totals exclude opening balances and transfers. The JSON scalar is an explicit MVP boundary; clients request the complete owned snapshot rather than arbitrary nested selections.
@@ -60,13 +61,19 @@ All input fields are strings. Successful commands return a status string; export
 | transaction | accountId, categoryId, kind, amount (positive cents), date, description (optional; up to 200 characters) |
 | transfer | fromId, toId, amount, date, description (optional) |
 | budget | categoryId (expense), currency, month (`YYYY-MM`), amount; upserts the same category/currency/month |
-| recurring | same fields as transaction; date is the first monthly occurrence |
-| stopRecurring | id |
-| runDue | empty input; materializes active occurrences through today (UTC), maximum 1000 per action |
+| recurring | transaction fields plus frequency (`weekly`, `fortnightly`, `monthly`, `yearly`; default monthly), mode (`manual`, `automatic`; default manual); date is the first occurrence |
+| editRecurring | id plus complete recurring fields; date is the next unprocessed occurrence |
+| stopRecurring / resumeRecurring | id; preserves pending items and history; resume includes missed dates |
+| processRecurring | empty input; creates due occurrences through today (UTC), posts automatic schedules and leaves manual items pending; at most 1000 per action |
+| confirmOccurrence | occurrenceId; optional amount/description corrections; posts a pending item |
+| editOccurrence | occurrenceId, amount, description; adjusts a pending item without posting |
+| skipOccurrence | occurrenceId; skips a pending item |
+| linkOccurrence | occurrenceId, entryId; links a pending/posted occurrence to an unlinked entry with the same account/kind; replaces a generated entry atomically |
+| runDue | deprecated compatibility action; explicitly posts due manual items as well as automatic schedules; absent from the UI |
 | import | csv, accountId (required for the standard five-column format) |
 | export | empty input |
 
-Dates are strict `YYYY-MM-DD`, years 1900–9998. Transfers require distinct owned accounts with matching currencies; both linked entries commit together. Categories must match the transaction kind. Recurrence keeps the original day of month, clamps short months and restores the day in longer months. Each schedule/date is unique; repeated and concurrent runs cannot duplicate occurrences. Stopping a schedule preserves its existing entries.
+Dates are strict `YYYY-MM-DD`, years 1900–9998. Transfers require distinct owned accounts with matching currencies; both linked entries commit together. Categories must match the transaction kind. Recurrence keeps the original day of month, clamps short months and restores the day in longer months. Each schedule/date is unique; repeated and concurrent runs cannot duplicate occurrences. Stopping a schedule preserves its existing entries and pending occurrences. Yearly leap-day schedules return to February 29 in leap years. Series edits preserve anchor days when the date and frequency stay unchanged. Editing cannot rewind across a processed date. Existing schedules migrate to manual confirmation. Occurrence statuses are `pending`, `posted`, `linked`, `skipped`, or a projected `upcoming`. Pending items cover all dates; recent history covers 90 days, and upcoming projections cover 90 days (up to 14 per series).
 
 Writes are serialized per user. PostgreSQL numeric aggregates are checked against signed int64 bounds before commits. Overflow rejects the entire action, including import or a recurring batch. Negative account balances are allowed. Ledger writes never convert currencies. The separate [Overview endpoint](graphql.md) estimates Total Wealth in the primary currency using dated reference rates.
 
@@ -180,3 +187,9 @@ The result is `{id, status, total, processed, message}`. Status is `running`, `c
 V12 stores operation metadata and request aliases, not CSV contents. Entries and the committed marker are saved in the same transaction. Repeating an operation ID with another file is rejected. Identical CSV bytes plus destination account share a running or completed operation, including when a new request ID is used. Changed CSV bytes are a different import; this is exact-file retry protection, not transaction-level duplicate matching. Failed or cancelled imports can be retried with a new operation ID.
 
 The UI saves the pending ID in local storage under the physical database ID before submitting. After a lost response or remount it queries the recorded result instead of resending entries. Unknown results block another import until checked. After a sidecar restart, a still-running operation without a live worker is marked failed; PostgreSQL has rolled back its unfinished transaction. A committed marker is retained. Operation metadata follows the same local database retention as the ledger.
+
+## Recurring import association
+
+Both synchronous `import` and background CSV jobs use the same matcher as preview. A unique pending/posted occurrence must match account, category, kind, exact cents and a nonempty trimmed case-insensitive description within three days of its due date. Preview adds `recurringMatch` to displayed matching rows and excludes an already-posted charge from balance additions. Import keeps one entry and marks the occurrence linked, adopting the imported date and description. Each occurrence matches only once per file. Multiple candidates reject the whole import with a validation error. Unmatched rows remain normal additions; this is not general duplicate detection.
+
+Due processing also links a uniquely matching unlinked entry before posting. Multiple candidate entries keep the occurrence pending for review. Manual linking permits different amounts/categories/descriptions, retains the actual transaction details, requires the same owned account and kind, and atomically replaces any generated entry. The UI searches within 14 days; the API accepts an owned eligible entry regardless of date. Linked and generated transactions remain protected from ordinary history edits.
