@@ -50,7 +50,13 @@ def prepare_postgres(local_archive, target):
         raise SystemExit("PostgreSQL source hash mismatch; refusing to build")
     is_windows = target == WINDOWS_TARGET
     cc = os.environ.get("CC", "cl" if is_windows else "cc")
-    compiler = subprocess.check_output([cc, "--version"], text=True, stderr=subprocess.STDOUT).splitlines()[0]
+    if is_windows:
+        # MSVC prints its version when invoked without source files but exits
+        # with status 2, so it cannot be queried with check_output.
+        probe = subprocess.run([cc], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        compiler = probe.stdout.splitlines()[0] if probe.stdout else cc
+    else:
+        compiler = subprocess.check_output([cc, "--version"], text=True).splitlines()[0]
     descriptor = {"postgresVersion": VERSION, "postgresSourceSha256": SHA256,
                   "postgresSource": URL, "target": target,
                   "configureFlags": WINDOWS_MESON_OPTIONS if is_windows else FLAGS,

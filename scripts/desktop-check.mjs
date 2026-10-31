@@ -2,6 +2,7 @@
 // Exercise the packaged IPC service against a disposable database, without HTTP.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { platform, tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -68,7 +69,7 @@ async function stop() {
 }
 function postgresAlive(pid) {
   if (!windows) {
-    try { return !/^\d+ \(.*\) [ZX] /.test(execFileSync('cat',[`/proc/${pid}/stat`],{encoding:'utf8'})); }
+    try { return !/^\d+ \(.*\) [ZX] /.test(readFileSync(`/proc/${pid}/stat`,'utf8')); }
     catch(error) { if(error.code === 'ENOENT') return false; throw error; }
   }
   const tasks = execFileSync('tasklist',['/FI',`PID eq ${pid}`,'/FO','CSV','/NH'],{encoding:'utf8'});
