@@ -16,10 +16,16 @@ ROOT = Path(__file__).resolve().parent.parent
 VERSION = "17.11"
 SHA256 = "dd27f2b3c59e73ed14aa3324901242bf69a032a6347805f274e6260322d42979"
 URL = f"https://ftp.postgresql.org/pub/source/v{VERSION}/postgresql-{VERSION}.tar.bz2"
-TARGET = "x86_64-unknown-linux-gnu"
+LINUX_TARGET = "x86_64-unknown-linux-gnu"
+WINDOWS_TARGET = "x86_64-pc-windows-msvc"
 FLAGS = ["--without-readline", "--without-zlib", "--without-icu", "--without-openssl",
          "--without-libxml", "--without-libxslt", "--without-lz4", "--without-zstd",
          "--without-perl", "--without-python", "--without-tcl", "--disable-nls"]
+WINDOWS_MESON_OPTIONS = ["-Dssl=disabled", "-Dicu=disabled", "-Dzlib=disabled",
+                         "-Dnls=disabled", "-Dreadline=disabled", "-Dlz4=disabled",
+                         "-Dzstd=disabled", "-Dlibxml=disabled", "-Dlibxslt=disabled",
+                         "-Dplperl=disabled", "-Dplpython=disabled", "-Dpltcl=disabled",
+                         "-Db_vscrt=mt"]
 
 
 def run_build(command, cwd, log):
@@ -30,7 +36,7 @@ def run_build(command, cwd, log):
         raise SystemExit(f"PostgreSQL build failed. See {log}\n{tail}")
 
 
-def prepare_postgres(local_archive):
+def prepare_postgres(local_archive, target):
     cache = ROOT / "desktop/.cache"
     cache.mkdir(parents=True, exist_ok=True)
     archive = local_archive or cache / f"postgresql-{VERSION}.tar.bz2"
@@ -42,16 +48,20 @@ def prepare_postgres(local_archive):
         temporary.replace(archive)
     if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
         raise SystemExit("PostgreSQL source hash mismatch; refusing to build")
-    cc = os.environ.get("CC", "cc")
-    compiler = subprocess.check_output([cc, "--version"], text=True).splitlines()[0]
+    is_windows = target == WINDOWS_TARGET
+    cc = os.environ.get("CC", "cl" if is_windows else "cc")
+    compiler = subprocess.check_output([cc, "--version"], text=True, stderr=subprocess.STDOUT).splitlines()[0]
     descriptor = {"postgresVersion": VERSION, "postgresSourceSha256": SHA256,
-                  "postgresSource": URL, "target": TARGET, "configureFlags": FLAGS,
+                  "postgresSource": URL, "target": target,
+                  "configureFlags": WINDOWS_MESON_OPTIONS if is_windows else FLAGS,
+                  "buildSystem": "meson" if is_windows else "autoconf",
                   "compiler": compiler, "buildFlags": {key: os.environ.get(key, "") for key in ("CFLAGS", "CPPFLAGS", "LDFLAGS")}}
     key = hashlib.sha256(json.dumps(descriptor, sort_keys=True).encode()).hexdigest()[:16]
     installation = cache / f"postgres-{VERSION}-{key}"
     manifest_file = installation / "gentum-build.json"
     valid = manifest_file.exists() and json.loads(manifest_file.read_text()) == descriptor
-    valid = valid and all((installation / "bin" / name).is_file() for name in ("postgres", "initdb", "pg_ctl"))
+    executable_suffix = ".exe" if is_windows else ""
+    valid = valid and all((installation / "bin" / f"{name}{executable_suffix}").is_file() for name in ("postgres", "initdb", "pg_ctl"))
     if not valid:
         log = cache / f"postgres-{VERSION}-{key}.log"
         log.write_text("")
@@ -62,9 +72,18 @@ def prepare_postgres(local_archive):
                 tar.extractall(temporary, filter="data")
             source = temporary / f"postgresql-{VERSION}"
             prefix = temporary / "install"
-            run_build([str(source / "configure"), f"--prefix={prefix}", *FLAGS], source, log)
-            run_build(["make", f"-j{min(os.cpu_count() or 2, 4)}"], source, log)
-            run_build(["make", "install"], source, log)
+            if is_windows:
+                meson = shutil.which("meson")
+                if not meson:
+                    raise SystemExit("Windows PostgreSQL builds require Meson on PATH")
+                build = temporary / "build"
+                run_build([meson, "setup", str(build), str(source), f"--prefix={prefix}", *WINDOWS_MESON_OPTIONS], source, log)
+                run_build([meson, "compile", "-C", str(build)], source, log)
+                run_build([meson, "install", "-C", str(build)], source, log)
+            else:
+                run_build([str(source / "configure"), f"--prefix={prefix}", *FLAGS], source, log)
+                run_build(["make", f"-j{min(os.cpu_count() or 2, 4)}"], source, log)
+                run_build(["make", "install"], source, log)
             shutil.copyfile(source / "COPYRIGHT", prefix / "COPYRIGHT")
             (prefix / "gentum-build.json").write_text(json.dumps(descriptor, indent=2) + "\n")
             if installation.exists():
@@ -74,19 +93,20 @@ def prepare_postgres(local_archive):
     if destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(installation, destination, symlinks=True)
-    # PostgreSQL installs absolute build-prefix RUNPATHs. Relocate every copied
-    # executable/library so the package runs without developer environment paths.
-    patchelf = os.environ.get("PATCHELF", "patchelf")
-    for path in destination.rglob("*"):
-        if not path.is_file() or path.is_symlink():
-            continue
-        with path.open("rb") as binary:
-            if binary.read(4) != b"\x7fELF":
+    if not is_windows:
+        # PostgreSQL installs absolute build-prefix RUNPATHs. Relocate every copied
+        # executable/library so the package runs without developer environment paths.
+        patchelf = os.environ.get("PATCHELF", "patchelf")
+        for path in destination.rglob("*"):
+            if not path.is_file() or path.is_symlink():
                 continue
-        relative = os.path.relpath(destination / "lib", path.parent)
-        rpath = "$ORIGIN" if relative == "." else f"$ORIGIN/{relative}"
-        subprocess.run([patchelf, "--set-rpath", rpath, str(path)], check=True)
-    descriptor["runtimeRelocation"] = "origin-relative-v1"
+            with path.open("rb") as binary:
+                if binary.read(4) != b"\x7fELF":
+                    continue
+            relative = os.path.relpath(destination / "lib", path.parent)
+            rpath = "$ORIGIN" if relative == "." else f"$ORIGIN/{relative}"
+            subprocess.run([patchelf, "--set-rpath", rpath, str(path)], check=True)
+        descriptor["runtimeRelocation"] = "origin-relative-v1"
     (destination / "gentum-build.json").write_text(json.dumps(descriptor, indent=2) + "\n")
     print(f"Prepared cached minimal PostgreSQL {VERSION}", flush=True)
 
@@ -97,10 +117,12 @@ def main():
                         default=Path(os.environ["GENTUM_POSTGRES_SOURCE_ARCHIVE"]) if os.environ.get("GENTUM_POSTGRES_SOURCE_ARCHIVE") else None,
                         help="Use a local official PostgreSQL source tar.bz2 (hash is always verified)")
     args = parser.parse_args()
-    if platform.system() != "Linux" or platform.machine() not in ("x86_64", "AMD64"):
-        raise SystemExit("Desktop packaging currently supports Linux x86_64 only. Other platforms need native build and validation.")
-    prepare_postgres(args.postgres_archive)
-    binary = ROOT / f"desktop/binaries/gentum-backend-{TARGET}"
+    system = platform.system()
+    if platform.machine() not in ("x86_64", "AMD64") or system not in ("Linux", "Windows"):
+        raise SystemExit("Desktop packaging supports validated Linux and Windows x86_64 builds only.")
+    target = WINDOWS_TARGET if system == "Windows" else LINUX_TARGET
+    prepare_postgres(args.postgres_archive, target)
+    binary = ROOT / f"desktop/binaries/gentum-backend-{target}{'.exe' if system == 'Windows' else ''}"
     binary.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run([os.environ.get("GO", "go"), "build", "-trimpath", "-buildvcs=false", "-o", str(binary), "./cmd/desktop"], cwd=ROOT / "backend", check=True)
     print(f"Prepared {binary.name}", flush=True)

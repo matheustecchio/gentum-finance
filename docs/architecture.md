@@ -2,7 +2,7 @@
 
 Gentum Finance is a local desktop modular monolith: React in a Tauri window → restricted Rust commands → private Go process messages → Go application services → managed PostgreSQL. The public static website is independent.
 
-The installed product opens no application HTTP listener and requires no Docker. PostgreSQL uses generated credentials and a loopback-only ephemeral port. The initial validated installer targets Linux x86_64. See [ADR 0009](decisions/0009-tauri-desktop-application.md).
+The installed product opens no application HTTP listener and requires no Docker. PostgreSQL uses generated credentials and a loopback-only ephemeral port. Validated installer targets are Linux x86_64 and Windows x64. See [ADR 0009](decisions/0009-tauri-desktop-application.md).
 
 ## Components
 

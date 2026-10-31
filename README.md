@@ -6,7 +6,7 @@ A desktop personal-finance application that keeps your ledgers on your computer.
 
 React runs inside a Tauri window. Go owns the financial rules and starts a bundled PostgreSQL database. The installed application requires no Docker, Go, Node.js, Rust or separate PostgreSQL installation. Native GTK/WebKit system libraries are normal Linux package prerequisites.
 
-The initial installer target is **Linux x86_64 (.deb)**, validated on Ubuntu 24.04-compatible systems. This repository builds the installer; no public release or website deployment is implied. Windows, macOS and ARM packages are not yet supported.
+Validated installer targets are **Linux x86_64 (.deb)** on Ubuntu 24.04-compatible systems and **Windows x64 (NSIS .exe)**. CI uploads both installers as non-release artifacts; no public release or website deployment is implied. macOS and ARM packages are not supported.
 
 Features include dated Analytics with income/spending/cash-flow and wealth charts, transaction corrections, separate local ledgers, optional PIN protection, recurrence, budgets, CSV previews/import with up to 100,000 records, progress, cancellation and full rollback, and native file export.
 

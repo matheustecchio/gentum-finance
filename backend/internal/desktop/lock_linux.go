@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
 func lockData(dir string) (func(), error) {
@@ -25,4 +26,24 @@ func lockData(dir string) (func(), error) {
 // Stop PostgreSQL if the Go sidecar is terminated unexpectedly.
 func configureChild(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGINT}
+}
+
+func superviseChild(*exec.Cmd) (func(), error) { return func() {}, nil }
+
+func postgresBinary(dir string) string { return filepath.Join(dir, "bin", "postgres") }
+
+func initdbBinary(dir string) string { return filepath.Join(dir, "bin", "initdb") }
+
+func shutdownChild(p *Postgres) {
+	if p.command == nil || p.command.Process == nil || p.exited == nil {
+		return
+	}
+	// PostgreSQL interprets SIGINT as fast shutdown, rolling back active work.
+	_ = p.command.Process.Signal(os.Interrupt)
+	select {
+	case <-p.exited:
+	case <-time.After(8 * time.Second):
+		_ = p.command.Process.Kill()
+		<-p.exited
+	}
 }
