@@ -21,7 +21,7 @@ WINDOWS_TARGET = "x86_64-pc-windows-msvc"
 FLAGS = ["--without-readline", "--without-zlib", "--without-icu", "--without-openssl",
          "--without-libxml", "--without-libxslt", "--without-lz4", "--without-zstd",
          "--without-perl", "--without-python", "--without-tcl", "--disable-nls"]
-WINDOWS_MESON_OPTIONS = ["-Dssl=disabled", "-Dicu=disabled", "-Dzlib=disabled",
+WINDOWS_MESON_OPTIONS = ["-Dssl=none", "-Dicu=disabled", "-Dzlib=disabled",
                          "-Dnls=disabled", "-Dreadline=disabled", "-Dlz4=disabled",
                          "-Dzstd=disabled", "-Dlibxml=disabled", "-Dlibxslt=disabled",
                          "-Dplperl=disabled", "-Dplpython=disabled", "-Dpltcl=disabled",
