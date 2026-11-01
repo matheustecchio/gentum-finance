@@ -20,6 +20,8 @@ Both desktop commands prepare the sidecar and bundled PostgreSQL before starting
 
 The development Vite server binds only to loopback and serves UI assets; it has no wallet API proxy. Financial requests still use native IPC. A production bundle opened in an ordinary browser displays a desktop-only message.
 
+Windows packaging merges `desktop/tauri.windows.conf.json` into the shared Tauri configuration. This selects the NSIS installer and the Windows `.ico` asset explicitly; Linux keeps the shared packaging configuration.
+
 ## Local storage
 
 Tauri selects the platform application data directory. On Linux it is normally `~/.local/share/com.gentum.finance` (or under `$XDG_DATA_HOME`). It contains PostgreSQL 17 data, generated credentials, a selection token, a lock file and a private log. Never commit or share this directory. Normal application exit stops its managed processes and preserves data. PIN-protected wallets require a fresh unlock on restart.
