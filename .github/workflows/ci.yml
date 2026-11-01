@@ -175,9 +175,41 @@ jobs:
       - name: Test managed PostgreSQL, exclusive storage and crash recovery
         shell: pwsh
         run: |
-          $env:GENTUM_DESKTOP_POSTGRES_DIR = "$env:GITHUB_WORKSPACE\desktop\resources\postgres"
-          go -C backend test -race -tags=integration ./internal/desktop
-          node scripts/desktop-check.mjs
+          # PostgreSQL deliberately refuses to run with an elevated Windows token.
+          # GitHub's hosted Windows runner is runneradmin, so execute the desktop
+          # lifecycle checks under a temporary standard local account. A packaged
+          # desktop app is launched by the interactive, non-elevated user too.
+          $name = "gentum-ci-$([guid]::NewGuid().ToString('N').Substring(0, 12))"
+          $password = ConvertTo-SecureString ([guid]::NewGuid().ToString('N') + 'aA1!') -AsPlainText -Force
+          $user = New-LocalUser -Name $name -Password $password -PasswordNeverExpires -AccountNeverExpires
+          $credential = [pscredential]::new("$env:COMPUTERNAME\$name", $password)
+          $temporary = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory -Path $temporary | Out-Null
+          & icacls $temporary /grant "$env:COMPUTERNAME\${name}:(OI)(CI)F" | Out-Null
+          $test = Join-Path $temporary 'desktop-integration.test.exe'
+          go -C backend test -race -tags=integration -c -o $test ./internal/desktop
+          $node = (Get-Command node -ErrorAction Stop).Source
+          $output = Join-Path $env:RUNNER_TEMP "$name.out"
+          $errors = Join-Path $env:RUNNER_TEMP "$name.err"
+          $command = @"
+          `$env:GENTUM_DESKTOP_POSTGRES_DIR = '$env:GITHUB_WORKSPACE\desktop\resources\postgres'
+          `$env:TEMP = '$temporary'
+          `$env:TMP = '$temporary'
+          Set-Location '$env:GITHUB_WORKSPACE'
+          & '$test'
+          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+          & '$node' scripts/desktop-check.mjs
+          exit `$LASTEXITCODE
+          "@
+          try {
+            $process = Start-Process pwsh -Credential $credential -ArgumentList @('-NoProfile', '-NonInteractive', '-Command', $command) -RedirectStandardOutput $output -RedirectStandardError $errors -Wait -PassThru
+            Get-Content $output
+            Get-Content $errors
+            if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          } finally {
+            Remove-LocalUser -Name $user.Name
+            Remove-Item $temporary, $output, $errors -Recurse -Force -ErrorAction SilentlyContinue
+          }
       - run: npm --prefix frontend run desktop:build
       - uses: actions/upload-artifact@v4
         if: always()
