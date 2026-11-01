@@ -26,13 +26,44 @@ type credentials struct {
 	Provision string `json:"provision"`
 }
 type Postgres struct {
-	Config    *pgxpool.Config
-	Provision *pgxpool.Pool
-	command   *exec.Cmd
-	exited    chan struct{}
-	log       *os.File
-	release   func()
-	once      sync.Once
+	Config      *pgxpool.Config
+	Provision   *pgxpool.Pool
+	command     *exec.Cmd
+	exited      chan struct{}
+	cluster     string
+	postgresDir string
+	stopChild   func()
+	log         *os.File
+	release     func()
+	once        sync.Once
+}
+
+// postgresLogTail makes a failed bundled-runtime startup diagnosable in CI
+// without exposing the per-installation data directory or credentials file.
+// PostgreSQL writes server failures to postgres.log, not to the Go process.
+func postgresLogTail(log *os.File) string {
+	if log == nil {
+		return ""
+	}
+	if err := log.Sync(); err != nil {
+		return ""
+	}
+	contents, err := os.ReadFile(log.Name())
+	if err != nil || len(contents) == 0 {
+		return ""
+	}
+	const maximum = 4096
+	if len(contents) > maximum {
+		contents = contents[len(contents)-maximum:]
+	}
+	return strings.TrimSpace(string(contents))
+}
+
+func postgresStoppedError(log *os.File) error {
+	if tail := postgresLogTail(log); tail != "" {
+		return fmt.Errorf("bundled PostgreSQL stopped before becoming ready: %s", tail)
+	}
+	return errors.New("bundled PostgreSQL stopped before becoming ready")
 }
 
 func secret() string {
@@ -120,7 +151,7 @@ func StartPostgres(ctx context.Context, dataDir, postgresDir string) (*Postgres,
 		if err = pass.Close(); err != nil {
 			return nil, err
 		}
-		init := exec.CommandContext(ctx, filepath.Join(postgresDir, "bin", "initdb"), "-D", cluster, "--username=gentum_admin", "--pwfile="+passPath, "--auth-local=scram-sha-256", "--auth-host=scram-sha-256", "--encoding=UTF8", "--locale=C", "--no-instructions")
+		init := exec.CommandContext(ctx, initdbBinary(postgresDir), "-D", cluster, "--username=gentum_admin", "--pwfile="+passPath, "--auth-local=scram-sha-256", "--auth-host=scram-sha-256", "--encoding=UTF8", "--locale=C", "--no-instructions")
 		init.Stdout = p.log
 		init.Stderr = p.log
 		if err = init.Run(); err != nil {
@@ -135,12 +166,20 @@ func StartPostgres(ctx context.Context, dataDir, postgresDir string) (*Postgres,
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
-	p.command = exec.Command(filepath.Join(postgresDir, "bin", "postgres"), "-D", cluster, "-h", "127.0.0.1", "-p", strconv.Itoa(port), "-c", "unix_socket_directories=", "-c", "log_statement=none")
+	p.cluster = cluster
+	p.postgresDir = postgresDir
+	p.command = exec.Command(postgresBinary(postgresDir), "-D", cluster, "-h", "127.0.0.1", "-p", strconv.Itoa(port), "-c", "unix_socket_directories=", "-c", "log_statement=none")
 	configureChild(p.command)
 	p.command.Stdout = p.log
 	p.command.Stderr = p.log
 	if err = p.command.Start(); err != nil {
 		return nil, errors.New("unable to start bundled PostgreSQL")
+	}
+	p.stopChild, err = superviseChild(p.command)
+	if err != nil {
+		_ = p.command.Process.Kill()
+		_ = p.command.Wait()
+		return nil, errors.New("unable to supervise bundled PostgreSQL")
 	}
 	p.exited = make(chan struct{})
 	go func() { p.command.Wait(); close(p.exited) }()
@@ -165,7 +204,7 @@ func StartPostgres(ctx context.Context, dataDir, postgresDir string) (*Postgres,
 		case <-ctx.Done():
 			return nil, errors.New("local database startup timed out or was cancelled")
 		case <-p.exited:
-			return nil, errors.New("bundled PostgreSQL stopped before becoming ready")
+			return nil, postgresStoppedError(p.log)
 		case <-ticker.C:
 		}
 	}
@@ -221,15 +260,9 @@ func (p *Postgres) Close() {
 		if p.Provision != nil {
 			p.Provision.Close()
 		}
-		if p.command != nil && p.command.Process != nil && p.exited != nil {
-			// PostgreSQL interprets SIGINT as fast shutdown, rolling back active work.
-			p.command.Process.Signal(os.Interrupt)
-			select {
-			case <-p.exited:
-			case <-time.After(8 * time.Second):
-				p.command.Process.Kill()
-				<-p.exited
-			}
+		shutdownChild(p)
+		if p.stopChild != nil {
+			p.stopChild()
 		}
 		if p.log != nil {
 			p.log.Close()

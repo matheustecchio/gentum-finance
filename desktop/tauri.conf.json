@@ -32,9 +32,7 @@
     "icon": [
       "icons/icon.png"
     ],
-    "targets": [
-      "deb"
-    ],
+    "targets": "all",
     "externalBin": [
       "binaries/gentum-backend"
     ],

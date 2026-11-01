@@ -5,6 +5,7 @@ go 1.26.9
 require (
 	github.com/graphql-go/graphql v0.8.1
 	github.com/jackc/pgx/v5 v5.11.0
+	golang.org/x/sys v0.42.0
 )
 
 require (

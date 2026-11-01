@@ -8,7 +8,7 @@
 - `website/`: independent static product/download page.
 - `docs/`: decisions and development/API documentation.
 
-Use Go 1.26.9+, Node.js 20.19+, Python 3.12+, Rust stable, a C compiler, make, Perl, Bison, Flex, patchelf and the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/). The initial packaging target is Linux x86_64 on Ubuntu 24.04-compatible systems. Build and validate separately for distributions with older system libraries. Other platforms fail preparation explicitly until verified binaries and native validation exist.
+Use Go 1.26.9+, Node.js 20.19+, Python 3.12+ and Rust stable. Linux builds also need a C compiler, make, Perl, Bison, Flex, patchelf and the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/). Windows x64 builds need Visual Studio's x64 C++ environment and Meson/Ninja. CI validates Linux x86_64 on Ubuntu 24.04-compatible systems and Windows x64 on `windows-2022`; build and validate separately for other system-library versions.
 
 ```bash
 npm --prefix frontend ci
@@ -19,6 +19,8 @@ npm --prefix frontend ci
 Both desktop commands prepare the sidecar and bundled PostgreSQL before starting Tauri. Preparation downloads the official source archive at build time, verifies SHA-256 and builds a minimal local PostgreSQL runtime. A verified build is cached for later runs. An existing verified archive can be supplied with `GENTUM_POSTGRES_SOURCE_ARCHIVE=/absolute/path/to/postgresql-17.11.tar.bz2`. `GO` can select a Go executable and `GOCACHE` can select a writable cache. Rust uses the checked-in Cargo lockfile.
 
 The development Vite server binds only to loopback and serves UI assets; it has no wallet API proxy. Financial requests still use native IPC. A production bundle opened in an ordinary browser displays a desktop-only message.
+
+Windows packaging merges `desktop/tauri.windows.conf.json` into the shared Tauri configuration. This selects the NSIS installer and the Windows `.ico` asset explicitly; Linux keeps the shared packaging configuration.
 
 ## Local storage
 
@@ -53,7 +55,7 @@ python3 website/build.py
 git diff --check
 ```
 
-Prepare desktop resources before the IPC and browser checks. The native smoke test requires `tauri-driver`, `WebKitWebDriver` and Xvfb plus a built `.deb`; it extracts the installer to temporary storage and uses fictional application data. It does not install the package system-wide. Refer to the script for executable path overrides. Native export dialogs require an interactive desktop for manual confirmation.
+Prepare desktop resources before the IPC and browser checks. The Linux native smoke test requires `tauri-driver`, `WebKitWebDriver` and Xvfb plus a built `.deb`; it extracts the installer to temporary storage and uses fictional application data. It does not install the package system-wide. The Windows job executes the same private-IPC, exclusive-storage and sidecar-crash recovery checks before uploading the NSIS installer artifact. Refer to the scripts for executable path overrides. Native export dialogs require an interactive desktop for manual confirmation.
 
 The IPC check covers PIN setup, private cookies, restart persistence, PIN relocking and clean database shutdown. The managed-runtime integration test covers exact cents beyond JavaScript's safe integer range, physical ledger creation/selection, stale-scope rejection, role separation and restart persistence.
 

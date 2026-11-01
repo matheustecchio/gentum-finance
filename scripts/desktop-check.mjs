@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 // Exercise the packaged IPC service against a disposable database, without HTTP.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { platform, tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const binary = process.env.GENTUM_DESKTOP_BINARY ?? resolve(root, 'desktop/binaries/gentum-backend-x86_64-unknown-linux-gnu');
+const windows = platform() === 'win32';
+const target = windows ? 'x86_64-pc-windows-msvc.exe' : 'x86_64-unknown-linux-gnu';
+const binary = process.env.GENTUM_DESKTOP_BINARY ?? resolve(root, `desktop/binaries/gentum-backend-${target}`);
 const postgres = process.env.GENTUM_POSTGRES_DIR ?? resolve(root, 'desktop/resources/postgres');
 const directory = await mkdtemp(resolve(tmpdir(), 'gentum-desktop-check-'));
 let child;
@@ -64,6 +67,14 @@ async function stop() {
   try { const result = await closed; assert.equal(result.code,0,`Service should shut down cleanly: ${stderr}`); }
   finally { clearTimeout(timer); }
 }
+function postgresAlive(pid) {
+  if (!windows) {
+    try { return !/^\d+ \(.*\) [ZX] /.test(readFileSync(`/proc/${pid}/stat`,'utf8')); }
+    catch(error) { if(error.code === 'ENOENT') return false; throw error; }
+  }
+  const tasks = execFileSync('tasklist',['/FI',`PID eq ${pid}`,'/FO','CSV','/NH'],{encoding:'utf8'});
+  return tasks.includes(`"${pid}"`);
+}
 try {
   await start();
   const initial = await request('/auth/status');
@@ -88,18 +99,13 @@ try {
   await start();
   const postgresPID = Number((await readFile(resolve(directory,'postgres-17/postmaster.pid'),'utf8')).split('\n')[0]);
   assert(postgresPID > 1,'Managed PostgreSQL must record its process ID');
-  child.kill('SIGKILL');
-  assert.equal((await closed).signal,'SIGKILL');
+  child.kill(windows ? undefined : 'SIGKILL');
+  const crashed = await closed;
+  if (!windows) assert.equal(crashed.signal,'SIGKILL');
   let postgresStopped = false;
   const deadline = Date.now()+5000;
   while(Date.now()<deadline) {
-    try {
-      const stat = await readFile(`/proc/${postgresPID}/stat`,'utf8');
-      if (/^\d+ \(.*\) [ZX] /.test(stat)) {postgresStopped=true;break;}
-    } catch(error) {
-      if(error.code === 'ENOENT') {postgresStopped=true;break;}
-      throw error;
-    }
+    if (!postgresAlive(postgresPID)) {postgresStopped=true;break;}
     await new Promise(resolve => setTimeout(resolve,50));
   }
   assert(postgresStopped,'Managed PostgreSQL must stop when its parent is killed');
