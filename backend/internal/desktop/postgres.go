@@ -38,6 +38,34 @@ type Postgres struct {
 	once        sync.Once
 }
 
+// postgresLogTail makes a failed bundled-runtime startup diagnosable in CI
+// without exposing the per-installation data directory or credentials file.
+// PostgreSQL writes server failures to postgres.log, not to the Go process.
+func postgresLogTail(log *os.File) string {
+	if log == nil {
+		return ""
+	}
+	if err := log.Sync(); err != nil {
+		return ""
+	}
+	contents, err := os.ReadFile(log.Name())
+	if err != nil || len(contents) == 0 {
+		return ""
+	}
+	const maximum = 4096
+	if len(contents) > maximum {
+		contents = contents[len(contents)-maximum:]
+	}
+	return strings.TrimSpace(string(contents))
+}
+
+func postgresStoppedError(log *os.File) error {
+	if tail := postgresLogTail(log); tail != "" {
+		return fmt.Errorf("bundled PostgreSQL stopped before becoming ready: %s", tail)
+	}
+	return errors.New("bundled PostgreSQL stopped before becoming ready")
+}
+
 func secret() string {
 	data := make([]byte, 32)
 	if _, err := rand.Read(data); err != nil {
@@ -176,7 +204,7 @@ func StartPostgres(ctx context.Context, dataDir, postgresDir string) (*Postgres,
 		case <-ctx.Done():
 			return nil, errors.New("local database startup timed out or was cancelled")
 		case <-p.exited:
-			return nil, errors.New("bundled PostgreSQL stopped before becoming ready")
+			return nil, postgresStoppedError(p.log)
 		case <-ticker.C:
 		}
 	}
