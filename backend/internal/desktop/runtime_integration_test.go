@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -19,6 +21,11 @@ func TestManagedPostgresPersistsExactMoneySelectionAndPIN(t *testing.T) {
 		t.Skip("set GENTUM_DESKTOP_POSTGRES_DIR to bundled PostgreSQL resources")
 	}
 	dir := t.TempDir()
+	if runtime.GOOS == "windows" {
+		// Reproduce the resource and data path format supplied by Tauri.
+		binaries = "//?/" + filepath.ToSlash(binaries)
+		dir = "//?/" + filepath.ToSlash(dir)
+	}
 	type instance struct {
 		pg     *desktop.Postgres
 		app    *application.App

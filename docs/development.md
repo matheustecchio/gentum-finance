@@ -26,6 +26,8 @@ Windows packaging merges `desktop/tauri.windows.conf.json` into the shared Tauri
 
 Tauri selects the platform application data directory. On Linux it is normally `~/.local/share/com.gentum.finance` (or under `$XDG_DATA_HOME`). It contains PostgreSQL 17 data, generated credentials, a selection token, a lock file and a private log. Never commit or share this directory. Normal application exit stops its managed processes and preserves data. PIN-protected wallets require a fresh unlock on restart.
 
+On Windows, the managed runtime converts Tauri's extended-length resource and data paths to conventional Windows paths before invoking PostgreSQL. This avoids `initdb` failing to locate its sibling `postgres.exe` through the Windows command shell, including installation paths containing spaces. The conversion does not move or recreate existing databases.
+
 No code adopts or deletes the old Docker volume. There is no automatic full-ledger migration from the retired browser application. Backups and any full-database transfer need an explicit offline procedure; CSV transaction files do not include the complete ledger state.
 
 ## Checks

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,7 +96,24 @@ func loadCredentials(dir string) (credentials, error) {
 	}
 	return result, nil
 }
+
+// postgresPath removes Windows extended-length prefixes before handing paths to
+// PostgreSQL. initdb invokes postgres through cmd.exe, which cannot resolve the
+// forward-slash extended paths returned by Tauri (//?/C:/...).
+func postgresPath(path string) string {
+	if runtime.GOOS != "windows" {
+		return path
+	}
+	path = filepath.Clean(path)
+	if strings.HasPrefix(path, `\\?\UNC\`) {
+		return `\\` + strings.TrimPrefix(path, `\\?\UNC\`)
+	}
+	return strings.TrimPrefix(path, `\\?\`)
+}
+
 func StartPostgres(ctx context.Context, dataDir, postgresDir string) (*Postgres, error) {
+	dataDir = postgresPath(dataDir)
+	postgresDir = postgresPath(postgresDir)
 	if !filepath.IsAbs(dataDir) || !filepath.IsAbs(postgresDir) {
 		return nil, errors.New("absolute data and PostgreSQL paths are required")
 	}
