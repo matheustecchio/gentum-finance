@@ -32,6 +32,13 @@ No code adopts or deletes the old Docker volume. There is no automatic full-ledg
 
 ## Checks
 
+Pushes to `development` run only the Windows installer build in
+`.github/workflows/development.yml`, without automated test suites. Download the
+NSIS `.exe` from the run's `windows-development` artifact in GitHub Actions
+(retained for seven days) for manual testing. Compilation still includes the
+frontend TypeScript check required by the production build. Pull requests from
+`development` into `main` run the full existing CI workflow, as do pushes to `main`.
+
 ```bash
 cd backend
 go test -race ./...
