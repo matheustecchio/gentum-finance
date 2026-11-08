@@ -72,16 +72,29 @@ For documentation-only changes, verify links and commands against executable con
 
 Inspect status and the current branch before editing. Preserve unrelated work and do not commit directly to `main`.
 
+Use `development` as the integration branch and the base for new work. When the
+worktree is clean, switch to `development`, run `git pull --ff-only`, then create
+the working branch from it. If switching is unsafe or the pull cannot
+fast-forward, stop and report the state without discarding changes or rewriting
+history. This repository workflow takes precedence over generic skill defaults
+that start work from `main` or target PRs to `main`.
+
 When commits are requested:
 
-1. Create a descriptive `feature/`, `fix/`, `docs/`, or `chore/` branch.
+1. Create a descriptive `feature/`, `fix/`, `docs/`, or `chore/` branch from the updated `development`.
 2. Stage explicit paths and split substantial work into focused logical commits.
 3. Write concise commit messages in imperative mood.
 4. Run the checks required by `CONTRIBUTING.md` before committing.
 5. Push only with explicit authorization. Never force-push or rewrite published history.
 6. Before opening a pull request, check for an existing PR from the branch and update it instead of creating a duplicate.
-7. Target `main`, complete `.github/PULL_REQUEST_TEMPLATE.md`, and report exact passing, blocked, skipped, or unavailable checks.
+7. Always target `development` for implementation pull requests, complete `.github/PULL_REQUEST_TEMPLATE.md`, and report exact passing, blocked, skipped, or unavailable checks. Use `gh pr create --base development` or the equivalent explicit base in the GitHub tool; do not rely on the repository's default branch.
 8. Leave review and merge to the repository owner unless explicitly asked to perform them.
+
+Pushes to `development` run only the Windows installer build for manual testing.
+Promote `development` to `main` only when the owner explicitly requests that PR;
+the promotion PR runs the full existing CI suite. Do not open a PR directly from
+an implementation branch to `main`. Build-only CI does not waive the local
+validation requirements above.
 
 Do not claim GitHub enforcement merely because project policy requires a check. Confirm that the corresponding workflow and branch rule exist remotely. Do not create merge commits, merge into `main`, publish, deploy, release, or run production migrations without explicit authorization.
 
